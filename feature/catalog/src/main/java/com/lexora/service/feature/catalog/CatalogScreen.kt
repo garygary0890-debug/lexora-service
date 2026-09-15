@@ -23,6 +23,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.lexora.service.core.data.CatalogRepository
+import com.lexora.service.core.data.PersistentOrganizationRepository
+import com.lexora.service.core.data.PersistentUserRepository
 import com.lexora.service.core.data.ServiceConstructorRepository
 import com.lexora.service.core.database.LexoraServiceDatabase
 import com.lexora.service.core.model.Organization
@@ -35,56 +37,66 @@ import kotlinx.coroutines.launch
 
 @Composable
 fun CatalogScreen(
-    organization: Organization,
-    user: ServiceUser,
+    organization: Organization? = null,
+    user: ServiceUser? = null,
 ) {
     val context = LocalContext.current
     val database = remember { LexoraServiceDatabase.create(context.applicationContext) }
     val repository = remember { CatalogRepository.create(context) }
-    val constructorRepository = remember {
-        ServiceConstructorRepository(database.serviceConstructorDao(), database.serviceDao())
-    }
+    val constructorRepository = remember { ServiceConstructorRepository(database.serviceConstructorDao(), database.serviceDao()) }
+    val organizationRepository = remember(database) { PersistentOrganizationRepository(database.serviceDao()) }
+    val userRepository = remember(database) { PersistentUserRepository(database.userDao(), database.serviceDao()) }
     val scope = rememberCoroutineScope()
 
+    var resolvedOrganization by remember(organization?.id) { mutableStateOf(organization) }
+    var resolvedUser by remember(user?.id) { mutableStateOf(user) }
     var services by remember { mutableStateOf<List<ServiceCatalogItem>>(emptyList()) }
     var priceLists by remember { mutableStateOf<List<PriceList>>(emptyList()) }
     var selectedPriceListId by remember { mutableStateOf<String?>(null) }
     var priceItems by remember { mutableStateOf<List<PriceListItem>>(emptyList()) }
     var recipeSummaries by remember { mutableStateOf<List<ServiceRecipeSummary>>(emptyList()) }
 
+    LaunchedEffect(organization?.id, user?.id) {
+        val activeOrganization = organization ?: organizationRepository.ensureBootstrapOrganization()
+        resolvedOrganization = activeOrganization
+        resolvedUser = user ?: userRepository.ensureLocalAdmin(activeOrganization.id)
+    }
+
+    val activeOrganization = resolvedOrganization ?: return
+    val activeUser = resolvedUser ?: return
+
     suspend fun reload() {
-        val orgId = organization.id
-        services = repository.services(orgId)
+        services = repository.services(activeOrganization.id)
         services.filter { it.active }.forEach { service ->
             constructorRepository.ensureRecipe(
-                organizationId = orgId,
-                userId = user.id,
+                organizationId = activeOrganization.id,
+                userId = activeUser.id,
                 serviceCatalogItemId = service.id,
                 serviceName = service.name,
                 durationMinutes = service.durationMinutes,
             )
         }
-        recipeSummaries = constructorRepository.recipes(orgId)
-        priceLists = repository.priceLists(orgId)
+        recipeSummaries = constructorRepository.recipes(activeOrganization.id)
+        priceLists = repository.priceLists(activeOrganization.id)
         val selected = selectedPriceListId?.takeIf { id -> priceLists.any { it.id == id } } ?: priceLists.firstOrNull()?.id
         selectedPriceListId = selected
         priceItems = selected?.let { repository.priceItems(it) }.orEmpty()
     }
 
-    LaunchedEffect(organization.id, user.id) { reload() }
+    LaunchedEffect(activeOrganization.id, activeUser.id) { reload() }
 
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Text("Услуги и прайс-листы", style = MaterialTheme.typography.headlineMedium)
-        Button(onClick = { scope.launch { repository.addService(organization.id, user.id); reload() } }) { Text("Добавить услугу") }
+        Button(onClick = { scope.launch { repository.addService(activeOrganization.id, activeUser.id); reload() } }) { Text("Добавить услугу") }
         services.forEach { service ->
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text("${service.code} · ${service.name}", style = MaterialTheme.typography.titleSmall)
                     Text("${service.category.orEmpty()} · ${service.unit} · ${service.durationMinutes ?: 0} мин")
-                    OutlinedButton(onClick = { scope.launch { repository.toggleService(service, user.id); reload() } }) {
+                    OutlinedButton(onClick = { scope.launch { repository.toggleService(service, activeUser.id); reload() } }) {
                         Text(if (service.active) "Отключить" else "Включить")
                     }
                 }
@@ -95,20 +107,20 @@ fun CatalogScreen(
             summaries = recipeSummaries.filter { it.recipe.active },
             onAddComponent = { recipeId, type, name, quantity, unit, unitCostMinor ->
                 scope.launch {
-                    constructorRepository.addComponent(organization.id, user.id, recipeId, type, name, quantity, unit, unitCostMinor)
+                    constructorRepository.addComponent(activeOrganization.id, activeUser.id, recipeId, type, name, quantity, unit, unitCostMinor)
                     reload()
                 }
             },
             onSetComponentActive = { componentId, active ->
                 scope.launch {
-                    constructorRepository.setComponentActive(organization.id, user.id, componentId, active)
+                    constructorRepository.setComponentActive(activeOrganization.id, activeUser.id, componentId, active)
                     reload()
                 }
             },
         )
 
         Text("Прайс-листы", style = MaterialTheme.typography.titleMedium)
-        Button(onClick = { scope.launch { repository.addPriceList(organization.id, user.id); reload() } }) { Text("Добавить прайс-лист") }
+        Button(onClick = { scope.launch { repository.addPriceList(activeOrganization.id, activeUser.id); reload() } }) { Text("Добавить прайс-лист") }
         priceLists.forEach { list ->
             OutlinedButton(onClick = { scope.launch { selectedPriceListId = list.id; priceItems = repository.priceItems(list.id) } }) {
                 Text("${list.name} · ${list.currency}${if (list.id == selectedPriceListId) " · выбран" else ""}")
@@ -124,7 +136,7 @@ fun CatalogScreen(
                     Column(Modifier.padding(16.dp)) {
                         Text("${service.code} · ${service.name}")
                         Text(if (item == null) "Цена не задана" else "${item.priceMinor / 100.0} ${selected.currency}")
-                        Button(onClick = { scope.launch { repository.addPriceItem(selected, service, user.id); reload() } }) {
+                        Button(onClick = { scope.launch { repository.addPriceItem(selected, service, activeUser.id); reload() } }) {
                             Text(if (item == null) "Добавить цену" else "Обновить цену")
                         }
                     }

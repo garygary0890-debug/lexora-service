@@ -27,6 +27,7 @@ import com.lexora.service.core.model.*
 import com.lexora.service.core.navigation.Routes
 import com.lexora.service.feature.assets.AssetsScreen
 import com.lexora.service.feature.clients.ClientsScreen
+import com.lexora.service.feature.documents.DocumentsScreen
 import com.lexora.service.feature.fieldwork.FieldWorkScreen
 import com.lexora.service.feature.home.HomeScreen
 import com.lexora.service.feature.organization.OrganizationScreen
@@ -74,6 +75,8 @@ private fun LexoraServiceApp() {
         var visits by remember { mutableStateOf<List<ServiceVisit>>(emptyList()) }
         var selectedVisitId by remember { mutableStateOf<String?>(null) }
         var visitChecklist by remember { mutableStateOf<List<VisitChecklistItem>>(emptyList()) }
+        var serviceDocuments by remember { mutableStateOf<List<ServiceDocument>>(emptyList()) }
+        var payments by remember { mutableStateOf<List<Payment>>(emptyList()) }
 
         val organization = requireNotNull(organizationRepository.activeOrganization())
         val user = userRepository.currentUser()
@@ -113,6 +116,10 @@ private fun LexoraServiceApp() {
             selectedVisitId = visitId
             visitChecklist = dao.visitChecklist(visitId).map(VisitChecklistItemEntity::toModel)
         }
+        suspend fun reloadDocumentsAndPayments() {
+            serviceDocuments = dao.serviceDocuments(organization.id).map(ServiceDocumentEntity::toModel)
+            payments = dao.payments(organization.id).map(PaymentEntity::toModel)
+        }
         suspend fun audit(entityType: String, entityId: String?, action: String, summary: String) {
             dao.insertAuditEvent(AuditEventEntity(UUID.randomUUID().toString(), organization.id, user.id, entityType, entityId, action, summary, System.currentTimeMillis()))
         }
@@ -123,7 +130,7 @@ private fun LexoraServiceApp() {
             if (dao.clients(organization.id).isEmpty() && dao.archivedClients(organization.id).isEmpty()) {
                 dao.upsertClient(ClientEntity("client-demo-1", organization.id, ClientType.PERSON.name, "Демонстрационный клиент", "+7 900 000-00-00", null, null, null, null, null, null, false, false, SyncState.PENDING_CREATE.name, now, now))
             }
-            reloadClients(); reloadVehicles(); reloadAssets(); reloadOrganization(); reloadRequests(); reloadVisits()
+            reloadClients(); reloadVehicles(); reloadAssets(); reloadOrganization(); reloadRequests(); reloadVisits(); reloadDocumentsAndPayments()
         }
 
         val navController = rememberNavController()
@@ -139,6 +146,7 @@ private fun LexoraServiceApp() {
                         onOpenOrganization = { navController.navigate(Routes.Organization) },
                         onOpenRequests = { navController.navigate(Routes.Requests) },
                         onOpenFieldWork = { navController.navigate(Routes.FieldWork) },
+                        onOpenDocuments = { navController.navigate(Routes.Documents) },
                         onOpenWash = { if (accessibleModules.any { it.id == LexoraModuleId.WASH }) navController.navigate(Routes.Wash) },
                         onOpenTires = { if (accessibleModules.any { it.id == LexoraModuleId.TIRES }) navController.navigate(Routes.Tires) },
                         onOpenSettings = { navController.navigate(Routes.Settings) },
@@ -231,26 +239,7 @@ private fun LexoraServiceApp() {
                             val request = dao.serviceRequest(requestId) ?: return@launch
                             val now = System.currentTimeMillis()
                             val id = UUID.randomUUID().toString()
-                            dao.upsertServiceVisit(
-                                ServiceVisitEntity(
-                                    id = id,
-                                    organizationId = organization.id,
-                                    requestId = requestId,
-                                    branchId = request.branchId,
-                                    employeeId = employeeId ?: request.assigneeEmployeeId,
-                                    status = VisitStatus.PLANNED.name,
-                                    plannedStartEpochMs = request.plannedAtEpochMs,
-                                    plannedEndEpochMs = request.dueAtEpochMs,
-                                    actualStartEpochMs = null,
-                                    actualEndEpochMs = null,
-                                    resultNote = null,
-                                    customerName = null,
-                                    customerSignatureRef = null,
-                                    syncState = SyncState.PENDING_CREATE.name,
-                                    createdAtEpochMs = now,
-                                    updatedAtEpochMs = now,
-                                )
-                            )
+                            dao.upsertServiceVisit(ServiceVisitEntity(id, organization.id, requestId, request.branchId, employeeId ?: request.assigneeEmployeeId, VisitStatus.PLANNED.name, request.plannedAtEpochMs, request.dueAtEpochMs, null, null, null, null, null, SyncState.PENDING_CREATE.name, now, now))
                             audit("SERVICE_VISIT", id, "CREATE", "Выезд по заявке ${request.number}")
                             reloadVisits()
                         } },
@@ -290,6 +279,56 @@ private fun LexoraServiceApp() {
                         } },
                     )
                 }
+                composable(Routes.Documents) {
+                    DocumentsScreen(
+                        documents = serviceDocuments,
+                        payments = payments,
+                        requests = requests,
+                        onCreateDocument = { type, requestId -> scope.launch {
+                            val now = System.currentTimeMillis()
+                            val request = requestId?.let { dao.serviceRequest(it) }
+                            val prefix = when (type) { ServiceDocumentType.WORK_ORDER -> "WO"; ServiceDocumentType.ACT -> "ACT"; ServiceDocumentType.INVOICE -> "INV" }
+                            val max = dao.serviceDocuments(organization.id).filter { it.number.startsWith("$prefix-") }.mapNotNull { it.number.removePrefix("$prefix-").toIntOrNull() }.maxOrNull() ?: 0
+                            val number = "$prefix-%06d".format(max + 1)
+                            val id = UUID.randomUUID().toString()
+                            val visitId = requestId?.let { dao.visitsForRequest(it).firstOrNull()?.id }
+                            dao.upsertServiceDocument(ServiceDocumentEntity(id, organization.id, requestId, visitId, request?.clientId, type.name, number, ServiceDocumentStatus.DRAFT.name, null, 0L, "RUB", null, null, false, SyncState.PENDING_CREATE.name, now, now))
+                            audit("SERVICE_DOCUMENT", id, "CREATE", "$number · ${type.name}")
+                            reloadDocumentsAndPayments()
+                        } },
+                        onChangeDocumentStatus = { id, target -> scope.launch {
+                            val current = dao.serviceDocument(id) ?: return@launch
+                            val from = ServiceDocumentStatus.valueOf(current.status)
+                            val allowed = when (from) {
+                                ServiceDocumentStatus.DRAFT -> target == ServiceDocumentStatus.ISSUED || target == ServiceDocumentStatus.CANCELLED
+                                ServiceDocumentStatus.ISSUED -> target == ServiceDocumentStatus.SIGNED || target == ServiceDocumentStatus.CANCELLED
+                                ServiceDocumentStatus.SIGNED, ServiceDocumentStatus.CANCELLED -> false
+                            }
+                            if (!allowed) return@launch
+                            val now = System.currentTimeMillis()
+                            dao.updateServiceDocumentStatus(id, target.name, if (target == ServiceDocumentStatus.ISSUED) now else current.issuedAtEpochMs, SyncState.PENDING_UPDATE.name, now)
+                            audit("SERVICE_DOCUMENT", id, "STATUS_CHANGE", "${current.number}: ${from.name} → ${target.name}")
+                            reloadDocumentsAndPayments()
+                        } },
+                        onCreatePayment = { requestId -> scope.launch {
+                            val now = System.currentTimeMillis()
+                            val request = requestId?.let { dao.serviceRequest(it) }
+                            val linkedDocument = serviceDocuments.firstOrNull { it.requestId == requestId && !it.archived }
+                            val id = UUID.randomUUID().toString()
+                            dao.upsertPayment(PaymentEntity(id, organization.id, requestId, linkedDocument?.id, request?.clientId, linkedDocument?.totalMinor ?: 0L, linkedDocument?.currency ?: "RUB", PaymentStatus.PLANNED.name, PaymentMethod.BANK_TRANSFER.name, null, null, null, false, SyncState.PENDING_CREATE.name, now, now))
+                            audit("PAYMENT", id, "CREATE", "Платёж по заявке ${request?.number.orEmpty()}")
+                            reloadDocumentsAndPayments()
+                        } },
+                        onMarkPaymentPaid = { id -> scope.launch {
+                            val current = dao.payment(id) ?: return@launch
+                            if (PaymentStatus.valueOf(current.status) != PaymentStatus.PLANNED) return@launch
+                            val now = System.currentTimeMillis()
+                            dao.updatePaymentStatus(id, PaymentStatus.PAID.name, now, SyncState.PENDING_UPDATE.name, now)
+                            audit("PAYMENT", id, "STATUS_CHANGE", "PLANNED → PAID")
+                            reloadDocumentsAndPayments()
+                        } },
+                    )
+                }
                 composable(Routes.Settings) { SettingsScreen(organization = organization, user = user, modules = modules, onModuleEnabledChange = { moduleId, enabled -> moduleRegistry.updateEnabled(organization.id, moduleId, enabled); stateVersion++ }) }
                 composable(Routes.Wash) { WashScreen() }
                 composable(Routes.Tires) { TiresScreen() }
@@ -308,3 +347,5 @@ private fun EmployeeEntity.toModel() = Employee(id, organizationId, branchId, di
 private fun ServiceRequestEntity.toModel() = ServiceRequest(id, organizationId, number, clientId, vehicleId, serviceObjectId, equipmentId, branchId, assigneeEmployeeId, title, description, RequestStatus.valueOf(status), RequestPriority.valueOf(priority), plannedAtEpochMs, dueAtEpochMs, slaDeadlineEpochMs, closedAtEpochMs, archived, SyncState.valueOf(syncState))
 private fun ServiceVisitEntity.toModel() = ServiceVisit(id, organizationId, requestId, branchId, employeeId, VisitStatus.valueOf(status), plannedStartEpochMs, plannedEndEpochMs, actualStartEpochMs, actualEndEpochMs, resultNote, customerName, customerSignatureRef, SyncState.valueOf(syncState))
 private fun VisitChecklistItemEntity.toModel() = VisitChecklistItem(id, visitId, title, ChecklistItemState.valueOf(state), comment, sortOrder, SyncState.valueOf(syncState))
+private fun ServiceDocumentEntity.toModel() = ServiceDocument(id, organizationId, requestId, visitId, clientId, ServiceDocumentType.valueOf(type), number, ServiceDocumentStatus.valueOf(status), issuedAtEpochMs, totalMinor, currency, externalFileRef, note, archived, SyncState.valueOf(syncState))
+private fun PaymentEntity.toModel() = Payment(id, organizationId, requestId, documentId, clientId, amountMinor, currency, PaymentStatus.valueOf(status), PaymentMethod.valueOf(method), paidAtEpochMs, externalReference, note, archived, SyncState.valueOf(syncState))

@@ -69,4 +69,23 @@ interface ServiceDao {
     @Query("UPDATE service_requests SET archived = 1, syncState = :syncState, updatedAtEpochMs = :updatedAt WHERE id = :id") suspend fun archiveServiceRequest(id: String, syncState: String, updatedAt: Long)
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun insertRequestStatusHistory(value: RequestStatusHistoryEntity)
     @Query("SELECT * FROM request_status_history WHERE requestId = :requestId ORDER BY changedAtEpochMs DESC") suspend fun requestStatusHistory(requestId: String): List<RequestStatusHistoryEntity>
+
+    @Query("SELECT * FROM service_visits WHERE organizationId = :organizationId ORDER BY COALESCE(plannedStartEpochMs, createdAtEpochMs) DESC") suspend fun serviceVisits(organizationId: String): List<ServiceVisitEntity>
+    @Query("SELECT * FROM service_visits WHERE requestId = :requestId ORDER BY COALESCE(plannedStartEpochMs, createdAtEpochMs) DESC") suspend fun visitsForRequest(requestId: String): List<ServiceVisitEntity>
+    @Query("SELECT * FROM service_visits WHERE id = :id LIMIT 1") suspend fun serviceVisit(id: String): ServiceVisitEntity?
+    @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun upsertServiceVisit(value: ServiceVisitEntity)
+    @Query("UPDATE service_visits SET status = :status, actualStartEpochMs = COALESCE(actualStartEpochMs, :actualStart), actualEndEpochMs = :actualEnd, syncState = :syncState, updatedAtEpochMs = :updatedAt WHERE id = :id") suspend fun updateVisitStatus(id: String, status: String, actualStart: Long?, actualEnd: Long?, syncState: String, updatedAt: Long)
+
+    @Query("SELECT * FROM visit_checklist_items WHERE visitId = :visitId ORDER BY sortOrder, title") suspend fun visitChecklist(visitId: String): List<VisitChecklistItemEntity>
+    @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun upsertVisitChecklistItem(value: VisitChecklistItemEntity)
+    @Query("UPDATE visit_checklist_items SET state = :state, syncState = :syncState, updatedAtEpochMs = :updatedAt WHERE id = :id") suspend fun updateChecklistItemState(id: String, state: String, syncState: String, updatedAt: Long)
+
+    @Query("SELECT * FROM visit_work_entries WHERE visitId = :visitId ORDER BY title") suspend fun visitWorkEntries(visitId: String): List<VisitWorkEntryEntity>
+    @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun upsertVisitWorkEntry(value: VisitWorkEntryEntity)
+
+    @Query("SELECT * FROM visit_material_usage WHERE visitId = :visitId ORDER BY title") suspend fun visitMaterialUsage(visitId: String): List<VisitMaterialUsageEntity>
+    @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun upsertVisitMaterialUsage(value: VisitMaterialUsageEntity)
+
+    @Query("SELECT * FROM visit_photos WHERE visitId = :visitId ORDER BY takenAtEpochMs DESC") suspend fun visitPhotos(visitId: String): List<VisitPhotoEntity>
+    @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun upsertVisitPhoto(value: VisitPhotoEntity)
 }

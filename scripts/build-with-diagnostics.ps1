@@ -17,7 +17,24 @@ $timestamp = Get-Date -Format "yyyy-MM-dd_HH-mm-ss"
 $startedAt = Get-Date
 $latestLog = Join-Path $diagnosticsDir "latest-build.log"
 $latestSummary = Join-Path $diagnosticsDir "latest-summary.txt"
+$workingTreePatch = Join-Path $diagnosticsDir "working-tree.patch"
+$gitStatusFile = Join-Path $diagnosticsDir "git-status.txt"
 $historyLog = Join-Path $historyDir "$timestamp.log"
+
+function Capture-WorkingTree {
+    if ($null -eq (Get-Command git -ErrorAction SilentlyContinue)) {
+        "Git is not available." | Set-Content -Path $gitStatusFile -Encoding UTF8
+        "" | Set-Content -Path $workingTreePatch -Encoding UTF8
+        return
+    }
+    git status --short 2>&1 | Set-Content -Path $gitStatusFile -Encoding UTF8
+    git diff --binary -- . ':(exclude)build-diagnostics/**' 2>&1 | Set-Content -Path $workingTreePatch -Encoding UTF8
+    $untracked = git ls-files --others --exclude-standard
+    if ($untracked) {
+        Add-Content -Path $workingTreePatch -Value "`n# Untracked files present (content not embedded automatically):"
+        $untracked | ForEach-Object { Add-Content -Path $workingTreePatch -Value "# $_" }
+    }
+}
 
 function Publish-Diagnostics([string]$status) {
     if ($NoPush) { return }
@@ -32,7 +49,7 @@ function Publish-Diagnostics([string]$status) {
         return
     }
 
-    git add -- build-diagnostics/latest-build.log build-diagnostics/latest-summary.txt
+    git add -- build-diagnostics/latest-build.log build-diagnostics/latest-summary.txt build-diagnostics/working-tree.patch build-diagnostics/git-status.txt
     if (-not $NoHistory -and (Test-Path $historyLog)) {
         git add -- "build-diagnostics/history/$timestamp.log"
     }
@@ -52,6 +69,8 @@ function Publish-Diagnostics([string]$status) {
     }
 }
 
+Capture-WorkingTree
+
 $gradle = Join-Path $projectRoot "gradlew.bat"
 if (-not (Test-Path $gradle)) {
     $finishedAt = Get-Date
@@ -63,6 +82,8 @@ Task: $Task
 Started: $($startedAt.ToString("s"))
 Finished: $($finishedAt.ToString("s"))
 Reason: gradlew.bat is missing. Generate/add Gradle Wrapper before using this build entry point.
+WorkingTreePatch: build-diagnostics/working-tree.patch
+GitStatus: build-diagnostics/git-status.txt
 "@
     $message | Set-Content -Path $latestSummary -Encoding UTF8
     $message | Set-Content -Path $latestLog -Encoding UTF8
@@ -81,6 +102,7 @@ $duration = New-TimeSpan -Start $startedAt -End $finishedAt
 $status = if ($exitCode -eq 0) { "SUCCESS" } else { "FAILED" }
 
 if (-not $NoHistory) { Copy-Item $latestLog $historyLog -Force }
+Capture-WorkingTree
 
 $branch = "unknown"
 $head = "unknown"
@@ -99,6 +121,8 @@ Branch: $branch
 HeadBeforeDiagnosticsCommit: $head
 LatestLog: build-diagnostics/latest-build.log
 HistoryLog: $(if ($NoHistory) { "disabled" } else { "build-diagnostics/history/$timestamp.log" })
+WorkingTreePatch: build-diagnostics/working-tree.patch
+GitStatus: build-diagnostics/git-status.txt
 "@
 $summary | Set-Content -Path $latestSummary -Encoding UTF8
 Write-Host $summary

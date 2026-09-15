@@ -36,6 +36,7 @@ java {
 }
 
 dependencies {
+    implementation(project(":feature:users"))
     implementation(project(":feature:audit"))
     implementation(project(":feature:notifications"))
     implementation(project(":feature:catalog"))

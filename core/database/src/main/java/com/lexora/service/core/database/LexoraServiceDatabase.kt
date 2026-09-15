@@ -18,8 +18,9 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         WashChemicalUsageEntity::class, TireQueueItemEntity::class, TireDiagnosticEntity::class,
         TireWorkEntryEntity::class, TireStorageItemEntity::class, ServiceCatalogItemEntity::class,
         PriceListEntity::class, PriceListItemEntity::class, WorkOrderItemEntity::class,
+        LoyaltyAccountEntity::class, LoyaltyTransactionEntity::class, QualityControlRecordEntity::class,
     ],
-    version = 13,
+    version = 14,
     exportSchema = true,
 )
 abstract class LexoraServiceDatabase : RoomDatabase() {
@@ -28,6 +29,7 @@ abstract class LexoraServiceDatabase : RoomDatabase() {
     abstract fun tireDao(): TireDao
     abstract fun catalogDao(): CatalogDao
     abstract fun workOrderDao(): WorkOrderDao
+    abstract fun customerCareDao(): CustomerCareDao
 
     companion object {
         private val MIGRATION_1_2 = object : Migration(1, 2) { override fun migrate(db: SupportSQLiteDatabase) { db.execSQL("ALTER TABLE clients ADD COLUMN kpp TEXT"); db.execSQL("ALTER TABLE clients ADD COLUMN registrationAddress TEXT"); db.execSQL("ALTER TABLE clients ADD COLUMN actualAddress TEXT"); db.execSQL("ALTER TABLE clients ADD COLUMN note TEXT"); db.execSQL("ALTER TABLE clients ADD COLUMN consentPersonalData INTEGER NOT NULL DEFAULT 0") } }
@@ -70,7 +72,27 @@ abstract class LexoraServiceDatabase : RoomDatabase() {
             db.execSQL("CREATE INDEX IF NOT EXISTS index_work_order_items_serviceCatalogItemId ON work_order_items(serviceCatalogItemId)")
             db.execSQL("CREATE INDEX IF NOT EXISTS index_work_order_items_approvalStatus ON work_order_items(approvalStatus)")
         } }
+        private val MIGRATION_13_14 = object : Migration(13, 14) { override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("CREATE TABLE IF NOT EXISTS loyalty_accounts (id TEXT NOT NULL PRIMARY KEY, organizationId TEXT NOT NULL, clientId TEXT NOT NULL, pointsBalance INTEGER NOT NULL, active INTEGER NOT NULL, syncState TEXT NOT NULL, updatedAtEpochMs INTEGER NOT NULL)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_loyalty_accounts_organizationId ON loyalty_accounts(organizationId)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_loyalty_accounts_clientId ON loyalty_accounts(clientId)")
+            db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_loyalty_accounts_organizationId_clientId ON loyalty_accounts(organizationId, clientId)")
+            db.execSQL("CREATE TABLE IF NOT EXISTS loyalty_transactions (id TEXT NOT NULL PRIMARY KEY, organizationId TEXT NOT NULL, clientId TEXT NOT NULL, accountId TEXT NOT NULL, requestId TEXT, paymentId TEXT, type TEXT NOT NULL, pointsDelta INTEGER NOT NULL, comment TEXT, occurredAtEpochMs INTEGER NOT NULL, syncState TEXT NOT NULL, updatedAtEpochMs INTEGER NOT NULL)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_loyalty_transactions_organizationId ON loyalty_transactions(organizationId)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_loyalty_transactions_clientId ON loyalty_transactions(clientId)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_loyalty_transactions_accountId ON loyalty_transactions(accountId)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_loyalty_transactions_requestId ON loyalty_transactions(requestId)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_loyalty_transactions_paymentId ON loyalty_transactions(paymentId)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_loyalty_transactions_occurredAtEpochMs ON loyalty_transactions(occurredAtEpochMs)")
+            db.execSQL("CREATE TABLE IF NOT EXISTS quality_control (id TEXT NOT NULL PRIMARY KEY, organizationId TEXT NOT NULL, requestId TEXT NOT NULL, clientId TEXT, vehicleId TEXT, status TEXT NOT NULL, rating INTEGER, checklistResult TEXT, issueDescription TEXT, resolutionNote TEXT, controlledAtEpochMs INTEGER, syncState TEXT NOT NULL, updatedAtEpochMs INTEGER NOT NULL)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_quality_control_organizationId ON quality_control(organizationId)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_quality_control_requestId ON quality_control(requestId)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_quality_control_clientId ON quality_control(clientId)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_quality_control_vehicleId ON quality_control(vehicleId)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_quality_control_status ON quality_control(status)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_quality_control_controlledAtEpochMs ON quality_control(controlledAtEpochMs)")
+        } }
 
-        fun create(context: Context): LexoraServiceDatabase = Room.databaseBuilder(context.applicationContext, LexoraServiceDatabase::class.java, "lexora-service.db").addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13).build()
+        fun create(context: Context): LexoraServiceDatabase = Room.databaseBuilder(context.applicationContext, LexoraServiceDatabase::class.java, "lexora-service.db").addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14).build()
     }
 }

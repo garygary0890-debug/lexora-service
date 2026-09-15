@@ -19,8 +19,9 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         TireWorkEntryEntity::class, TireStorageItemEntity::class, ServiceCatalogItemEntity::class,
         PriceListEntity::class, PriceListItemEntity::class, WorkOrderItemEntity::class,
         LoyaltyAccountEntity::class, LoyaltyTransactionEntity::class, QualityControlRecordEntity::class,
+        ServiceContractEntity::class,
     ],
-    version = 14,
+    version = 15,
     exportSchema = true,
 )
 abstract class LexoraServiceDatabase : RoomDatabase() {
@@ -30,6 +31,7 @@ abstract class LexoraServiceDatabase : RoomDatabase() {
     abstract fun catalogDao(): CatalogDao
     abstract fun workOrderDao(): WorkOrderDao
     abstract fun customerCareDao(): CustomerCareDao
+    abstract fun contractDao(): ContractDao
 
     companion object {
         private val MIGRATION_1_2 = object : Migration(1, 2) { override fun migrate(db: SupportSQLiteDatabase) { db.execSQL("ALTER TABLE clients ADD COLUMN kpp TEXT"); db.execSQL("ALTER TABLE clients ADD COLUMN registrationAddress TEXT"); db.execSQL("ALTER TABLE clients ADD COLUMN actualAddress TEXT"); db.execSQL("ALTER TABLE clients ADD COLUMN note TEXT"); db.execSQL("ALTER TABLE clients ADD COLUMN consentPersonalData INTEGER NOT NULL DEFAULT 0") } }
@@ -92,7 +94,16 @@ abstract class LexoraServiceDatabase : RoomDatabase() {
             db.execSQL("CREATE INDEX IF NOT EXISTS index_quality_control_status ON quality_control(status)")
             db.execSQL("CREATE INDEX IF NOT EXISTS index_quality_control_controlledAtEpochMs ON quality_control(controlledAtEpochMs)")
         } }
+        private val MIGRATION_14_15 = object : Migration(14, 15) { override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("CREATE TABLE IF NOT EXISTS service_contracts (id TEXT NOT NULL PRIMARY KEY, organizationId TEXT NOT NULL, clientId TEXT NOT NULL, branchId TEXT, number TEXT NOT NULL, subject TEXT NOT NULL, status TEXT NOT NULL, startAtEpochMs INTEGER, endAtEpochMs INTEGER, signedAtEpochMs INTEGER, externalFileRef TEXT, note TEXT, archived INTEGER NOT NULL, syncState TEXT NOT NULL, createdAtEpochMs INTEGER NOT NULL, updatedAtEpochMs INTEGER NOT NULL)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_service_contracts_organizationId ON service_contracts(organizationId)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_service_contracts_clientId ON service_contracts(clientId)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_service_contracts_branchId ON service_contracts(branchId)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_service_contracts_status ON service_contracts(status)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_service_contracts_endAtEpochMs ON service_contracts(endAtEpochMs)")
+            db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_service_contracts_organizationId_number ON service_contracts(organizationId, number)")
+        } }
 
-        fun create(context: Context): LexoraServiceDatabase = Room.databaseBuilder(context.applicationContext, LexoraServiceDatabase::class.java, "lexora-service.db").addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14).build()
+        fun create(context: Context): LexoraServiceDatabase = Room.databaseBuilder(context.applicationContext, LexoraServiceDatabase::class.java, "lexora-service.db").addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15).build()
     }
 }

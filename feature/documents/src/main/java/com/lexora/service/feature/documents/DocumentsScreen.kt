@@ -25,6 +25,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.lexora.service.core.data.ContractRepository
 import com.lexora.service.core.data.InMemoryOrganizationRepository
 import com.lexora.service.core.data.InMemoryUserRepository
 import com.lexora.service.core.data.WorkOrderRepository
@@ -51,15 +52,10 @@ fun DocumentsScreen(
     onChangeDocumentStatus: (String, ServiceDocumentStatus) -> Unit,
     onCreatePayment: (String?) -> Unit,
     onMarkPaymentPaid: (String) -> Unit,
-    contracts: List<ServiceContract> = emptyList(),
-    archivedContracts: List<ServiceContract> = emptyList(),
-    onCreateContract: () -> Unit = {},
-    onChangeContractStatus: (String, ContractStatus) -> Unit = { _, _ -> },
-    onArchiveContract: (String) -> Unit = {},
-    onRestoreContract: (String) -> Unit = {},
 ) {
     val context = LocalContext.current
     val workOrderRepository = remember { WorkOrderRepository.create(context) }
+    val contractRepository = remember { ContractRepository.create(context) }
     val organization = remember { InMemoryOrganizationRepository().activeOrganization() }
     val user = remember { InMemoryUserRepository().currentUser() }
     val scope = rememberCoroutineScope()
@@ -67,16 +63,28 @@ fun DocumentsScreen(
     var tab by remember { mutableStateOf(Tab.DOCUMENTS) }
     var selectedWorkOrderId by remember { mutableStateOf<String?>(null) }
     var workOrderItems by remember { mutableStateOf<List<WorkOrderItem>>(emptyList()) }
+    var contracts by remember { mutableStateOf<List<ServiceContract>>(emptyList()) }
+    var archivedContracts by remember { mutableStateOf<List<ServiceContract>>(emptyList()) }
 
     suspend fun reloadWorkOrderItems(documentId: String?) {
         selectedWorkOrderId = documentId
         workOrderItems = documentId?.let { workOrderRepository.items(it) }.orEmpty()
     }
 
+    suspend fun reloadContracts() {
+        val organizationId = organization?.id ?: return
+        contracts = contractRepository.contracts(organizationId)
+        archivedContracts = contractRepository.archivedContracts(organizationId)
+    }
+
     LaunchedEffect(documents) {
         val available = documents.firstOrNull { it.type == ServiceDocumentType.WORK_ORDER }?.id
         val selected = selectedWorkOrderId?.takeIf { id -> documents.any { it.id == id } } ?: available
         reloadWorkOrderItems(selected)
+    }
+
+    LaunchedEffect(organization?.id) {
+        reloadContracts()
     }
 
     Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -86,7 +94,8 @@ fun DocumentsScreen(
             FilterChip(selected = tab == Tab.PAYMENTS, onClick = { tab = Tab.PAYMENTS }, label = { Text(stringResource(R.string.payments_tab)) })
             FilterChip(selected = tab == Tab.CONTRACTS, onClick = { tab = Tab.CONTRACTS }, label = { Text("Договоры") })
         }
-        val firstRequestId = requests.firstOrNull()?.id
+        val firstRequest = requests.firstOrNull()
+        val firstRequestId = firstRequest?.id
         when (tab) {
             Tab.DOCUMENTS -> {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -169,10 +178,42 @@ fun DocumentsScreen(
                 ContractsSection(
                     contracts = contracts,
                     archivedContracts = archivedContracts,
-                    onCreate = onCreateContract,
-                    onChangeStatus = onChangeContractStatus,
-                    onArchive = onArchiveContract,
-                    onRestore = onRestoreContract,
+                    onCreate = {
+                        val organizationId = organization?.id ?: return@ContractsSection
+                        val request = firstRequest ?: return@ContractsSection
+                        val clientId = request.clientId ?: return@ContractsSection
+                        scope.launch {
+                            contractRepository.create(
+                                organizationId = organizationId,
+                                userId = user.id,
+                                clientId = clientId,
+                                branchId = request.branchId,
+                                subject = "Договор на сервисное обслуживание",
+                            )
+                            reloadContracts()
+                        }
+                    },
+                    onChangeStatus = { contractId, status ->
+                        val organizationId = organization?.id ?: return@ContractsSection
+                        scope.launch {
+                            contractRepository.changeStatus(organizationId, user.id, contractId, status)
+                            reloadContracts()
+                        }
+                    },
+                    onArchive = { contractId ->
+                        val organizationId = organization?.id ?: return@ContractsSection
+                        scope.launch {
+                            contractRepository.archive(organizationId, user.id, contractId)
+                            reloadContracts()
+                        }
+                    },
+                    onRestore = { contractId ->
+                        val organizationId = organization?.id ?: return@ContractsSection
+                        scope.launch {
+                            contractRepository.restore(organizationId, user.id, contractId)
+                            reloadContracts()
+                        }
+                    },
                 )
             }
         }

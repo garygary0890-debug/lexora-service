@@ -13,6 +13,7 @@ object Routes {
     const val Home = "home"
     const val Settings = "settings"
     const val Notifications = "notifications"
+    const val Audit = "audit"
     const val Wash = "wash"
     const val Tires = "tires"
 }

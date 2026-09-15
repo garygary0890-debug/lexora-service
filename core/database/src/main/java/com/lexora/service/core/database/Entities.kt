@@ -27,3 +27,33 @@ data class ServiceDocumentEntity(@PrimaryKey val id: String, val organizationId:
 
 @Entity(tableName = "payments", indices = [Index("organizationId"), Index("requestId"), Index("documentId"), Index("clientId"), Index("status")])
 data class PaymentEntity(@PrimaryKey val id: String, val organizationId: String, val requestId: String?, val documentId: String?, val clientId: String?, val amountMinor: Long, val currency: String, val status: String, val method: String, val paidAtEpochMs: Long?, val externalReference: String?, val note: String?, val archived: Boolean, val syncState: String, val createdAtEpochMs: Long, val updatedAtEpochMs: Long)
+
+@Entity(tableName = "sync_operations", indices = [Index("organizationId"), Index("entityType"), Index("entityId"), Index("status"), Index("nextAttemptAtEpochMs"), Index(value = ["organizationId", "idempotencyKey"], unique = true)])
+data class SyncOperationEntity(
+    @PrimaryKey val id: String,
+    val organizationId: String,
+    val entityType: String,
+    val entityId: String,
+    val operationType: String,
+    val idempotencyKey: String,
+    val payloadJson: String?,
+    val status: String,
+    val attemptCount: Int,
+    val nextAttemptAtEpochMs: Long?,
+    val lastError: String?,
+    val createdAtEpochMs: Long,
+    val updatedAtEpochMs: Long,
+)
+
+@Entity(tableName = "sync_conflicts", indices = [Index("organizationId"), Index("entityType"), Index("entityId"), Index("resolution"), Index("detectedAtEpochMs")])
+data class SyncConflictEntity(
+    @PrimaryKey val id: String,
+    val organizationId: String,
+    val entityType: String,
+    val entityId: String,
+    val localVersionJson: String?,
+    val remoteVersionJson: String?,
+    val resolution: String,
+    val detectedAtEpochMs: Long,
+    val resolvedAtEpochMs: Long?,
+)

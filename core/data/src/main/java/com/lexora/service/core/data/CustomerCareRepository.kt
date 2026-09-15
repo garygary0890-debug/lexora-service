@@ -13,6 +13,7 @@ import com.lexora.service.core.model.LoyaltyTransaction
 import com.lexora.service.core.model.LoyaltyTransactionType
 import com.lexora.service.core.model.QualityControlRecord
 import com.lexora.service.core.model.QualityControlStatus
+import com.lexora.service.core.model.RequestStatus
 import com.lexora.service.core.model.SyncState
 import java.util.UUID
 
@@ -28,6 +29,9 @@ class CustomerCareRepository(
 
     suspend fun qualityRecords(organizationId: String): List<QualityControlRecord> =
         dao.qualityRecords(organizationId).map { it.toModel() }
+
+    suspend fun clientNames(organizationId: String): Map<String, String> =
+        serviceDao.clients(organizationId).associate { it.id to it.displayName }
 
     suspend fun ensureAccount(organizationId: String, clientId: String): LoyaltyAccount {
         dao.loyaltyAccount(organizationId, clientId)?.let { return it.toModel() }
@@ -112,6 +116,11 @@ class CustomerCareRepository(
         dao.qualityRecordForRequest(requestId)?.let { return it.toModel() }
         val request = serviceDao.serviceRequest(requestId) ?: error("Заявка не найдена")
         require(request.organizationId == organizationId) { "Заявка относится к другой организации" }
+        require(
+            request.status == RequestStatus.WORK_COMPLETED.name ||
+                request.status == RequestStatus.CONFIRMATION.name ||
+                request.status == RequestStatus.CLOSED.name,
+        ) { "Контроль качества доступен после завершения работ" }
         val now = System.currentTimeMillis()
         val entity = QualityControlRecordEntity(
             id = UUID.randomUUID().toString(),
@@ -139,7 +148,9 @@ class CustomerCareRepository(
         checklistResult: String,
         issueDescription: String? = null,
     ) {
+        require(record.status == QualityControlStatus.PENDING) { "Контроль качества уже завершён" }
         require(rating in 1..5) { "Оценка должна быть от 1 до 5" }
+        require(checklistResult.isNotBlank()) { "Необходимо указать результат проверки" }
         val now = System.currentTimeMillis()
         val hasIssue = !issueDescription.isNullOrBlank()
         dao.upsertQualityRecord(

@@ -10,9 +10,14 @@ import androidx.compose.foundation.layout.weight
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Card
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.lexora.service.core.data.IntegrationDescriptor
@@ -25,8 +30,46 @@ import com.lexora.service.core.model.ServiceRequest
 import com.lexora.service.core.model.ServiceVisit
 import com.lexora.service.core.model.VisitStatus
 
+private enum class ReportsSection { OPERATIONS, CUSTOMER_CARE }
+
 @Composable
 fun ReportsScreen(
+    requests: List<ServiceRequest>,
+    visits: List<ServiceVisit>,
+    documents: List<ServiceDocument>,
+    payments: List<Payment>,
+    integrations: List<IntegrationDescriptor>,
+) {
+    var section by remember { mutableStateOf(ReportsSection.OPERATIONS) }
+
+    Column(
+        modifier = Modifier.fillMaxSize().padding(24.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Text("Отчёты и интеграции", style = MaterialTheme.typography.headlineMedium)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FilterChip(
+                selected = section == ReportsSection.OPERATIONS,
+                onClick = { section = ReportsSection.OPERATIONS },
+                label = { Text("Операционные отчёты") },
+            )
+            FilterChip(
+                selected = section == ReportsSection.CUSTOMER_CARE,
+                onClick = { section = ReportsSection.CUSTOMER_CARE },
+                label = { Text("Лояльность и качество") },
+            )
+        }
+
+        if (section == ReportsSection.CUSTOMER_CARE) {
+            CustomerCareScreen(requests = requests)
+        } else {
+            OperationsContent(requests, visits, documents, payments, integrations)
+        }
+    }
+}
+
+@Composable
+private fun OperationsContent(
     requests: List<ServiceRequest>,
     visits: List<ServiceVisit>,
     documents: List<ServiceDocument>,
@@ -41,10 +84,9 @@ fun ReportsScreen(
     val plannedMinor = payments.filter { it.status == PaymentStatus.PLANNED }.sumOf { it.amountMinor }
 
     Column(
-        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),
+        modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Text("Отчёты и интеграции", style = MaterialTheme.typography.headlineMedium)
         Text("Операционный срез", style = MaterialTheme.typography.titleMedium)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             MetricCard("Открытые заявки", openRequests.toString(), Modifier.weight(1f))

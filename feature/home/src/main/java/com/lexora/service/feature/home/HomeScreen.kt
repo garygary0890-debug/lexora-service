@@ -26,6 +26,7 @@ fun HomeScreen(
     onOpenAssets: () -> Unit,
     onOpenOrganization: () -> Unit,
     onOpenRequests: () -> Unit,
+    onOpenFieldWork: () -> Unit,
     onOpenWash: () -> Unit,
     onOpenTires: () -> Unit,
     onOpenSettings: () -> Unit,
@@ -52,6 +53,7 @@ fun HomeScreen(
             Button(onClick = onOpenVehicles) { Text("Автомобили") }
         }
         Button(onClick = onOpenRequests) { Text("Обращения и заявки") }
+        Button(onClick = onOpenFieldWork) { Text("Выезды и работы") }
         Button(onClick = onOpenAssets) { Text("Объекты и оборудование") }
         Button(onClick = onOpenOrganization) { Text("Филиалы и сотрудники") }
 

@@ -26,6 +26,7 @@ import com.lexora.service.core.domain.RequestWorkflow
 import com.lexora.service.core.model.*
 import com.lexora.service.core.navigation.Routes
 import com.lexora.service.feature.assets.AssetsScreen
+import com.lexora.service.feature.audit.AuditScreen
 import com.lexora.service.feature.catalog.CatalogScreen
 import com.lexora.service.feature.clients.ClientsScreen
 import com.lexora.service.feature.documents.DocumentsScreen
@@ -86,9 +87,7 @@ private fun LexoraServiceApp() {
         val user = userRepository.currentUser()
         val accessibleModules = modules.filter { moduleAccessPolicy.isAvailable(it, user) }
 
-        suspend fun reloadModules() {
-            modules = moduleLicenseRepository.descriptors(organization.id)
-        }
+        suspend fun reloadModules() { modules = moduleLicenseRepository.descriptors(organization.id) }
         suspend fun reloadClients() {
             clients = dao.clients(organization.id).map(ClientEntity::toModel)
             archivedClients = dao.archivedClients(organization.id).map(ClientEntity::toModel)
@@ -109,9 +108,7 @@ private fun LexoraServiceApp() {
             employees = dao.employees(organization.id).map(EmployeeEntity::toModel)
             inactiveEmployees = dao.inactiveEmployees(organization.id).map(EmployeeEntity::toModel)
         }
-        suspend fun reloadRequests() {
-            requests = dao.serviceRequests(organization.id).map(ServiceRequestEntity::toModel)
-        }
+        suspend fun reloadRequests() { requests = dao.serviceRequests(organization.id).map(ServiceRequestEntity::toModel) }
         suspend fun reloadVisits() {
             visits = dao.serviceVisits(organization.id).map(ServiceVisitEntity::toModel)
             val activeSelection = selectedVisitId?.takeIf { id -> visits.any { it.id == id } }
@@ -156,6 +153,7 @@ private fun LexoraServiceApp() {
                         onOpenReports = { navController.navigate(Routes.Reports) },
                         onOpenCatalog = { navController.navigate(Routes.Catalog) },
                         onOpenNotifications = { navController.navigate(Routes.Notifications) },
+                        onOpenAudit = { navController.navigate(Routes.Audit) },
                         onOpenWash = { if (accessibleModules.any { it.id == LexoraModuleId.WASH }) navController.navigate(Routes.Wash) },
                         onOpenTires = { if (accessibleModules.any { it.id == LexoraModuleId.TIRES }) navController.navigate(Routes.Tires) },
                         onOpenSettings = { navController.navigate(Routes.Settings) },
@@ -214,150 +212,44 @@ private fun LexoraServiceApp() {
                     RequestsScreen(
                         requests = requests,
                         onSave = { draft, existingId -> scope.launch {
-                            val now = System.currentTimeMillis()
-                            val existing = existingId?.let { dao.serviceRequest(it) }
-                            val id = existingId ?: UUID.randomUUID().toString()
-                            val number = existing?.number ?: run {
-                                val max = dao.serviceRequests(organization.id).mapNotNull { it.number.removePrefix("REQ-").toIntOrNull() }.maxOrNull() ?: 0
-                                "REQ-%06d".format(max + 1)
-                            }
+                            val now = System.currentTimeMillis(); val existing = existingId?.let { dao.serviceRequest(it) }; val id = existingId ?: UUID.randomUUID().toString()
+                            val number = existing?.number ?: run { val max = dao.serviceRequests(organization.id).mapNotNull { it.number.removePrefix("REQ-").toIntOrNull() }.maxOrNull() ?: 0; "REQ-%06d".format(max + 1) }
                             dao.upsertServiceRequest(ServiceRequestEntity(id, organization.id, number, existing?.clientId, existing?.vehicleId, existing?.serviceObjectId, existing?.equipmentId, existing?.branchId, existing?.assigneeEmployeeId, draft.title, draft.description.ifBlank { null }, existing?.status ?: RequestStatus.NEW.name, draft.priority.name, existing?.plannedAtEpochMs, existing?.dueAtEpochMs, existing?.slaDeadlineEpochMs, existing?.closedAtEpochMs, existing?.archived ?: false, if (existing == null) SyncState.PENDING_CREATE.name else SyncState.PENDING_UPDATE.name, existing?.createdAtEpochMs ?: now, now))
                             if (existing == null) dao.insertRequestStatusHistory(RequestStatusHistoryEntity(UUID.randomUUID().toString(), id, null, RequestStatus.NEW.name, user.id, now, "Создание заявки"))
-                            audit("SERVICE_REQUEST", id, if (existing == null) "CREATE" else "UPDATE", "$number · ${draft.title}")
-                            reloadRequests()
+                            audit("SERVICE_REQUEST", id, if (existing == null) "CREATE" else "UPDATE", "$number · ${draft.title}"); reloadRequests()
                         } },
                         onChangeStatus = { id, target -> scope.launch {
-                            val current = dao.serviceRequest(id) ?: return@launch
-                            val from = RequestStatus.valueOf(current.status)
+                            val current = dao.serviceRequest(id) ?: return@launch; val from = RequestStatus.valueOf(current.status)
                             if (!RequestWorkflow.canTransition(from, target) || from == target) return@launch
-                            val now = System.currentTimeMillis()
-                            dao.updateRequestStatus(id, target.name, SyncState.PENDING_UPDATE.name, now, if (target == RequestStatus.CLOSED) now else null)
-                            dao.insertRequestStatusHistory(RequestStatusHistoryEntity(UUID.randomUUID().toString(), id, from.name, target.name, user.id, now, null))
-                            audit("SERVICE_REQUEST", id, "STATUS_CHANGE", "${current.number}: ${from.name} → ${target.name}")
-                            reloadRequests()
+                            val now = System.currentTimeMillis(); dao.updateRequestStatus(id, target.name, SyncState.PENDING_UPDATE.name, now, if (target == RequestStatus.CLOSED) now else null)
+                            dao.insertRequestStatusHistory(RequestStatusHistoryEntity(UUID.randomUUID().toString(), id, from.name, target.name, user.id, now, null)); audit("SERVICE_REQUEST", id, "STATUS_CHANGE", "${current.number}: ${from.name} → ${target.name}"); reloadRequests()
                         } },
                     )
                 }
                 composable(Routes.FieldWork) {
                     FieldWorkScreen(
-                        visits = visits,
-                        requests = requests,
-                        employees = employees,
-                        checklist = visitChecklist,
-                        onCreateVisit = { requestId, employeeId -> scope.launch {
-                            val request = dao.serviceRequest(requestId) ?: return@launch
-                            val now = System.currentTimeMillis()
-                            val id = UUID.randomUUID().toString()
-                            dao.upsertServiceVisit(ServiceVisitEntity(id, organization.id, requestId, request.branchId, employeeId ?: request.assigneeEmployeeId, VisitStatus.PLANNED.name, request.plannedAtEpochMs, request.dueAtEpochMs, null, null, null, null, null, SyncState.PENDING_CREATE.name, now, now))
-                            audit("SERVICE_VISIT", id, "CREATE", "Выезд по заявке ${request.number}")
-                            reloadVisits()
-                        } },
+                        visits = visits, requests = requests, employees = employees, checklist = visitChecklist,
+                        onCreateVisit = { requestId, employeeId -> scope.launch { val request = dao.serviceRequest(requestId) ?: return@launch; val now = System.currentTimeMillis(); val id = UUID.randomUUID().toString(); dao.upsertServiceVisit(ServiceVisitEntity(id, organization.id, requestId, request.branchId, employeeId ?: request.assigneeEmployeeId, VisitStatus.PLANNED.name, request.plannedAtEpochMs, request.dueAtEpochMs, null, null, null, null, null, SyncState.PENDING_CREATE.name, now, now)); audit("SERVICE_VISIT", id, "CREATE", "Выезд по заявке ${request.number}"); reloadVisits() } },
                         onSelectVisit = { id -> scope.launch { reloadChecklist(id) } },
-                        onChangeVisitStatus = { id, target -> scope.launch {
-                            val current = dao.serviceVisit(id) ?: return@launch
-                            val from = VisitStatus.valueOf(current.status)
-                            if (from == VisitStatus.COMPLETED || from == VisitStatus.CANCELLED || from == target) return@launch
-                            val allowed = when (from) {
-                                VisitStatus.PLANNED -> target == VisitStatus.EN_ROUTE || target == VisitStatus.CANCELLED
-                                VisitStatus.EN_ROUTE -> target == VisitStatus.ON_SITE || target == VisitStatus.CANCELLED
-                                VisitStatus.ON_SITE -> target == VisitStatus.COMPLETED || target == VisitStatus.CANCELLED
-                                VisitStatus.COMPLETED, VisitStatus.CANCELLED -> false
-                            }
-                            if (!allowed) return@launch
-                            val now = System.currentTimeMillis()
-                            val actualStart = if (target == VisitStatus.EN_ROUTE || target == VisitStatus.ON_SITE) now else current.actualStartEpochMs
-                            val actualEnd = if (target == VisitStatus.COMPLETED || target == VisitStatus.CANCELLED) now else null
-                            dao.updateVisitStatus(id, target.name, actualStart, actualEnd, SyncState.PENDING_UPDATE.name, now)
-                            audit("SERVICE_VISIT", id, "STATUS_CHANGE", "${from.name} → ${target.name}")
-                            reloadVisits()
-                        } },
-                        onAddChecklistItem = { visitId -> scope.launch {
-                            val now = System.currentTimeMillis()
-                            val nextOrder = dao.visitChecklist(visitId).maxOfOrNull { it.sortOrder }?.plus(1) ?: 0
-                            val id = UUID.randomUUID().toString()
-                            dao.upsertVisitChecklistItem(VisitChecklistItemEntity(id, visitId, "Новый пункт чек-листа", ChecklistItemState.PENDING.name, null, nextOrder, SyncState.PENDING_CREATE.name, now))
-                            audit("VISIT_CHECKLIST_ITEM", id, "CREATE", "Добавлен пункт чек-листа")
-                            reloadChecklist(visitId)
-                        } },
-                        onToggleChecklistItem = { itemId -> scope.launch {
-                            val current = visitChecklist.firstOrNull { it.id == itemId } ?: return@launch
-                            val next = if (current.state == ChecklistItemState.DONE) ChecklistItemState.PENDING else ChecklistItemState.DONE
-                            dao.updateChecklistItemState(itemId, next.name, SyncState.PENDING_UPDATE.name, System.currentTimeMillis())
-                            audit("VISIT_CHECKLIST_ITEM", itemId, "STATE_CHANGE", "${current.state.name} → ${next.name}")
-                            reloadChecklist(current.visitId)
-                        } },
+                        onChangeVisitStatus = { id, target -> scope.launch { val current = dao.serviceVisit(id) ?: return@launch; val from = VisitStatus.valueOf(current.status); if (from == VisitStatus.COMPLETED || from == VisitStatus.CANCELLED || from == target) return@launch; val allowed = when (from) { VisitStatus.PLANNED -> target == VisitStatus.EN_ROUTE || target == VisitStatus.CANCELLED; VisitStatus.EN_ROUTE -> target == VisitStatus.ON_SITE || target == VisitStatus.CANCELLED; VisitStatus.ON_SITE -> target == VisitStatus.COMPLETED || target == VisitStatus.CANCELLED; VisitStatus.COMPLETED, VisitStatus.CANCELLED -> false }; if (!allowed) return@launch; val now = System.currentTimeMillis(); val actualStart = if (target == VisitStatus.EN_ROUTE || target == VisitStatus.ON_SITE) now else current.actualStartEpochMs; val actualEnd = if (target == VisitStatus.COMPLETED || target == VisitStatus.CANCELLED) now else null; dao.updateVisitStatus(id, target.name, actualStart, actualEnd, SyncState.PENDING_UPDATE.name, now); audit("SERVICE_VISIT", id, "STATUS_CHANGE", "${from.name} → ${target.name}"); reloadVisits() } },
+                        onAddChecklistItem = { visitId -> scope.launch { val now = System.currentTimeMillis(); val nextOrder = dao.visitChecklist(visitId).maxOfOrNull { it.sortOrder }?.plus(1) ?: 0; val id = UUID.randomUUID().toString(); dao.upsertVisitChecklistItem(VisitChecklistItemEntity(id, visitId, "Новый пункт чек-листа", ChecklistItemState.PENDING.name, null, nextOrder, SyncState.PENDING_CREATE.name, now)); audit("VISIT_CHECKLIST_ITEM", id, "CREATE", "Добавлен пункт чек-листа"); reloadChecklist(visitId) } },
+                        onToggleChecklistItem = { itemId -> scope.launch { val current = visitChecklist.firstOrNull { it.id == itemId } ?: return@launch; val next = if (current.state == ChecklistItemState.DONE) ChecklistItemState.PENDING else ChecklistItemState.DONE; dao.updateChecklistItemState(itemId, next.name, SyncState.PENDING_UPDATE.name, System.currentTimeMillis()); audit("VISIT_CHECKLIST_ITEM", itemId, "STATE_CHANGE", "${current.state.name} → ${next.name}"); reloadChecklist(current.visitId) } },
                     )
                 }
                 composable(Routes.Documents) {
                     DocumentsScreen(
-                        documents = serviceDocuments,
-                        payments = payments,
-                        requests = requests,
-                        onCreateDocument = { type, requestId -> scope.launch {
-                            val now = System.currentTimeMillis()
-                            val request = requestId?.let { dao.serviceRequest(it) }
-                            val prefix = when (type) { ServiceDocumentType.WORK_ORDER -> "WO"; ServiceDocumentType.ACT -> "ACT"; ServiceDocumentType.INVOICE -> "INV" }
-                            val max = dao.serviceDocuments(organization.id).filter { it.number.startsWith("$prefix-") }.mapNotNull { it.number.removePrefix("$prefix-").toIntOrNull() }.maxOrNull() ?: 0
-                            val number = "$prefix-%06d".format(max + 1)
-                            val id = UUID.randomUUID().toString()
-                            val visitId = requestId?.let { dao.visitsForRequest(it).firstOrNull()?.id }
-                            dao.upsertServiceDocument(ServiceDocumentEntity(id, organization.id, requestId, visitId, request?.clientId, type.name, number, ServiceDocumentStatus.DRAFT.name, null, 0L, "RUB", null, null, false, SyncState.PENDING_CREATE.name, now, now))
-                            audit("SERVICE_DOCUMENT", id, "CREATE", "$number · ${type.name}")
-                            reloadDocumentsAndPayments()
-                        } },
-                        onChangeDocumentStatus = { id, target -> scope.launch {
-                            val current = dao.serviceDocument(id) ?: return@launch
-                            val from = ServiceDocumentStatus.valueOf(current.status)
-                            val allowed = when (from) {
-                                ServiceDocumentStatus.DRAFT -> target == ServiceDocumentStatus.ISSUED || target == ServiceDocumentStatus.CANCELLED
-                                ServiceDocumentStatus.ISSUED -> target == ServiceDocumentStatus.SIGNED || target == ServiceDocumentStatus.CANCELLED
-                                ServiceDocumentStatus.SIGNED, ServiceDocumentStatus.CANCELLED -> false
-                            }
-                            if (!allowed) return@launch
-                            val now = System.currentTimeMillis()
-                            dao.updateServiceDocumentStatus(id, target.name, if (target == ServiceDocumentStatus.ISSUED) now else current.issuedAtEpochMs, SyncState.PENDING_UPDATE.name, now)
-                            audit("SERVICE_DOCUMENT", id, "STATUS_CHANGE", "${current.number}: ${from.name} → ${target.name}")
-                            reloadDocumentsAndPayments()
-                        } },
-                        onCreatePayment = { requestId -> scope.launch {
-                            val now = System.currentTimeMillis()
-                            val request = requestId?.let { dao.serviceRequest(it) }
-                            val linkedDocument = serviceDocuments.firstOrNull { it.requestId == requestId && !it.archived }
-                            val id = UUID.randomUUID().toString()
-                            dao.upsertPayment(PaymentEntity(id, organization.id, requestId, linkedDocument?.id, request?.clientId, linkedDocument?.totalMinor ?: 0L, linkedDocument?.currency ?: "RUB", PaymentStatus.PLANNED.name, PaymentMethod.BANK_TRANSFER.name, null, null, null, false, SyncState.PENDING_CREATE.name, now, now))
-                            audit("PAYMENT", id, "CREATE", "Платёж по заявке ${request?.number.orEmpty()}")
-                            reloadDocumentsAndPayments()
-                        } },
-                        onMarkPaymentPaid = { id -> scope.launch {
-                            val current = dao.payment(id) ?: return@launch
-                            if (PaymentStatus.valueOf(current.status) != PaymentStatus.PLANNED) return@launch
-                            val now = System.currentTimeMillis()
-                            dao.updatePaymentStatus(id, PaymentStatus.PAID.name, now, SyncState.PENDING_UPDATE.name, now)
-                            audit("PAYMENT", id, "STATUS_CHANGE", "PLANNED → PAID")
-                            reloadDocumentsAndPayments()
-                        } },
+                        documents = serviceDocuments, payments = payments, requests = requests,
+                        onCreateDocument = { type, requestId -> scope.launch { val now = System.currentTimeMillis(); val request = requestId?.let { dao.serviceRequest(it) }; val prefix = when (type) { ServiceDocumentType.WORK_ORDER -> "WO"; ServiceDocumentType.ACT -> "ACT"; ServiceDocumentType.INVOICE -> "INV" }; val max = dao.serviceDocuments(organization.id).filter { it.number.startsWith("$prefix-") }.mapNotNull { it.number.removePrefix("$prefix-").toIntOrNull() }.maxOrNull() ?: 0; val number = "$prefix-%06d".format(max + 1); val id = UUID.randomUUID().toString(); val visitId = requestId?.let { dao.visitsForRequest(it).firstOrNull()?.id }; dao.upsertServiceDocument(ServiceDocumentEntity(id, organization.id, requestId, visitId, request?.clientId, type.name, number, ServiceDocumentStatus.DRAFT.name, null, 0L, "RUB", null, null, false, SyncState.PENDING_CREATE.name, now, now)); audit("SERVICE_DOCUMENT", id, "CREATE", "$number · ${type.name}"); reloadDocumentsAndPayments() } },
+                        onChangeDocumentStatus = { id, target -> scope.launch { val current = dao.serviceDocument(id) ?: return@launch; val from = ServiceDocumentStatus.valueOf(current.status); val allowed = when (from) { ServiceDocumentStatus.DRAFT -> target == ServiceDocumentStatus.ISSUED || target == ServiceDocumentStatus.CANCELLED; ServiceDocumentStatus.ISSUED -> target == ServiceDocumentStatus.SIGNED || target == ServiceDocumentStatus.CANCELLED; ServiceDocumentStatus.SIGNED, ServiceDocumentStatus.CANCELLED -> false }; if (!allowed) return@launch; val now = System.currentTimeMillis(); dao.updateServiceDocumentStatus(id, target.name, if (target == ServiceDocumentStatus.ISSUED) now else current.issuedAtEpochMs, SyncState.PENDING_UPDATE.name, now); audit("SERVICE_DOCUMENT", id, "STATUS_CHANGE", "${current.number}: ${from.name} → ${target.name}"); reloadDocumentsAndPayments() } },
+                        onCreatePayment = { requestId -> scope.launch { val now = System.currentTimeMillis(); val request = requestId?.let { dao.serviceRequest(it) }; val linkedDocument = serviceDocuments.firstOrNull { it.requestId == requestId && !it.archived }; val id = UUID.randomUUID().toString(); dao.upsertPayment(PaymentEntity(id, organization.id, requestId, linkedDocument?.id, request?.clientId, linkedDocument?.totalMinor ?: 0L, linkedDocument?.currency ?: "RUB", PaymentStatus.PLANNED.name, PaymentMethod.BANK_TRANSFER.name, null, null, null, false, SyncState.PENDING_CREATE.name, now, now)); audit("PAYMENT", id, "CREATE", "Платёж по заявке ${request?.number.orEmpty()}"); reloadDocumentsAndPayments() } },
+                        onMarkPaymentPaid = { id -> scope.launch { val current = dao.payment(id) ?: return@launch; if (PaymentStatus.valueOf(current.status) != PaymentStatus.PLANNED) return@launch; val now = System.currentTimeMillis(); dao.updatePaymentStatus(id, PaymentStatus.PAID.name, now, SyncState.PENDING_UPDATE.name, now); audit("PAYMENT", id, "STATUS_CHANGE", "PLANNED → PAID"); reloadDocumentsAndPayments() } },
                     )
                 }
-                composable(Routes.Reports) {
-                    ReportsScreen(
-                        requests = requests,
-                        visits = visits,
-                        documents = serviceDocuments,
-                        payments = payments,
-                        integrations = integrations,
-                    )
-                }
+                composable(Routes.Reports) { ReportsScreen(requests = requests, visits = visits, documents = serviceDocuments, payments = payments, integrations = integrations) }
                 composable(Routes.Catalog) { CatalogScreen() }
                 composable(Routes.Notifications) { NotificationsScreen(organization = organization) }
-                composable(Routes.Settings) {
-                    SettingsScreen(
-                        organization = organization,
-                        user = user,
-                        modules = modules,
-                        appVersion = "0.26.0",
-                        onModuleEnabledChange = { _, _ -> scope.launch { reloadModules() } },
-                    )
-                }
+                composable(Routes.Audit) { AuditScreen(organization = organization) }
+                composable(Routes.Settings) { SettingsScreen(organization = organization, user = user, modules = modules, appVersion = "0.27.0", onModuleEnabledChange = { _, _ -> scope.launch { reloadModules() } }) }
                 composable(Routes.Wash) { WashScreen() }
                 composable(Routes.Tires) { TiresScreen() }
             }

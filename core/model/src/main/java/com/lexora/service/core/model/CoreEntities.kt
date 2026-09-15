@@ -10,6 +10,9 @@ enum class ServiceDocumentType { WORK_ORDER, ACT, INVOICE }
 enum class ServiceDocumentStatus { DRAFT, ISSUED, SIGNED, CANCELLED }
 enum class PaymentStatus { PLANNED, PAID, CANCELLED }
 enum class PaymentMethod { CASH, CARD, BANK_TRANSFER, OTHER }
+enum class SyncOperationType { CREATE, UPDATE, DELETE }
+enum class SyncOperationStatus { PENDING, IN_PROGRESS, RETRY_WAIT, SUCCEEDED, FAILED, CONFLICT }
+enum class SyncConflictResolution { UNRESOLVED, KEEP_LOCAL, KEEP_REMOTE, MERGED }
 
 data class Client(
     val id: String,
@@ -113,4 +116,32 @@ data class Payment(
     val note: String? = null,
     val archived: Boolean = false,
     val syncState: SyncState = SyncState.PENDING_CREATE,
+)
+
+data class SyncOperation(
+    val id: String,
+    val organizationId: String,
+    val entityType: String,
+    val entityId: String,
+    val operationType: SyncOperationType,
+    val idempotencyKey: String,
+    val payloadJson: String? = null,
+    val status: SyncOperationStatus = SyncOperationStatus.PENDING,
+    val attemptCount: Int = 0,
+    val nextAttemptAtEpochMs: Long? = null,
+    val lastError: String? = null,
+    val createdAtEpochMs: Long,
+    val updatedAtEpochMs: Long,
+)
+
+data class SyncConflict(
+    val id: String,
+    val organizationId: String,
+    val entityType: String,
+    val entityId: String,
+    val localVersionJson: String?,
+    val remoteVersionJson: String?,
+    val resolution: SyncConflictResolution = SyncConflictResolution.UNRESOLVED,
+    val detectedAtEpochMs: Long,
+    val resolvedAtEpochMs: Long? = null,
 )

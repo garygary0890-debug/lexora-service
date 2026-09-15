@@ -130,9 +130,12 @@ class PersistentUserRepository(
         require(!(actorUserId == userId && role == UserRole.ADMIN && !active)) {
             "Нельзя отозвать собственную роль ADMIN."
         }
+        val organizationRoles = userDao.activeRolesForUserInOrganization(userId, organizationId)
+        require(active || organizationRoles.size > 1) {
+            "У пользователя должна остаться хотя бы одна активная роль в организации."
+        }
         val now = System.currentTimeMillis()
-        val existing = userDao.activeRolesForUserInOrganization(userId, organizationId)
-            .firstOrNull { it.role == role.name }
+        val existing = organizationRoles.firstOrNull { it.role == role.name }
 
         if (existing == null && active) {
             userDao.upsertOrganizationRole(

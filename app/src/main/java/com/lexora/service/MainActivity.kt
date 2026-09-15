@@ -7,7 +7,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -16,9 +15,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
-import com.lexora.service.core.data.InMemoryModuleRegistry
 import com.lexora.service.core.data.InMemoryOrganizationRepository
 import com.lexora.service.core.data.InMemoryUserRepository
+import com.lexora.service.core.data.ModuleLicenseRepository
 import com.lexora.service.core.data.defaultIntegrationRegistry
 import com.lexora.service.core.database.*
 import com.lexora.service.core.designsystem.LexoraTheme
@@ -57,12 +56,12 @@ private fun LexoraServiceApp() {
         val dao = remember(database) { database.serviceDao() }
         val organizationRepository = remember { InMemoryOrganizationRepository() }
         val userRepository = remember { InMemoryUserRepository() }
-        val moduleRegistry = remember { InMemoryModuleRegistry() }
+        val moduleLicenseRepository = remember(dao) { ModuleLicenseRepository(dao) }
         val moduleAccessPolicy = remember { ModuleAccessPolicy() }
         val integrations = remember { defaultIntegrationRegistry() }
         val scope = rememberCoroutineScope()
 
-        var stateVersion by remember { mutableIntStateOf(0) }
+        var modules by remember { mutableStateOf<List<ModuleDescriptor>>(emptyList()) }
         var clients by remember { mutableStateOf<List<Client>>(emptyList()) }
         var archivedClients by remember { mutableStateOf<List<Client>>(emptyList()) }
         var vehicles by remember { mutableStateOf<List<Vehicle>>(emptyList()) }
@@ -84,9 +83,11 @@ private fun LexoraServiceApp() {
 
         val organization = requireNotNull(organizationRepository.activeOrganization())
         val user = userRepository.currentUser()
-        val modules = moduleRegistry.modules(organization.id)
         val accessibleModules = modules.filter { moduleAccessPolicy.isAvailable(it, user) }
 
+        suspend fun reloadModules() {
+            modules = moduleLicenseRepository.descriptors(organization.id)
+        }
         suspend fun reloadClients() {
             clients = dao.clients(organization.id).map(ClientEntity::toModel)
             archivedClients = dao.archivedClients(organization.id).map(ClientEntity::toModel)
@@ -134,7 +135,7 @@ private fun LexoraServiceApp() {
             if (dao.clients(organization.id).isEmpty() && dao.archivedClients(organization.id).isEmpty()) {
                 dao.upsertClient(ClientEntity("client-demo-1", organization.id, ClientType.PERSON.name, "Демонстрационный клиент", "+7 900 000-00-00", null, null, null, null, null, null, false, false, SyncState.PENDING_CREATE.name, now, now))
             }
-            reloadClients(); reloadVehicles(); reloadAssets(); reloadOrganization(); reloadRequests(); reloadVisits(); reloadDocumentsAndPayments()
+            reloadModules(); reloadClients(); reloadVehicles(); reloadAssets(); reloadOrganization(); reloadRequests(); reloadVisits(); reloadDocumentsAndPayments()
         }
 
         val navController = rememberNavController()
@@ -345,12 +346,18 @@ private fun LexoraServiceApp() {
                     )
                 }
                 composable(Routes.Catalog) { CatalogScreen() }
-                composable(Routes.Settings) { SettingsScreen(organization = organization, user = user, modules = modules, onModuleEnabledChange = { moduleId, enabled -> moduleRegistry.updateEnabled(organization.id, moduleId, enabled); stateVersion++ }) }
+                composable(Routes.Settings) {
+                    SettingsScreen(
+                        organization = organization,
+                        user = user,
+                        modules = modules,
+                        onModuleEnabledChange = { _, _ -> scope.launch { reloadModules() } },
+                    )
+                }
                 composable(Routes.Wash) { WashScreen() }
                 composable(Routes.Tires) { TiresScreen() }
             }
         }
-        stateVersion
     }
 }
 

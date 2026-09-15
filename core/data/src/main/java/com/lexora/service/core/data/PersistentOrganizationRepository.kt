@@ -30,7 +30,7 @@ class PersistentOrganizationRepository(
     }
 
     suspend fun organizations(): List<Organization> =
-        serviceDao.organizations().map(OrganizationEntity::toModel)
+        serviceDao.organizations().map { it.toModel() }
 
     suspend fun activeOrganization(): Organization? =
         serviceDao.activeOrganization()?.toModel()

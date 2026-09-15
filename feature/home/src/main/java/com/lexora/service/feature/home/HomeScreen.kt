@@ -33,6 +33,7 @@ fun HomeScreen(
     onOpenCatalog: () -> Unit = {},
     onOpenNotifications: () -> Unit = {},
     onOpenAudit: () -> Unit = {},
+    onOpenUsers: (() -> Unit)? = null,
     onOpenWash: () -> Unit,
     onOpenTires: () -> Unit,
     onOpenSettings: () -> Unit,
@@ -64,6 +65,7 @@ fun HomeScreen(
         Button(onClick = onOpenCatalog) { Text("Услуги и прайс-листы") }
         Button(onClick = onOpenNotifications) { Text("Уведомления") }
         Button(onClick = onOpenAudit) { Text("Журнал аудита") }
+        onOpenUsers?.let { openUsers -> Button(onClick = openUsers) { Text("Пользователи и роли") } }
         Button(onClick = onOpenReports) { Text("Отчёты и интеграции") }
         Button(onClick = onOpenAssets) { Text("Объекты и оборудование") }
         Button(onClick = onOpenOrganization) { Text("Филиалы и сотрудники") }

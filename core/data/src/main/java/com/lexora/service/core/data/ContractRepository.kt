@@ -1,7 +1,9 @@
 package com.lexora.service.core.data
 
+import android.content.Context
 import com.lexora.service.core.database.AuditEventEntity
 import com.lexora.service.core.database.ContractDao
+import com.lexora.service.core.database.LexoraServiceDatabase
 import com.lexora.service.core.database.ServiceContractEntity
 import com.lexora.service.core.database.ServiceDao
 import com.lexora.service.core.model.ContractStatus
@@ -125,6 +127,13 @@ class ContractRepository(
                 occurredAtEpochMs = System.currentTimeMillis(),
             ),
         )
+    }
+
+    companion object {
+        fun create(context: Context): ContractRepository {
+            val database = LexoraServiceDatabase.create(context)
+            return ContractRepository(database.contractDao(), database.serviceDao())
+        }
     }
 }
 

@@ -19,6 +19,7 @@ import androidx.navigation.compose.rememberNavController
 import com.lexora.service.core.data.InMemoryModuleRegistry
 import com.lexora.service.core.data.InMemoryOrganizationRepository
 import com.lexora.service.core.data.InMemoryUserRepository
+import com.lexora.service.core.data.defaultIntegrationRegistry
 import com.lexora.service.core.database.*
 import com.lexora.service.core.designsystem.LexoraTheme
 import com.lexora.service.core.domain.ModuleAccessPolicy
@@ -31,6 +32,7 @@ import com.lexora.service.feature.documents.DocumentsScreen
 import com.lexora.service.feature.fieldwork.FieldWorkScreen
 import com.lexora.service.feature.home.HomeScreen
 import com.lexora.service.feature.organization.OrganizationScreen
+import com.lexora.service.feature.reports.ReportsScreen
 import com.lexora.service.feature.requests.RequestsScreen
 import com.lexora.service.feature.settings.SettingsScreen
 import com.lexora.service.feature.tires.TiresScreen
@@ -56,6 +58,7 @@ private fun LexoraServiceApp() {
         val userRepository = remember { InMemoryUserRepository() }
         val moduleRegistry = remember { InMemoryModuleRegistry() }
         val moduleAccessPolicy = remember { ModuleAccessPolicy() }
+        val integrations = remember { defaultIntegrationRegistry() }
         val scope = rememberCoroutineScope()
 
         var stateVersion by remember { mutableIntStateOf(0) }
@@ -147,6 +150,7 @@ private fun LexoraServiceApp() {
                         onOpenRequests = { navController.navigate(Routes.Requests) },
                         onOpenFieldWork = { navController.navigate(Routes.FieldWork) },
                         onOpenDocuments = { navController.navigate(Routes.Documents) },
+                        onOpenReports = { navController.navigate(Routes.Reports) },
                         onOpenWash = { if (accessibleModules.any { it.id == LexoraModuleId.WASH }) navController.navigate(Routes.Wash) },
                         onOpenTires = { if (accessibleModules.any { it.id == LexoraModuleId.TIRES }) navController.navigate(Routes.Tires) },
                         onOpenSettings = { navController.navigate(Routes.Settings) },
@@ -327,6 +331,15 @@ private fun LexoraServiceApp() {
                             audit("PAYMENT", id, "STATUS_CHANGE", "PLANNED → PAID")
                             reloadDocumentsAndPayments()
                         } },
+                    )
+                }
+                composable(Routes.Reports) {
+                    ReportsScreen(
+                        requests = requests,
+                        visits = visits,
+                        documents = serviceDocuments,
+                        payments = payments,
+                        integrations = integrations,
                     )
                 }
                 composable(Routes.Settings) { SettingsScreen(organization = organization, user = user, modules = modules, onModuleEnabledChange = { moduleId, enabled -> moduleRegistry.updateEnabled(organization.id, moduleId, enabled); stateVersion++ }) }

@@ -14,108 +14,16 @@ import androidx.room.PrimaryKey
 @Entity(tableName = "service_history", indices = [Index("organizationId"), Index("vehicleId"), Index("occurredAtEpochMs")]) data class ServiceHistoryEntity(@PrimaryKey val id: String, val organizationId: String, val vehicleId: String, val sourceType: String, val sourceId: String?, val title: String, val description: String?, val mileageKm: Int?, val occurredAtEpochMs: Long, val createdAtEpochMs: Long)
 @Entity(tableName = "service_objects", indices = [Index("organizationId"), Index("clientId")]) data class ServiceObjectEntity(@PrimaryKey val id: String, val organizationId: String, val clientId: String?, val name: String, val address: String?, val accessMode: String?, val responsibleContact: String?, val archived: Boolean, val syncState: String, val createdAtEpochMs: Long, val updatedAtEpochMs: Long)
 @Entity(tableName = "equipment", indices = [Index("organizationId"), Index("serviceObjectId"), Index(value = ["organizationId", "serialNumber"])]) data class EquipmentEntity(@PrimaryKey val id: String, val organizationId: String, val serviceObjectId: String?, val type: String, val make: String?, val model: String?, val serialNumber: String?, val inventoryNumber: String?, val barcode: String?, val commissionedNote: String?, val warrantyNote: String?, val archived: Boolean, val syncState: String, val createdAtEpochMs: Long, val updatedAtEpochMs: Long)
+@Entity(tableName = "service_requests", indices = [Index("organizationId"), Index("clientId"), Index("branchId"), Index("assigneeEmployeeId"), Index("status"), Index(value = ["organizationId", "number"], unique = true)]) data class ServiceRequestEntity(@PrimaryKey val id: String, val organizationId: String, val number: String, val clientId: String?, val vehicleId: String?, val serviceObjectId: String?, val equipmentId: String?, val branchId: String?, val assigneeEmployeeId: String?, val title: String, val description: String?, val status: String, val priority: String, val plannedAtEpochMs: Long?, val dueAtEpochMs: Long?, val slaDeadlineEpochMs: Long?, val closedAtEpochMs: Long?, val archived: Boolean, val syncState: String, val createdAtEpochMs: Long, val updatedAtEpochMs: Long)
+@Entity(tableName = "request_status_history", indices = [Index("requestId"), Index("changedAtEpochMs")]) data class RequestStatusHistoryEntity(@PrimaryKey val id: String, val requestId: String, val fromStatus: String?, val toStatus: String, val changedByUserId: String, val changedAtEpochMs: Long, val comment: String?)
+@Entity(tableName = "service_visits", indices = [Index("organizationId"), Index("requestId"), Index("employeeId"), Index("status")]) data class ServiceVisitEntity(@PrimaryKey val id: String, val organizationId: String, val requestId: String, val branchId: String?, val employeeId: String?, val status: String, val plannedStartEpochMs: Long?, val plannedEndEpochMs: Long?, val actualStartEpochMs: Long?, val actualEndEpochMs: Long?, val resultNote: String?, val customerName: String?, val customerSignatureRef: String?, val syncState: String, val createdAtEpochMs: Long, val updatedAtEpochMs: Long)
+@Entity(tableName = "visit_checklist_items", indices = [Index("visitId"), Index("sortOrder")]) data class VisitChecklistItemEntity(@PrimaryKey val id: String, val visitId: String, val title: String, val state: String, val comment: String?, val sortOrder: Int, val syncState: String, val updatedAtEpochMs: Long)
+@Entity(tableName = "visit_work_entries", indices = [Index("visitId")]) data class VisitWorkEntryEntity(@PrimaryKey val id: String, val visitId: String, val serviceCode: String?, val title: String, val quantity: Double, val unit: String?, val note: String?, val syncState: String, val updatedAtEpochMs: Long)
+@Entity(tableName = "visit_material_usage", indices = [Index("visitId")]) data class VisitMaterialUsageEntity(@PrimaryKey val id: String, val visitId: String, val materialCode: String?, val title: String, val quantity: Double, val unit: String?, val note: String?, val syncState: String, val updatedAtEpochMs: Long)
+@Entity(tableName = "visit_photos", indices = [Index("visitId"), Index("takenAtEpochMs")]) data class VisitPhotoEntity(@PrimaryKey val id: String, val visitId: String, val localUri: String, val caption: String?, val takenAtEpochMs: Long, val syncState: String, val updatedAtEpochMs: Long)
 
-@Entity(tableName = "service_requests", indices = [Index("organizationId"), Index("clientId"), Index("branchId"), Index("assigneeEmployeeId"), Index("status"), Index(value = ["organizationId", "number"], unique = true)])
-data class ServiceRequestEntity(
-    @PrimaryKey val id: String,
-    val organizationId: String,
-    val number: String,
-    val clientId: String?,
-    val vehicleId: String?,
-    val serviceObjectId: String?,
-    val equipmentId: String?,
-    val branchId: String?,
-    val assigneeEmployeeId: String?,
-    val title: String,
-    val description: String?,
-    val status: String,
-    val priority: String,
-    val plannedAtEpochMs: Long?,
-    val dueAtEpochMs: Long?,
-    val slaDeadlineEpochMs: Long?,
-    val closedAtEpochMs: Long?,
-    val archived: Boolean,
-    val syncState: String,
-    val createdAtEpochMs: Long,
-    val updatedAtEpochMs: Long,
-)
+@Entity(tableName = "service_documents", indices = [Index("organizationId"), Index("requestId"), Index("visitId"), Index("clientId"), Index("type"), Index(value = ["organizationId", "number"], unique = true)])
+data class ServiceDocumentEntity(@PrimaryKey val id: String, val organizationId: String, val requestId: String?, val visitId: String?, val clientId: String?, val type: String, val number: String, val status: String, val issuedAtEpochMs: Long?, val totalMinor: Long, val currency: String, val externalFileRef: String?, val note: String?, val archived: Boolean, val syncState: String, val createdAtEpochMs: Long, val updatedAtEpochMs: Long)
 
-@Entity(tableName = "request_status_history", indices = [Index("requestId"), Index("changedAtEpochMs")])
-data class RequestStatusHistoryEntity(
-    @PrimaryKey val id: String,
-    val requestId: String,
-    val fromStatus: String?,
-    val toStatus: String,
-    val changedByUserId: String,
-    val changedAtEpochMs: Long,
-    val comment: String?,
-)
-
-@Entity(tableName = "service_visits", indices = [Index("organizationId"), Index("requestId"), Index("employeeId"), Index("status")])
-data class ServiceVisitEntity(
-    @PrimaryKey val id: String,
-    val organizationId: String,
-    val requestId: String,
-    val branchId: String?,
-    val employeeId: String?,
-    val status: String,
-    val plannedStartEpochMs: Long?,
-    val plannedEndEpochMs: Long?,
-    val actualStartEpochMs: Long?,
-    val actualEndEpochMs: Long?,
-    val resultNote: String?,
-    val customerName: String?,
-    val customerSignatureRef: String?,
-    val syncState: String,
-    val createdAtEpochMs: Long,
-    val updatedAtEpochMs: Long,
-)
-
-@Entity(tableName = "visit_checklist_items", indices = [Index("visitId"), Index("sortOrder")])
-data class VisitChecklistItemEntity(
-    @PrimaryKey val id: String,
-    val visitId: String,
-    val title: String,
-    val state: String,
-    val comment: String?,
-    val sortOrder: Int,
-    val syncState: String,
-    val updatedAtEpochMs: Long,
-)
-
-@Entity(tableName = "visit_work_entries", indices = [Index("visitId")])
-data class VisitWorkEntryEntity(
-    @PrimaryKey val id: String,
-    val visitId: String,
-    val serviceCode: String?,
-    val title: String,
-    val quantity: Double,
-    val unit: String?,
-    val note: String?,
-    val syncState: String,
-    val updatedAtEpochMs: Long,
-)
-
-@Entity(tableName = "visit_material_usage", indices = [Index("visitId")])
-data class VisitMaterialUsageEntity(
-    @PrimaryKey val id: String,
-    val visitId: String,
-    val materialCode: String?,
-    val title: String,
-    val quantity: Double,
-    val unit: String?,
-    val note: String?,
-    val syncState: String,
-    val updatedAtEpochMs: Long,
-)
-
-@Entity(tableName = "visit_photos", indices = [Index("visitId"), Index("takenAtEpochMs")])
-data class VisitPhotoEntity(
-    @PrimaryKey val id: String,
-    val visitId: String,
-    val localUri: String,
-    val caption: String?,
-    val takenAtEpochMs: Long,
-    val syncState: String,
-    val updatedAtEpochMs: Long,
-)
+@Entity(tableName = "payments", indices = [Index("organizationId"), Index("requestId"), Index("documentId"), Index("clientId"), Index("status")])
+data class PaymentEntity(@PrimaryKey val id: String, val organizationId: String, val requestId: String?, val documentId: String?, val clientId: String?, val amountMinor: Long, val currency: String, val status: String, val method: String, val paidAtEpochMs: Long?, val externalReference: String?, val note: String?, val archived: Boolean, val syncState: String, val createdAtEpochMs: Long, val updatedAtEpochMs: Long)

@@ -27,6 +27,7 @@ import com.lexora.service.core.domain.RequestWorkflow
 import com.lexora.service.core.model.*
 import com.lexora.service.core.navigation.Routes
 import com.lexora.service.feature.assets.AssetsScreen
+import com.lexora.service.feature.catalog.CatalogScreen
 import com.lexora.service.feature.clients.ClientsScreen
 import com.lexora.service.feature.documents.DocumentsScreen
 import com.lexora.service.feature.fieldwork.FieldWorkScreen
@@ -151,6 +152,7 @@ private fun LexoraServiceApp() {
                         onOpenFieldWork = { navController.navigate(Routes.FieldWork) },
                         onOpenDocuments = { navController.navigate(Routes.Documents) },
                         onOpenReports = { navController.navigate(Routes.Reports) },
+                        onOpenCatalog = { navController.navigate(Routes.Catalog) },
                         onOpenWash = { if (accessibleModules.any { it.id == LexoraModuleId.WASH }) navController.navigate(Routes.Wash) },
                         onOpenTires = { if (accessibleModules.any { it.id == LexoraModuleId.TIRES }) navController.navigate(Routes.Tires) },
                         onOpenSettings = { navController.navigate(Routes.Settings) },
@@ -342,6 +344,7 @@ private fun LexoraServiceApp() {
                         integrations = integrations,
                     )
                 }
+                composable(Routes.Catalog) { CatalogScreen() }
                 composable(Routes.Settings) { SettingsScreen(organization = organization, user = user, modules = modules, onModuleEnabledChange = { moduleId, enabled -> moduleRegistry.updateEnabled(organization.id, moduleId, enabled); stateVersion++ }) }
                 composable(Routes.Wash) { WashScreen() }
                 composable(Routes.Tires) { TiresScreen() }

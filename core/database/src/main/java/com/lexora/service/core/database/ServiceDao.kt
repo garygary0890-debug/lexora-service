@@ -98,4 +98,18 @@ interface ServiceDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun upsertPayment(value: PaymentEntity)
     @Query("UPDATE payments SET status = :status, paidAtEpochMs = :paidAt, syncState = :syncState, updatedAtEpochMs = :updatedAt WHERE id = :id") suspend fun updatePaymentStatus(id: String, status: String, paidAt: Long?, syncState: String, updatedAt: Long)
     @Query("UPDATE payments SET archived = 1, syncState = :syncState, updatedAtEpochMs = :updatedAt WHERE id = :id") suspend fun archivePayment(id: String, syncState: String, updatedAt: Long)
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE) suspend fun enqueueSyncOperation(value: SyncOperationEntity): Long
+    @Query("SELECT * FROM sync_operations WHERE organizationId = :organizationId ORDER BY createdAtEpochMs") suspend fun syncOperations(organizationId: String): List<SyncOperationEntity>
+    @Query("SELECT * FROM sync_operations WHERE organizationId = :organizationId AND status IN ('PENDING','RETRY_WAIT') AND (nextAttemptAtEpochMs IS NULL OR nextAttemptAtEpochMs <= :now) ORDER BY createdAtEpochMs LIMIT :limit") suspend fun readySyncOperations(organizationId: String, now: Long, limit: Int = 50): List<SyncOperationEntity>
+    @Query("UPDATE sync_operations SET status = 'IN_PROGRESS', attemptCount = attemptCount + 1, updatedAtEpochMs = :updatedAt WHERE id = :id AND status IN ('PENDING','RETRY_WAIT')") suspend fun markSyncOperationInProgress(id: String, updatedAt: Long): Int
+    @Query("UPDATE sync_operations SET status = 'SUCCEEDED', lastError = NULL, nextAttemptAtEpochMs = NULL, updatedAtEpochMs = :updatedAt WHERE id = :id") suspend fun markSyncOperationSucceeded(id: String, updatedAt: Long)
+    @Query("UPDATE sync_operations SET status = 'RETRY_WAIT', lastError = :error, nextAttemptAtEpochMs = :nextAttemptAt, updatedAtEpochMs = :updatedAt WHERE id = :id") suspend fun markSyncOperationRetry(id: String, error: String?, nextAttemptAt: Long, updatedAt: Long)
+    @Query("UPDATE sync_operations SET status = 'FAILED', lastError = :error, nextAttemptAtEpochMs = NULL, updatedAtEpochMs = :updatedAt WHERE id = :id") suspend fun markSyncOperationFailed(id: String, error: String?, updatedAt: Long)
+    @Query("UPDATE sync_operations SET status = 'CONFLICT', lastError = :error, nextAttemptAtEpochMs = NULL, updatedAtEpochMs = :updatedAt WHERE id = :id") suspend fun markSyncOperationConflict(id: String, error: String?, updatedAt: Long)
+    @Query("DELETE FROM sync_operations WHERE organizationId = :organizationId AND status = 'SUCCEEDED' AND updatedAtEpochMs < :olderThan") suspend fun deleteOldSucceededSyncOperations(organizationId: String, olderThan: Long)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun upsertSyncConflict(value: SyncConflictEntity)
+    @Query("SELECT * FROM sync_conflicts WHERE organizationId = :organizationId AND resolution = 'UNRESOLVED' ORDER BY detectedAtEpochMs DESC") suspend fun unresolvedSyncConflicts(organizationId: String): List<SyncConflictEntity>
+    @Query("UPDATE sync_conflicts SET resolution = :resolution, resolvedAtEpochMs = :resolvedAt WHERE id = :id") suspend fun resolveSyncConflict(id: String, resolution: String, resolvedAt: Long)
 }

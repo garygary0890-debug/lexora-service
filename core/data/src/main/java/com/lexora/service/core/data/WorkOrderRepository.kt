@@ -48,7 +48,7 @@ class WorkOrderRepository private constructor(
             quantity = quantity,
             unit = service.unit,
             unitPriceMinor = price,
-            totalMinor = (price * quantity).roundToLong(),
+            totalMinor = (price.toDouble() * quantity).roundToLong(),
             additional = additional,
             approvalStatus = if (additional) AdditionalWorkApprovalStatus.PENDING.name else AdditionalWorkApprovalStatus.NOT_REQUIRED.name,
             approvalComment = null,
@@ -78,7 +78,7 @@ class WorkOrderRepository private constructor(
         itemId: String,
         approve: Boolean,
     ) {
-        val item = workOrderDao.itemsForLookup().firstOrNull { it.id == itemId } ?: return
+        val item = workOrderDao.item(itemId) ?: return
         if (!item.additional || item.approvalStatus != AdditionalWorkApprovalStatus.PENDING.name) return
         val now = System.currentTimeMillis()
         val status = if (approve) AdditionalWorkApprovalStatus.APPROVED else AdditionalWorkApprovalStatus.REJECTED

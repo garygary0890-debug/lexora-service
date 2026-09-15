@@ -25,6 +25,9 @@ interface PublicPortalDao {
         updatedAtEpochMs: Long,
     )
 
+    @Query("SELECT number FROM service_requests WHERE organizationId = :organizationId")
+    suspend fun requestNumbers(organizationId: String): List<String>
+
     @Query("SELECT * FROM portal_access_grants WHERE organizationId = :organizationId AND clientId = :clientId ORDER BY createdAtEpochMs DESC")
     suspend fun accessGrants(organizationId: String, clientId: String): List<PortalAccessGrantEntity>
 

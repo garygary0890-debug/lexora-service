@@ -17,6 +17,7 @@ enum class WashPostStatus { AVAILABLE, OCCUPIED, OUT_OF_SERVICE }
 enum class WashQueueStatus { WAITING, CALLED, IN_SERVICE, COMPLETED, CANCELLED }
 enum class TireQueueStatus { WAITING, CALLED, IN_SERVICE, COMPLETED, CANCELLED }
 enum class TireStorageStatus { STORED, ISSUED }
+enum class AdditionalWorkApprovalStatus { NOT_REQUIRED, PENDING, APPROVED, REJECTED }
 
 data class Client(val id: String, val organizationId: String, val type: ClientType, val displayName: String, val phone: String? = null, val email: String? = null, val taxId: String? = null, val kpp: String? = null, val registrationAddress: String? = null, val actualAddress: String? = null, val note: String? = null, val consentPersonalData: Boolean = false, val archived: Boolean = false, val syncState: SyncState = SyncState.PENDING_CREATE)
 data class Vehicle(val id: String, val organizationId: String, val clientId: String?, val registrationNumber: String, val vin: String? = null, val make: String? = null, val model: String? = null, val year: Int? = null, val bodyType: String? = null, val color: String? = null, val mileageKm: Int? = null, val archived: Boolean = false, val syncState: SyncState = SyncState.PENDING_CREATE)
@@ -46,3 +47,4 @@ data class TireStorageItem(val id: String, val organizationId: String, val clien
 data class ServiceCatalogItem(val id: String, val organizationId: String, val code: String, val name: String, val category: String? = null, val unit: String = "шт.", val durationMinutes: Int? = null, val active: Boolean = true, val syncState: SyncState = SyncState.PENDING_CREATE)
 data class PriceList(val id: String, val organizationId: String, val name: String, val currency: String = "RUB", val effectiveFromEpochMs: Long, val effectiveToEpochMs: Long? = null, val active: Boolean = true, val syncState: SyncState = SyncState.PENDING_CREATE)
 data class PriceListItem(val id: String, val priceListId: String, val serviceCatalogItemId: String, val priceMinor: Long, val syncState: SyncState = SyncState.PENDING_CREATE)
+data class WorkOrderItem(val id: String, val documentId: String, val serviceCatalogItemId: String?, val title: String, val quantity: Double, val unit: String, val unitPriceMinor: Long, val totalMinor: Long, val additional: Boolean = false, val approvalStatus: AdditionalWorkApprovalStatus = AdditionalWorkApprovalStatus.NOT_REQUIRED, val approvalComment: String? = null, val approvedAtEpochMs: Long? = null, val syncState: SyncState = SyncState.PENDING_CREATE)

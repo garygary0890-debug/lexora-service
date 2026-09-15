@@ -33,7 +33,8 @@ class WorkOrderRepository private constructor(
         val service = catalogDao.services(organizationId).firstOrNull { it.active } ?: return
         val now = System.currentTimeMillis()
         val priceList = catalogDao.priceLists(organizationId).firstOrNull {
-            it.active && it.effectiveFromEpochMs <= now && (it.effectiveToEpochMs == null || it.effectiveToEpochMs >= now)
+            val effectiveTo = it.effectiveToEpochMs
+            it.active && it.effectiveFromEpochMs <= now && (effectiveTo == null || effectiveTo >= now)
         }
         val price = priceList?.let { list ->
             catalogDao.priceListItems(list.id).firstOrNull { it.serviceCatalogItemId == service.id }?.priceMinor

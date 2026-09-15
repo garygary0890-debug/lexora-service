@@ -1,0 +1,3 @@
+Lexora Service build diagnostics
+Status: NO_BUILD_YET
+Reason: diagnostic workflow installed; run "Build with diagnostics" in Android Studio to populate this file.

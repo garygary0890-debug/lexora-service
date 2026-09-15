@@ -12,10 +12,7 @@ data class OrganizationEntity(
     val updatedAtEpochMs: Long,
 )
 
-@Entity(
-    tableName = "clients",
-    indices = [Index("organizationId"), Index(value = ["organizationId", "phone"])],
-)
+@Entity(tableName = "clients", indices = [Index("organizationId"), Index(value = ["organizationId", "phone"])])
 data class ClientEntity(
     @PrimaryKey val id: String,
     val organizationId: String,
@@ -35,10 +32,7 @@ data class ClientEntity(
     val updatedAtEpochMs: Long,
 )
 
-@Entity(
-    tableName = "vehicles",
-    indices = [Index("organizationId"), Index("clientId"), Index(value = ["organizationId", "registrationNumber"])],
-)
+@Entity(tableName = "vehicles", indices = [Index("organizationId"), Index("clientId"), Index(value = ["organizationId", "registrationNumber"])])
 data class VehicleEntity(
     @PrimaryKey val id: String,
     val organizationId: String,
@@ -63,6 +57,9 @@ data class BranchEntity(
     val organizationId: String,
     val name: String,
     val address: String?,
+    val phone: String?,
+    val email: String?,
+    val workSchedule: String?,
     val timeZoneId: String,
     val active: Boolean,
     val syncState: String,
@@ -76,6 +73,8 @@ data class EmployeeEntity(
     val branchId: String?,
     val displayName: String,
     val position: String?,
+    val phone: String?,
+    val email: String?,
     val active: Boolean,
     val syncState: String,
     val updatedAtEpochMs: Long,
@@ -102,10 +101,7 @@ data class AuditEventEntity(
     val occurredAtEpochMs: Long,
 )
 
-@Entity(
-    tableName = "service_history",
-    indices = [Index("organizationId"), Index("vehicleId"), Index("occurredAtEpochMs")],
-)
+@Entity(tableName = "service_history", indices = [Index("organizationId"), Index("vehicleId"), Index("occurredAtEpochMs")])
 data class ServiceHistoryEntity(
     @PrimaryKey val id: String,
     val organizationId: String,
@@ -119,10 +115,7 @@ data class ServiceHistoryEntity(
     val createdAtEpochMs: Long,
 )
 
-@Entity(
-    tableName = "service_objects",
-    indices = [Index("organizationId"), Index("clientId")],
-)
+@Entity(tableName = "service_objects", indices = [Index("organizationId"), Index("clientId")])
 data class ServiceObjectEntity(
     @PrimaryKey val id: String,
     val organizationId: String,
@@ -137,10 +130,7 @@ data class ServiceObjectEntity(
     val updatedAtEpochMs: Long,
 )
 
-@Entity(
-    tableName = "equipment",
-    indices = [Index("organizationId"), Index("serviceObjectId"), Index(value = ["organizationId", "serialNumber"])],
-)
+@Entity(tableName = "equipment", indices = [Index("organizationId"), Index("serviceObjectId"), Index(value = ["organizationId", "serialNumber"])])
 data class EquipmentEntity(
     @PrimaryKey val id: String,
     val organizationId: String,

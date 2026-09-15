@@ -43,7 +43,7 @@ fun SettingsScreen(
     organization: Organization,
     user: ServiceUser,
     modules: List<ModuleDescriptor>,
-    appVersion: String = "0.24.0",
+    appVersion: String = "0.25.0",
     onModuleEnabledChange: (LexoraModuleId, Boolean) -> Unit,
 ) {
     val context = LocalContext.current

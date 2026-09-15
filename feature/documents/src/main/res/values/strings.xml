@@ -1,0 +1,13 @@
+<resources>
+    <string name="documents_title">Документы и платежи</string>
+    <string name="documents_tab">Документы</string>
+    <string name="payments_tab">Платежи</string>
+    <string name="documents_empty">Документы не созданы</string>
+    <string name="payments_empty">Платежи не созданы</string>
+    <string name="create_work_order">Создать заказ-наряд</string>
+    <string name="create_act">Создать акт</string>
+    <string name="create_payment">Добавить платеж</string>
+    <string name="issue">Выдать</string>
+    <string name="sign">Подписать</string>
+    <string name="mark_paid">Отметить оплаченным</string>
+</resources>

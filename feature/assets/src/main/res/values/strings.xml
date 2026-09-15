@@ -1,0 +1,34 @@
+<resources>
+    <string name="assets_title">Объекты и оборудование</string>
+    <string name="assets_objects">Объекты</string>
+    <string name="assets_equipment">Оборудование</string>
+    <string name="assets_add_object">Добавить объект</string>
+    <string name="assets_add_equipment">Добавить оборудование</string>
+    <string name="assets_search">Поиск</string>
+    <string name="assets_empty">Записи не найдены</string>
+    <string name="assets_name">Название</string>
+    <string name="assets_address">Адрес</string>
+    <string name="assets_access_mode">Режим доступа</string>
+    <string name="assets_contact">Ответственное лицо / контакт</string>
+    <string name="assets_client">Клиент</string>
+    <string name="assets_no_client">Клиент не выбран</string>
+    <string name="assets_object">Объект</string>
+    <string name="assets_no_object">Объект не выбран</string>
+    <string name="assets_type">Тип</string>
+    <string name="assets_make">Производитель / марка</string>
+    <string name="assets_model">Модель</string>
+    <string name="assets_serial">Серийный номер</string>
+    <string name="assets_inventory">Инвентарный номер</string>
+    <string name="assets_qr">QR / штрихкод</string>
+    <string name="assets_commissioned">Дата ввода / примечание</string>
+    <string name="assets_warranty">Гарантия / примечание</string>
+    <string name="assets_edit">Редактировать</string>
+    <string name="assets_archive">Архивировать</string>
+    <string name="assets_restore">Восстановить</string>
+    <string name="assets_active">Активные</string>
+    <string name="assets_archived">Архив</string>
+    <string name="assets_save">Сохранить</string>
+    <string name="assets_cancel">Отмена</string>
+    <string name="assets_name_required">Укажите название.</string>
+    <string name="assets_serial_duplicate">Оборудование с таким серийным номером уже существует.</string>
+</resources>

@@ -23,8 +23,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import com.lexora.service.core.data.InMemoryOrganizationRepository
 import com.lexora.service.core.data.TireRepository
+import com.lexora.service.core.model.Organization
 import com.lexora.service.core.model.TireDiagnostic
 import com.lexora.service.core.model.TireQueueItem
 import com.lexora.service.core.model.TireQueueStatus
@@ -34,10 +34,9 @@ import com.lexora.service.core.model.TireWorkEntry
 import kotlinx.coroutines.launch
 
 @Composable
-fun TiresScreen() {
+fun TiresScreen(organization: Organization) {
     val context = LocalContext.current
     val repository = remember { TireRepository.create(context) }
-    val organization = remember { InMemoryOrganizationRepository().activeOrganization() }
     val scope = rememberCoroutineScope()
 
     var queue by remember { mutableStateOf<List<TireQueueItem>>(emptyList()) }
@@ -46,14 +45,13 @@ fun TiresScreen() {
     var storage by remember { mutableStateOf<List<TireStorageItem>>(emptyList()) }
 
     suspend fun reload() {
-        val organizationId = organization?.id ?: return
-        queue = repository.queue(organizationId)
-        diagnostics = repository.diagnostics(organizationId)
-        workEntries = repository.workEntries(organizationId)
-        storage = repository.storage(organizationId)
+        queue = repository.queue(organization.id)
+        diagnostics = repository.diagnostics(organization.id)
+        workEntries = repository.workEntries(organization.id)
+        storage = repository.storage(organization.id)
     }
 
-    LaunchedEffect(organization?.id) { reload() }
+    LaunchedEffect(organization.id) { reload() }
 
     Column(
         modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),
@@ -62,7 +60,7 @@ fun TiresScreen() {
         Text("Шиномонтаж", style = MaterialTheme.typography.headlineMedium)
 
         Text("Очередь", style = MaterialTheme.typography.titleMedium)
-        Button(onClick = { scope.launch { organization?.id?.let { repository.addQueueItem(it); reload() } } }) { Text("Добавить в очередь") }
+        Button(onClick = { scope.launch { repository.addQueueItem(organization.id); reload() } }) { Text("Добавить в очередь") }
         queue.sortedBy { it.position }.forEach { item ->
             Card(Modifier.fillMaxWidth()) {
                 Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -80,7 +78,7 @@ fun TiresScreen() {
         }
 
         Text("Диагностика", style = MaterialTheme.typography.titleMedium)
-        Button(onClick = { scope.launch { organization?.id?.let { repository.addDiagnostic(it); reload() } } }) { Text("Добавить диагностику") }
+        Button(onClick = { scope.launch { repository.addDiagnostic(organization.id); reload() } }) { Text("Добавить диагностику") }
         diagnostics.take(20).forEach { diagnostic ->
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp)) {
@@ -93,11 +91,11 @@ fun TiresScreen() {
         }
 
         Text("Работы", style = MaterialTheme.typography.titleMedium)
-        Button(onClick = { scope.launch { organization?.id?.let { repository.addWorkEntry(it); reload() } } }) { Text("Добавить работу") }
+        Button(onClick = { scope.launch { repository.addWorkEntry(organization.id); reload() } }) { Text("Добавить работу") }
         workEntries.take(20).forEach { work -> Text("${work.title} × ${work.quantity}") }
 
         Text("Хранение шин", style = MaterialTheme.typography.titleMedium)
-        Button(onClick = { scope.launch { organization?.id?.let { repository.addStorageItem(it); reload() } } }) { Text("Принять на хранение") }
+        Button(onClick = { scope.launch { repository.addStorageItem(organization.id); reload() } }) { Text("Принять на хранение") }
         storage.forEach { item ->
             Card(Modifier.fillMaxWidth()) {
                 Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween) {

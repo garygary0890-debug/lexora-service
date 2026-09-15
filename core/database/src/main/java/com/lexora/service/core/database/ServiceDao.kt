@@ -84,4 +84,40 @@ interface ServiceDao {
 
     @Query("SELECT * FROM audit_events WHERE organizationId = :organizationId ORDER BY occurredAtEpochMs DESC LIMIT :limit")
     suspend fun recentAuditEvents(organizationId: String, limit: Int = 100): List<AuditEventEntity>
+
+    @Query("SELECT * FROM service_objects WHERE organizationId = :organizationId AND archived = 0 ORDER BY name")
+    suspend fun serviceObjects(organizationId: String): List<ServiceObjectEntity>
+
+    @Query("SELECT * FROM service_objects WHERE organizationId = :organizationId AND archived = 1 ORDER BY name")
+    suspend fun archivedServiceObjects(organizationId: String): List<ServiceObjectEntity>
+
+    @Query("SELECT * FROM service_objects WHERE id = :id LIMIT 1")
+    suspend fun serviceObject(id: String): ServiceObjectEntity?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertServiceObject(value: ServiceObjectEntity)
+
+    @Query("UPDATE service_objects SET archived = 1, syncState = :syncState, updatedAtEpochMs = :updatedAt WHERE id = :id")
+    suspend fun archiveServiceObject(id: String, syncState: String, updatedAt: Long)
+
+    @Query("UPDATE service_objects SET archived = 0, syncState = :syncState, updatedAtEpochMs = :updatedAt WHERE id = :id")
+    suspend fun restoreServiceObject(id: String, syncState: String, updatedAt: Long)
+
+    @Query("SELECT * FROM equipment WHERE organizationId = :organizationId AND archived = 0 ORDER BY type, make, model")
+    suspend fun equipment(organizationId: String): List<EquipmentEntity>
+
+    @Query("SELECT * FROM equipment WHERE organizationId = :organizationId AND archived = 1 ORDER BY type, make, model")
+    suspend fun archivedEquipment(organizationId: String): List<EquipmentEntity>
+
+    @Query("SELECT * FROM equipment WHERE id = :id LIMIT 1")
+    suspend fun equipmentItem(id: String): EquipmentEntity?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertEquipment(value: EquipmentEntity)
+
+    @Query("UPDATE equipment SET archived = 1, syncState = :syncState, updatedAtEpochMs = :updatedAt WHERE id = :id")
+    suspend fun archiveEquipment(id: String, syncState: String, updatedAt: Long)
+
+    @Query("UPDATE equipment SET archived = 0, syncState = :syncState, updatedAtEpochMs = :updatedAt WHERE id = :id")
+    suspend fun restoreEquipment(id: String, syncState: String, updatedAt: Long)
 }

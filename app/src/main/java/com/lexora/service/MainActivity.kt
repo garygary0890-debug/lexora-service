@@ -16,8 +16,8 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.lexora.service.core.data.InMemoryOrganizationRepository
-import com.lexora.service.core.data.InMemoryUserRepository
 import com.lexora.service.core.data.ModuleLicenseRepository
+import com.lexora.service.core.data.PersistentUserRepository
 import com.lexora.service.core.data.defaultIntegrationRegistry
 import com.lexora.service.core.database.*
 import com.lexora.service.core.designsystem.LexoraTheme
@@ -57,12 +57,13 @@ private fun LexoraServiceApp() {
         val database = remember { LexoraServiceDatabase.create(context) }
         val dao = remember(database) { database.serviceDao() }
         val organizationRepository = remember { InMemoryOrganizationRepository() }
-        val userRepository = remember { InMemoryUserRepository() }
+        val userRepository = remember(database, dao) { PersistentUserRepository(database.userDao(), dao) }
         val moduleLicenseRepository = remember(dao) { ModuleLicenseRepository(dao) }
         val moduleAccessPolicy = remember { ModuleAccessPolicy() }
         val integrations = remember { defaultIntegrationRegistry() }
         val scope = rememberCoroutineScope()
 
+        var user by remember { mutableStateOf<ServiceUser?>(null) }
         var modules by remember { mutableStateOf<List<ModuleDescriptor>>(emptyList()) }
         var clients by remember { mutableStateOf<List<Client>>(emptyList()) }
         var archivedClients by remember { mutableStateOf<List<Client>>(emptyList()) }
@@ -84,8 +85,15 @@ private fun LexoraServiceApp() {
         var payments by remember { mutableStateOf<List<Payment>>(emptyList()) }
 
         val organization = requireNotNull(organizationRepository.activeOrganization())
-        val user = userRepository.currentUser()
-        val accessibleModules = modules.filter { moduleAccessPolicy.isAvailable(it, user) }
+
+        LaunchedEffect(organization.id) {
+            val now = System.currentTimeMillis()
+            dao.upsertOrganization(OrganizationEntity(organization.id, organization.name, true, now))
+            user = userRepository.ensureLocalAdmin(organization.id)
+        }
+
+        val activeUser = user ?: return@LexoraTheme
+        val accessibleModules = modules.filter { moduleAccessPolicy.isAvailable(it, activeUser) }
 
         suspend fun reloadModules() { modules = moduleLicenseRepository.descriptors(organization.id) }
         suspend fun reloadClients() {
@@ -124,12 +132,11 @@ private fun LexoraServiceApp() {
             payments = dao.payments(organization.id).map(PaymentEntity::toModel)
         }
         suspend fun audit(entityType: String, entityId: String?, action: String, summary: String) {
-            dao.insertAuditEvent(AuditEventEntity(UUID.randomUUID().toString(), organization.id, user.id, entityType, entityId, action, summary, System.currentTimeMillis()))
+            dao.insertAuditEvent(AuditEventEntity(UUID.randomUUID().toString(), organization.id, activeUser.id, entityType, entityId, action, summary, System.currentTimeMillis()))
         }
 
-        LaunchedEffect(organization.id) {
+        LaunchedEffect(organization.id, activeUser.id) {
             val now = System.currentTimeMillis()
-            dao.upsertOrganization(OrganizationEntity(organization.id, organization.name, true, now))
             if (dao.clients(organization.id).isEmpty() && dao.archivedClients(organization.id).isEmpty()) {
                 dao.upsertClient(ClientEntity("client-demo-1", organization.id, ClientType.PERSON.name, "Демонстрационный клиент", "+7 900 000-00-00", null, null, null, null, null, null, false, false, SyncState.PENDING_CREATE.name, now, now))
             }
@@ -215,14 +222,14 @@ private fun LexoraServiceApp() {
                             val now = System.currentTimeMillis(); val existing = existingId?.let { dao.serviceRequest(it) }; val id = existingId ?: UUID.randomUUID().toString()
                             val number = existing?.number ?: run { val max = dao.serviceRequests(organization.id).mapNotNull { it.number.removePrefix("REQ-").toIntOrNull() }.maxOrNull() ?: 0; "REQ-%06d".format(max + 1) }
                             dao.upsertServiceRequest(ServiceRequestEntity(id, organization.id, number, existing?.clientId, existing?.vehicleId, existing?.serviceObjectId, existing?.equipmentId, existing?.branchId, existing?.assigneeEmployeeId, draft.title, draft.description.ifBlank { null }, existing?.status ?: RequestStatus.NEW.name, draft.priority.name, existing?.plannedAtEpochMs, existing?.dueAtEpochMs, existing?.slaDeadlineEpochMs, existing?.closedAtEpochMs, existing?.archived ?: false, if (existing == null) SyncState.PENDING_CREATE.name else SyncState.PENDING_UPDATE.name, existing?.createdAtEpochMs ?: now, now))
-                            if (existing == null) dao.insertRequestStatusHistory(RequestStatusHistoryEntity(UUID.randomUUID().toString(), id, null, RequestStatus.NEW.name, user.id, now, "Создание заявки"))
+                            if (existing == null) dao.insertRequestStatusHistory(RequestStatusHistoryEntity(UUID.randomUUID().toString(), id, null, RequestStatus.NEW.name, activeUser.id, now, "Создание заявки"))
                             audit("SERVICE_REQUEST", id, if (existing == null) "CREATE" else "UPDATE", "$number · ${draft.title}"); reloadRequests()
                         } },
                         onChangeStatus = { id, target -> scope.launch {
                             val current = dao.serviceRequest(id) ?: return@launch; val from = RequestStatus.valueOf(current.status)
                             if (!RequestWorkflow.canTransition(from, target) || from == target) return@launch
                             val now = System.currentTimeMillis(); dao.updateRequestStatus(id, target.name, SyncState.PENDING_UPDATE.name, now, if (target == RequestStatus.CLOSED) now else null)
-                            dao.insertRequestStatusHistory(RequestStatusHistoryEntity(UUID.randomUUID().toString(), id, from.name, target.name, user.id, now, null)); audit("SERVICE_REQUEST", id, "STATUS_CHANGE", "${current.number}: ${from.name} → ${target.name}"); reloadRequests()
+                            dao.insertRequestStatusHistory(RequestStatusHistoryEntity(UUID.randomUUID().toString(), id, from.name, target.name, activeUser.id, now, null)); audit("SERVICE_REQUEST", id, "STATUS_CHANGE", "${current.number}: ${from.name} → ${target.name}"); reloadRequests()
                         } },
                     )
                 }
@@ -249,7 +256,7 @@ private fun LexoraServiceApp() {
                 composable(Routes.Catalog) { CatalogScreen() }
                 composable(Routes.Notifications) { NotificationsScreen(organization = organization) }
                 composable(Routes.Audit) { AuditScreen(organization = organization) }
-                composable(Routes.Settings) { SettingsScreen(organization = organization, user = user, modules = modules, appVersion = "0.27.0", onModuleEnabledChange = { _, _ -> scope.launch { reloadModules() } }) }
+                composable(Routes.Settings) { SettingsScreen(organization = organization, user = activeUser, modules = modules, appVersion = "0.28.0", onModuleEnabledChange = { _, _ -> scope.launch { reloadModules() } }) }
                 composable(Routes.Wash) { WashScreen() }
                 composable(Routes.Tires) { TiresScreen() }
             }

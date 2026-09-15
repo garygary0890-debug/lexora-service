@@ -11,14 +11,15 @@ android {
         applicationId = "com.lexora.service"
         minSdk = 26
         targetSdk = 36
-        versionCode = 8
-        versionName = "0.8.0"
+        versionCode = 9
+        versionName = "0.9.0"
     }
 
     buildFeatures { compose = true }
 }
 
 dependencies {
+    implementation(project(":feature:fieldwork"))
     implementation(project(":feature:requests"))
     implementation(project(":feature:organization"))
     implementation(project(":feature:assets"))

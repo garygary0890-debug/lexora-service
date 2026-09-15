@@ -1,0 +1,33 @@
+<resources>
+    <string name="clients_title">Клиенты</string>
+    <string name="clients_search_hint">Поиск по имени, телефону, ИНН</string>
+    <string name="clients_empty">Клиентов пока нет</string>
+    <string name="clients_add">Добавить клиента</string>
+    <string name="clients_edit">Редактировать</string>
+    <string name="clients_archive">Архивировать</string>
+    <string name="clients_restore">Восстановить</string>
+    <string name="clients_show_archive">Показать архив</string>
+    <string name="clients_hide_archive">Скрыть архив</string>
+    <string name="client_type_person">Физическое лицо</string>
+    <string name="client_type_company">Юридическое лицо</string>
+    <string name="client_name">ФИО / Наименование</string>
+    <string name="client_phone">Телефон</string>
+    <string name="client_email">Email</string>
+    <string name="client_tax_id">ИНН</string>
+    <string name="client_tax_id_value">ИНН: %1$s</string>
+    <string name="client_kpp">КПП</string>
+    <string name="client_registration_address">Адрес регистрации / юридический адрес</string>
+    <string name="client_actual_address">Фактический адрес</string>
+    <string name="client_note">Примечание</string>
+    <string name="client_consent">Согласие на обработку персональных данных</string>
+    <string name="common_save">Сохранить</string>
+    <string name="common_cancel">Отмена</string>
+    <string name="common_close">Закрыть</string>
+    <string name="client_duplicate_phone">Возможный дубль: уже есть клиент с таким телефоном</string>
+    <string name="client_duplicate_tax_id">Возможный дубль: уже есть клиент с таким ИНН</string>
+    <string name="client_name_required">Укажите ФИО или наименование клиента</string>
+    <string name="client_tax_id_invalid">ИНН должен содержать 10 или 12 цифр</string>
+    <string name="client_kpp_invalid">КПП должен содержать 9 цифр</string>
+    <string name="client_archived_badge">Архив</string>
+    <string name="client_sync_state">Синхронизация: %1$s</string>
+</resources>

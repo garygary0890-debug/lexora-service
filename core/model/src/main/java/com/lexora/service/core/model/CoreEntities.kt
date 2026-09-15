@@ -41,6 +41,9 @@ data class Branch(
     val organizationId: String,
     val name: String,
     val address: String? = null,
+    val phone: String? = null,
+    val email: String? = null,
+    val workSchedule: String? = null,
     val timeZoneId: String,
     val active: Boolean = true,
     val syncState: SyncState = SyncState.PENDING_CREATE,
@@ -52,6 +55,8 @@ data class Employee(
     val branchId: String?,
     val displayName: String,
     val position: String? = null,
+    val phone: String? = null,
+    val email: String? = null,
     val active: Boolean = true,
     val syncState: SyncState = SyncState.PENDING_CREATE,
 )

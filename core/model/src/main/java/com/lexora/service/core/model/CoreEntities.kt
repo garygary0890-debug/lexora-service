@@ -55,3 +55,31 @@ data class Employee(
     val active: Boolean = true,
     val syncState: SyncState = SyncState.PENDING_CREATE,
 )
+
+data class ServiceObject(
+    val id: String,
+    val organizationId: String,
+    val clientId: String?,
+    val name: String,
+    val address: String? = null,
+    val accessMode: String? = null,
+    val responsibleContact: String? = null,
+    val archived: Boolean = false,
+    val syncState: SyncState = SyncState.PENDING_CREATE,
+)
+
+data class Equipment(
+    val id: String,
+    val organizationId: String,
+    val serviceObjectId: String?,
+    val type: String,
+    val make: String? = null,
+    val model: String? = null,
+    val serialNumber: String? = null,
+    val inventoryNumber: String? = null,
+    val barcode: String? = null,
+    val commissionedNote: String? = null,
+    val warrantyNote: String? = null,
+    val archived: Boolean = false,
+    val syncState: SyncState = SyncState.PENDING_CREATE,
+)

@@ -26,7 +26,8 @@ class ServiceHistoryRepository(
         val requests = dao.serviceRequests(organizationId).filter { it.vehicleId == vehicleId }
 
         requests.forEach { request ->
-            if (request.status == RequestStatus.CLOSED.name && request.closedAtEpochMs != null) {
+            val closedAt = request.closedAtEpochMs
+            if (request.status == RequestStatus.CLOSED.name && closedAt != null) {
                 upsertDeterministic(
                     id = "history-request-${request.id}",
                     organizationId = organizationId,
@@ -36,7 +37,7 @@ class ServiceHistoryRepository(
                     title = "Заявка ${request.number} закрыта",
                     description = request.title,
                     mileageKm = mileage,
-                    occurredAt = request.closedAtEpochMs,
+                    occurredAt = closedAt,
                 )
             }
 

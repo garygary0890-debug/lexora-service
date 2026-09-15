@@ -10,6 +10,9 @@ interface WorkOrderDao {
     @Query("SELECT * FROM work_order_items WHERE documentId = :documentId ORDER BY updatedAtEpochMs, title")
     suspend fun items(documentId: String): List<WorkOrderItemEntity>
 
+    @Query("SELECT * FROM work_order_items WHERE id = :id LIMIT 1")
+    suspend fun item(id: String): WorkOrderItemEntity?
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(value: WorkOrderItemEntity)
 

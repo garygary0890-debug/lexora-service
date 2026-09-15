@@ -93,17 +93,21 @@ fun CatalogScreen() {
         ServiceConstructorSection(
             summaries = recipeSummaries.filter { it.recipe.active },
             onAddComponent = { recipeId, type, name, quantity, unit, unitCostMinor ->
-                val orgId = organization?.id ?: return@ServiceConstructorSection
-                scope.launch {
-                    constructorRepository.addComponent(orgId, user.id, recipeId, type, name, quantity, unit, unitCostMinor)
-                    reload()
+                val orgId = organization?.id
+                if (orgId != null) {
+                    scope.launch {
+                        constructorRepository.addComponent(orgId, user.id, recipeId, type, name, quantity, unit, unitCostMinor)
+                        reload()
+                    }
                 }
             },
             onSetComponentActive = { componentId, active ->
-                val orgId = organization?.id ?: return@ServiceConstructorSection
-                scope.launch {
-                    constructorRepository.setComponentActive(orgId, user.id, componentId, active)
-                    reload()
+                val orgId = organization?.id
+                if (orgId != null) {
+                    scope.launch {
+                        constructorRepository.setComponentActive(orgId, user.id, componentId, active)
+                        reload()
+                    }
                 }
             },
         )

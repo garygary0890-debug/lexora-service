@@ -4,6 +4,8 @@ enum class SyncState { SYNCED, PENDING_CREATE, PENDING_UPDATE, PENDING_DELETE, E
 enum class ClientType { PERSON, COMPANY }
 enum class RequestStatus { NEW, QUALIFICATION, PLANNED, IN_PROGRESS, WAITING, WORK_COMPLETED, CONFIRMATION, CLOSED, CANCELLED }
 enum class RequestPriority { LOW, NORMAL, HIGH, URGENT }
+enum class VisitStatus { PLANNED, EN_ROUTE, ON_SITE, COMPLETED, CANCELLED }
+enum class ChecklistItemState { PENDING, DONE, NOT_APPLICABLE }
 
 data class Client(
     val id: String,
@@ -58,4 +60,62 @@ data class RequestStatusHistory(
     val changedByUserId: String,
     val changedAtEpochMs: Long,
     val comment: String? = null,
+)
+
+data class ServiceVisit(
+    val id: String,
+    val organizationId: String,
+    val requestId: String,
+    val branchId: String? = null,
+    val employeeId: String? = null,
+    val status: VisitStatus = VisitStatus.PLANNED,
+    val plannedStartEpochMs: Long? = null,
+    val plannedEndEpochMs: Long? = null,
+    val actualStartEpochMs: Long? = null,
+    val actualEndEpochMs: Long? = null,
+    val resultNote: String? = null,
+    val customerName: String? = null,
+    val customerSignatureRef: String? = null,
+    val syncState: SyncState = SyncState.PENDING_CREATE,
+)
+
+data class VisitChecklistItem(
+    val id: String,
+    val visitId: String,
+    val title: String,
+    val state: ChecklistItemState = ChecklistItemState.PENDING,
+    val comment: String? = null,
+    val sortOrder: Int = 0,
+    val syncState: SyncState = SyncState.PENDING_CREATE,
+)
+
+data class VisitWorkEntry(
+    val id: String,
+    val visitId: String,
+    val serviceCode: String? = null,
+    val title: String,
+    val quantity: Double = 1.0,
+    val unit: String? = null,
+    val note: String? = null,
+    val syncState: SyncState = SyncState.PENDING_CREATE,
+)
+
+data class VisitMaterialUsage(
+    val id: String,
+    val visitId: String,
+    val materialCode: String? = null,
+    val title: String,
+    val quantity: Double,
+    val unit: String? = null,
+    val note: String? = null,
+    val syncState: SyncState = SyncState.PENDING_CREATE,
+)
+
+data class VisitPhoto(
+    val id: String,
+    val visitId: String,
+    val localUri: String,
+    val caption: String? = null,
+    val takenAtEpochMs: Long,
+    val syncState: SyncState = SyncState.PENDING_CREATE,
 )

@@ -20,7 +20,9 @@ import com.lexora.service.core.data.InMemoryModuleRegistry
 import com.lexora.service.core.data.InMemoryOrganizationRepository
 import com.lexora.service.core.data.InMemoryUserRepository
 import com.lexora.service.core.database.AuditEventEntity
+import com.lexora.service.core.database.BranchEntity
 import com.lexora.service.core.database.ClientEntity
+import com.lexora.service.core.database.EmployeeEntity
 import com.lexora.service.core.database.EquipmentEntity
 import com.lexora.service.core.database.LexoraServiceDatabase
 import com.lexora.service.core.database.OrganizationEntity
@@ -28,8 +30,10 @@ import com.lexora.service.core.database.ServiceObjectEntity
 import com.lexora.service.core.database.VehicleEntity
 import com.lexora.service.core.designsystem.LexoraTheme
 import com.lexora.service.core.domain.ModuleAccessPolicy
+import com.lexora.service.core.model.Branch
 import com.lexora.service.core.model.Client
 import com.lexora.service.core.model.ClientType
+import com.lexora.service.core.model.Employee
 import com.lexora.service.core.model.Equipment
 import com.lexora.service.core.model.LexoraModuleId
 import com.lexora.service.core.model.ServiceObject
@@ -39,9 +43,10 @@ import com.lexora.service.core.navigation.Routes
 import com.lexora.service.feature.assets.AssetsScreen
 import com.lexora.service.feature.clients.ClientsScreen
 import com.lexora.service.feature.home.HomeScreen
+import com.lexora.service.feature.organization.OrganizationScreen
 import com.lexora.service.feature.settings.SettingsScreen
-import com.lexora.service.feature.vehicles.VehiclesScreen
 import com.lexora.service.feature.tires.TiresScreen
+import com.lexora.service.feature.vehicles.VehiclesScreen
 import com.lexora.service.feature.wash.WashScreen
 import java.util.UUID
 import kotlinx.coroutines.launch
@@ -73,6 +78,10 @@ private fun LexoraServiceApp() {
         var archivedServiceObjects by remember { mutableStateOf<List<ServiceObject>>(emptyList()) }
         var equipment by remember { mutableStateOf<List<Equipment>>(emptyList()) }
         var archivedEquipment by remember { mutableStateOf<List<Equipment>>(emptyList()) }
+        var branches by remember { mutableStateOf<List<Branch>>(emptyList()) }
+        var inactiveBranches by remember { mutableStateOf<List<Branch>>(emptyList()) }
+        var employees by remember { mutableStateOf<List<Employee>>(emptyList()) }
+        var inactiveEmployees by remember { mutableStateOf<List<Employee>>(emptyList()) }
 
         val organization = requireNotNull(organizationRepository.activeOrganization())
         val user = userRepository.currentUser()
@@ -96,6 +105,13 @@ private fun LexoraServiceApp() {
             archivedEquipment = dao.archivedEquipment(organization.id).map(EquipmentEntity::toModel)
         }
 
+        suspend fun reloadOrganization() {
+            branches = dao.branches(organization.id).map(BranchEntity::toModel)
+            inactiveBranches = dao.inactiveBranches(organization.id).map(BranchEntity::toModel)
+            employees = dao.employees(organization.id).map(EmployeeEntity::toModel)
+            inactiveEmployees = dao.inactiveEmployees(organization.id).map(EmployeeEntity::toModel)
+        }
+
         suspend fun audit(entityType: String, entityId: String?, action: String, summary: String) {
             dao.insertAuditEvent(
                 AuditEventEntity(
@@ -113,14 +129,7 @@ private fun LexoraServiceApp() {
 
         LaunchedEffect(organization.id) {
             val now = System.currentTimeMillis()
-            dao.upsertOrganization(
-                OrganizationEntity(
-                    id = organization.id,
-                    name = organization.name,
-                    isActive = true,
-                    updatedAtEpochMs = now,
-                )
-            )
+            dao.upsertOrganization(OrganizationEntity(organization.id, organization.name, true, now))
             if (dao.clients(organization.id).isEmpty() && dao.archivedClients(organization.id).isEmpty()) {
                 dao.upsertClient(
                     ClientEntity(
@@ -146,6 +155,7 @@ private fun LexoraServiceApp() {
             reloadClients()
             reloadVehicles()
             reloadAssets()
+            reloadOrganization()
         }
 
         val navController = rememberNavController()
@@ -158,16 +168,9 @@ private fun LexoraServiceApp() {
                         onOpenClients = { navController.navigate(Routes.Clients) },
                         onOpenVehicles = { navController.navigate(Routes.Vehicles) },
                         onOpenAssets = { navController.navigate(Routes.Assets) },
-                        onOpenWash = {
-                            if (accessibleModules.any { it.id == LexoraModuleId.WASH }) {
-                                navController.navigate(Routes.Wash)
-                            }
-                        },
-                        onOpenTires = {
-                            if (accessibleModules.any { it.id == LexoraModuleId.TIRES }) {
-                                navController.navigate(Routes.Tires)
-                            }
-                        },
+                        onOpenOrganization = { navController.navigate(Routes.Organization) },
+                        onOpenWash = { if (accessibleModules.any { it.id == LexoraModuleId.WASH }) navController.navigate(Routes.Wash) },
+                        onOpenTires = { if (accessibleModules.any { it.id == LexoraModuleId.TIRES }) navController.navigate(Routes.Tires) },
                         onOpenSettings = { navController.navigate(Routes.Settings) },
                     )
                 }
@@ -180,46 +183,13 @@ private fun LexoraServiceApp() {
                                 val now = System.currentTimeMillis()
                                 val id = existingId ?: UUID.randomUUID().toString()
                                 val existing = existingId?.let { dao.client(it) }
-                                dao.upsertClient(
-                                    ClientEntity(
-                                        id = id,
-                                        organizationId = organization.id,
-                                        type = draft.type.name,
-                                        displayName = draft.displayName,
-                                        phone = draft.phone.ifBlank { null },
-                                        email = draft.email.ifBlank { null },
-                                        taxId = draft.taxId.ifBlank { null },
-                                        kpp = draft.kpp.ifBlank { null },
-                                        registrationAddress = draft.registrationAddress.ifBlank { null },
-                                        actualAddress = draft.actualAddress.ifBlank { null },
-                                        note = draft.note.ifBlank { null },
-                                        consentPersonalData = draft.consentPersonalData,
-                                        archived = existing?.archived ?: false,
-                                        syncState = if (existing == null) SyncState.PENDING_CREATE.name else SyncState.PENDING_UPDATE.name,
-                                        createdAtEpochMs = existing?.createdAtEpochMs ?: now,
-                                        updatedAtEpochMs = now,
-                                    )
-                                )
+                                dao.upsertClient(ClientEntity(id, organization.id, draft.type.name, draft.displayName, draft.phone.ifBlank { null }, draft.email.ifBlank { null }, draft.taxId.ifBlank { null }, draft.kpp.ifBlank { null }, draft.registrationAddress.ifBlank { null }, draft.actualAddress.ifBlank { null }, draft.note.ifBlank { null }, draft.consentPersonalData, existing?.archived ?: false, if (existing == null) SyncState.PENDING_CREATE.name else SyncState.PENDING_UPDATE.name, existing?.createdAtEpochMs ?: now, now))
                                 audit("CLIENT", id, if (existing == null) "CREATE" else "UPDATE", draft.displayName)
                                 reloadClients()
                             }
                         },
-                        onArchive = { id ->
-                            scope.launch {
-                                val name = dao.client(id)?.displayName.orEmpty()
-                                dao.archiveClient(id, SyncState.PENDING_UPDATE.name, System.currentTimeMillis())
-                                audit("CLIENT", id, "ARCHIVE", name)
-                                reloadClients()
-                            }
-                        },
-                        onRestore = { id ->
-                            scope.launch {
-                                val name = dao.client(id)?.displayName.orEmpty()
-                                dao.restoreClient(id, SyncState.PENDING_UPDATE.name, System.currentTimeMillis())
-                                audit("CLIENT", id, "RESTORE", name)
-                                reloadClients()
-                            }
-                        },
+                        onArchive = { id -> scope.launch { val name = dao.client(id)?.displayName.orEmpty(); dao.archiveClient(id, SyncState.PENDING_UPDATE.name, System.currentTimeMillis()); audit("CLIENT", id, "ARCHIVE", name); reloadClients() } },
+                        onRestore = { id -> scope.launch { val name = dao.client(id)?.displayName.orEmpty(); dao.restoreClient(id, SyncState.PENDING_UPDATE.name, System.currentTimeMillis()); audit("CLIENT", id, "RESTORE", name); reloadClients() } },
                     )
                 }
                 composable(Routes.Vehicles) {
@@ -232,50 +202,13 @@ private fun LexoraServiceApp() {
                                 val now = System.currentTimeMillis()
                                 val id = existingId ?: UUID.randomUUID().toString()
                                 val existing = existingId?.let { dao.vehicle(it) }
-                                dao.upsertVehicle(
-                                    VehicleEntity(
-                                        id = id,
-                                        organizationId = organization.id,
-                                        clientId = draft.clientId,
-                                        registrationNumber = draft.registrationNumber.trim().uppercase(),
-                                        vin = draft.vin.trim().uppercase().ifBlank { null },
-                                        make = draft.make.trim().ifBlank { null },
-                                        model = draft.model.trim().ifBlank { null },
-                                        year = draft.year.toIntOrNull(),
-                                        bodyType = draft.bodyType.trim().ifBlank { null },
-                                        color = draft.color.trim().ifBlank { null },
-                                        mileageKm = draft.mileageKm.toIntOrNull(),
-                                        archived = existing?.archived ?: false,
-                                        syncState = if (existing == null) SyncState.PENDING_CREATE.name else SyncState.PENDING_UPDATE.name,
-                                        createdAtEpochMs = existing?.createdAtEpochMs ?: now,
-                                        updatedAtEpochMs = now,
-                                    )
-                                )
-                                audit(
-                                    entityType = "VEHICLE",
-                                    entityId = id,
-                                    action = if (existing == null) "CREATE" else "UPDATE",
-                                    summary = draft.registrationNumber.trim().uppercase(),
-                                )
+                                dao.upsertVehicle(VehicleEntity(id, organization.id, draft.clientId, draft.registrationNumber.trim().uppercase(), draft.vin.trim().uppercase().ifBlank { null }, draft.make.trim().ifBlank { null }, draft.model.trim().ifBlank { null }, draft.year.toIntOrNull(), draft.bodyType.trim().ifBlank { null }, draft.color.trim().ifBlank { null }, draft.mileageKm.toIntOrNull(), existing?.archived ?: false, if (existing == null) SyncState.PENDING_CREATE.name else SyncState.PENDING_UPDATE.name, existing?.createdAtEpochMs ?: now, now))
+                                audit("VEHICLE", id, if (existing == null) "CREATE" else "UPDATE", draft.registrationNumber.trim().uppercase())
                                 reloadVehicles()
                             }
                         },
-                        onArchive = { id ->
-                            scope.launch {
-                                val registration = dao.vehicle(id)?.registrationNumber.orEmpty()
-                                dao.archiveVehicle(id, SyncState.PENDING_UPDATE.name, System.currentTimeMillis())
-                                audit("VEHICLE", id, "ARCHIVE", registration)
-                                reloadVehicles()
-                            }
-                        },
-                        onRestore = { id ->
-                            scope.launch {
-                                val registration = dao.vehicle(id)?.registrationNumber.orEmpty()
-                                dao.restoreVehicle(id, SyncState.PENDING_UPDATE.name, System.currentTimeMillis())
-                                audit("VEHICLE", id, "RESTORE", registration)
-                                reloadVehicles()
-                            }
-                        },
+                        onArchive = { id -> scope.launch { val value = dao.vehicle(id)?.registrationNumber.orEmpty(); dao.archiveVehicle(id, SyncState.PENDING_UPDATE.name, System.currentTimeMillis()); audit("VEHICLE", id, "ARCHIVE", value); reloadVehicles() } },
+                        onRestore = { id -> scope.launch { val value = dao.vehicle(id)?.registrationNumber.orEmpty(); dao.restoreVehicle(id, SyncState.PENDING_UPDATE.name, System.currentTimeMillis()); audit("VEHICLE", id, "RESTORE", value); reloadVehicles() } },
                     )
                 }
                 composable(Routes.Assets) {
@@ -287,101 +220,52 @@ private fun LexoraServiceApp() {
                         clients = clients + archivedClients,
                         onSaveObject = { draft, existingId ->
                             scope.launch {
-                                val now = System.currentTimeMillis()
-                                val id = existingId ?: UUID.randomUUID().toString()
-                                val existing = existingId?.let { dao.serviceObject(it) }
-                                dao.upsertServiceObject(
-                                    ServiceObjectEntity(
-                                        id = id,
-                                        organizationId = organization.id,
-                                        clientId = draft.clientId,
-                                        name = draft.name.trim(),
-                                        address = draft.address.trim().ifBlank { null },
-                                        accessMode = draft.accessMode.trim().ifBlank { null },
-                                        responsibleContact = draft.responsibleContact.trim().ifBlank { null },
-                                        archived = existing?.archived ?: false,
-                                        syncState = if (existing == null) SyncState.PENDING_CREATE.name else SyncState.PENDING_UPDATE.name,
-                                        createdAtEpochMs = existing?.createdAtEpochMs ?: now,
-                                        updatedAtEpochMs = now,
-                                    )
-                                )
-                                audit("SERVICE_OBJECT", id, if (existing == null) "CREATE" else "UPDATE", draft.name.trim())
-                                reloadAssets()
+                                val now = System.currentTimeMillis(); val id = existingId ?: UUID.randomUUID().toString(); val existing = existingId?.let { dao.serviceObject(it) }
+                                dao.upsertServiceObject(ServiceObjectEntity(id, organization.id, draft.clientId, draft.name.trim(), draft.address.trim().ifBlank { null }, draft.accessMode.trim().ifBlank { null }, draft.responsibleContact.trim().ifBlank { null }, existing?.archived ?: false, if (existing == null) SyncState.PENDING_CREATE.name else SyncState.PENDING_UPDATE.name, existing?.createdAtEpochMs ?: now, now))
+                                audit("SERVICE_OBJECT", id, if (existing == null) "CREATE" else "UPDATE", draft.name.trim()); reloadAssets()
                             }
                         },
-                        onArchiveObject = { id ->
-                            scope.launch {
-                                val name = dao.serviceObject(id)?.name.orEmpty()
-                                dao.archiveServiceObject(id, SyncState.PENDING_UPDATE.name, System.currentTimeMillis())
-                                audit("SERVICE_OBJECT", id, "ARCHIVE", name)
-                                reloadAssets()
-                            }
-                        },
-                        onRestoreObject = { id ->
-                            scope.launch {
-                                val name = dao.serviceObject(id)?.name.orEmpty()
-                                dao.restoreServiceObject(id, SyncState.PENDING_UPDATE.name, System.currentTimeMillis())
-                                audit("SERVICE_OBJECT", id, "RESTORE", name)
-                                reloadAssets()
-                            }
-                        },
+                        onArchiveObject = { id -> scope.launch { val value = dao.serviceObject(id)?.name.orEmpty(); dao.archiveServiceObject(id, SyncState.PENDING_UPDATE.name, System.currentTimeMillis()); audit("SERVICE_OBJECT", id, "ARCHIVE", value); reloadAssets() } },
+                        onRestoreObject = { id -> scope.launch { val value = dao.serviceObject(id)?.name.orEmpty(); dao.restoreServiceObject(id, SyncState.PENDING_UPDATE.name, System.currentTimeMillis()); audit("SERVICE_OBJECT", id, "RESTORE", value); reloadAssets() } },
                         onSaveEquipment = { draft, existingId ->
                             scope.launch {
-                                val now = System.currentTimeMillis()
-                                val id = existingId ?: UUID.randomUUID().toString()
-                                val existing = existingId?.let { dao.equipmentItem(it) }
-                                dao.upsertEquipment(
-                                    EquipmentEntity(
-                                        id = id,
-                                        organizationId = organization.id,
-                                        serviceObjectId = draft.serviceObjectId,
-                                        type = draft.type.trim(),
-                                        make = draft.make.trim().ifBlank { null },
-                                        model = draft.model.trim().ifBlank { null },
-                                        serialNumber = draft.serialNumber.trim().uppercase().ifBlank { null },
-                                        inventoryNumber = draft.inventoryNumber.trim().ifBlank { null },
-                                        barcode = draft.barcode.trim().ifBlank { null },
-                                        commissionedNote = draft.commissionedNote.trim().ifBlank { null },
-                                        warrantyNote = draft.warrantyNote.trim().ifBlank { null },
-                                        archived = existing?.archived ?: false,
-                                        syncState = if (existing == null) SyncState.PENDING_CREATE.name else SyncState.PENDING_UPDATE.name,
-                                        createdAtEpochMs = existing?.createdAtEpochMs ?: now,
-                                        updatedAtEpochMs = now,
-                                    )
-                                )
-                                val summary = listOf(draft.make, draft.model, draft.serialNumber).filter { it.isNotBlank() }.joinToString(" ")
-                                audit("EQUIPMENT", id, if (existing == null) "CREATE" else "UPDATE", summary.ifBlank { draft.type })
-                                reloadAssets()
+                                val now = System.currentTimeMillis(); val id = existingId ?: UUID.randomUUID().toString(); val existing = existingId?.let { dao.equipmentItem(it) }
+                                dao.upsertEquipment(EquipmentEntity(id, organization.id, draft.serviceObjectId, draft.type.trim(), draft.make.trim().ifBlank { null }, draft.model.trim().ifBlank { null }, draft.serialNumber.trim().uppercase().ifBlank { null }, draft.inventoryNumber.trim().ifBlank { null }, draft.barcode.trim().ifBlank { null }, draft.commissionedNote.trim().ifBlank { null }, draft.warrantyNote.trim().ifBlank { null }, existing?.archived ?: false, if (existing == null) SyncState.PENDING_CREATE.name else SyncState.PENDING_UPDATE.name, existing?.createdAtEpochMs ?: now, now))
+                                audit("EQUIPMENT", id, if (existing == null) "CREATE" else "UPDATE", draft.serialNumber.ifBlank { draft.type }); reloadAssets()
                             }
                         },
-                        onArchiveEquipment = { id ->
+                        onArchiveEquipment = { id -> scope.launch { val value = dao.equipmentItem(id)?.serialNumber.orEmpty(); dao.archiveEquipment(id, SyncState.PENDING_UPDATE.name, System.currentTimeMillis()); audit("EQUIPMENT", id, "ARCHIVE", value); reloadAssets() } },
+                        onRestoreEquipment = { id -> scope.launch { val value = dao.equipmentItem(id)?.serialNumber.orEmpty(); dao.restoreEquipment(id, SyncState.PENDING_UPDATE.name, System.currentTimeMillis()); audit("EQUIPMENT", id, "RESTORE", value); reloadAssets() } },
+                    )
+                }
+                composable(Routes.Organization) {
+                    OrganizationScreen(
+                        branches = branches,
+                        inactiveBranches = inactiveBranches,
+                        employees = employees,
+                        inactiveEmployees = inactiveEmployees,
+                        onSaveBranch = { draft, existingId ->
                             scope.launch {
-                                val serial = dao.equipmentItem(id)?.serialNumber.orEmpty()
-                                dao.archiveEquipment(id, SyncState.PENDING_UPDATE.name, System.currentTimeMillis())
-                                audit("EQUIPMENT", id, "ARCHIVE", serial)
-                                reloadAssets()
+                                val id = existingId ?: UUID.randomUUID().toString(); val existing = existingId?.let { dao.branch(it) }; val now = System.currentTimeMillis()
+                                dao.upsertBranch(BranchEntity(id, organization.id, draft.name, draft.address.ifBlank { null }, draft.phone.ifBlank { null }, draft.email.ifBlank { null }, draft.workSchedule.ifBlank { null }, draft.timeZoneId, existing?.active ?: true, if (existing == null) SyncState.PENDING_CREATE.name else SyncState.PENDING_UPDATE.name, now))
+                                audit("BRANCH", id, if (existing == null) "CREATE" else "UPDATE", draft.name); reloadOrganization()
                             }
                         },
-                        onRestoreEquipment = { id ->
+                        onDeactivateBranch = { id -> scope.launch { val value = dao.branch(id)?.name.orEmpty(); dao.deactivateBranch(id, SyncState.PENDING_UPDATE.name, System.currentTimeMillis()); audit("BRANCH", id, "DEACTIVATE", value); reloadOrganization() } },
+                        onActivateBranch = { id -> scope.launch { val value = dao.branch(id)?.name.orEmpty(); dao.activateBranch(id, SyncState.PENDING_UPDATE.name, System.currentTimeMillis()); audit("BRANCH", id, "ACTIVATE", value); reloadOrganization() } },
+                        onSaveEmployee = { draft, existingId ->
                             scope.launch {
-                                val serial = dao.equipmentItem(id)?.serialNumber.orEmpty()
-                                dao.restoreEquipment(id, SyncState.PENDING_UPDATE.name, System.currentTimeMillis())
-                                audit("EQUIPMENT", id, "RESTORE", serial)
-                                reloadAssets()
+                                val id = existingId ?: UUID.randomUUID().toString(); val existing = existingId?.let { dao.employee(it) }; val now = System.currentTimeMillis()
+                                dao.upsertEmployee(EmployeeEntity(id, organization.id, draft.branchId, draft.displayName, draft.position.ifBlank { null }, draft.phone.ifBlank { null }, draft.email.ifBlank { null }, existing?.active ?: true, if (existing == null) SyncState.PENDING_CREATE.name else SyncState.PENDING_UPDATE.name, now))
+                                audit("EMPLOYEE", id, if (existing == null) "CREATE" else "UPDATE", draft.displayName); reloadOrganization()
                             }
                         },
+                        onDeactivateEmployee = { id -> scope.launch { val value = dao.employee(id)?.displayName.orEmpty(); dao.deactivateEmployee(id, SyncState.PENDING_UPDATE.name, System.currentTimeMillis()); audit("EMPLOYEE", id, "DEACTIVATE", value); reloadOrganization() } },
+                        onActivateEmployee = { id -> scope.launch { val value = dao.employee(id)?.displayName.orEmpty(); dao.activateEmployee(id, SyncState.PENDING_UPDATE.name, System.currentTimeMillis()); audit("EMPLOYEE", id, "ACTIVATE", value); reloadOrganization() } },
                     )
                 }
                 composable(Routes.Settings) {
-                    SettingsScreen(
-                        organization = organization,
-                        user = user,
-                        modules = modules,
-                        onModuleEnabledChange = { moduleId, enabled ->
-                            moduleRegistry.updateEnabled(organization.id, moduleId, enabled)
-                            stateVersion++
-                        },
-                    )
+                    SettingsScreen(organization = organization, user = user, modules = modules, onModuleEnabledChange = { moduleId, enabled -> moduleRegistry.updateEnabled(organization.id, moduleId, enabled); stateVersion++ })
                 }
                 composable(Routes.Wash) { WashScreen() }
                 composable(Routes.Tires) { TiresScreen() }
@@ -391,63 +275,9 @@ private fun LexoraServiceApp() {
     }
 }
 
-private fun ClientEntity.toModel(): Client = Client(
-    id = id,
-    organizationId = organizationId,
-    type = ClientType.valueOf(type),
-    displayName = displayName,
-    phone = phone,
-    email = email,
-    taxId = taxId,
-    kpp = kpp,
-    registrationAddress = registrationAddress,
-    actualAddress = actualAddress,
-    note = note,
-    consentPersonalData = consentPersonalData,
-    archived = archived,
-    syncState = SyncState.valueOf(syncState),
-)
-
-private fun VehicleEntity.toModel(): Vehicle = Vehicle(
-    id = id,
-    organizationId = organizationId,
-    clientId = clientId,
-    registrationNumber = registrationNumber,
-    vin = vin,
-    make = make,
-    model = model,
-    year = year,
-    bodyType = bodyType,
-    color = color,
-    mileageKm = mileageKm,
-    archived = archived,
-    syncState = SyncState.valueOf(syncState),
-)
-
-private fun ServiceObjectEntity.toModel(): ServiceObject = ServiceObject(
-    id = id,
-    organizationId = organizationId,
-    clientId = clientId,
-    name = name,
-    address = address,
-    accessMode = accessMode,
-    responsibleContact = responsibleContact,
-    archived = archived,
-    syncState = SyncState.valueOf(syncState),
-)
-
-private fun EquipmentEntity.toModel(): Equipment = Equipment(
-    id = id,
-    organizationId = organizationId,
-    serviceObjectId = serviceObjectId,
-    type = type,
-    make = make,
-    model = model,
-    serialNumber = serialNumber,
-    inventoryNumber = inventoryNumber,
-    barcode = barcode,
-    commissionedNote = commissionedNote,
-    warrantyNote = warrantyNote,
-    archived = archived,
-    syncState = SyncState.valueOf(syncState),
-)
+private fun ClientEntity.toModel() = Client(id, organizationId, ClientType.valueOf(type), displayName, phone, email, taxId, kpp, registrationAddress, actualAddress, note, consentPersonalData, archived, SyncState.valueOf(syncState))
+private fun VehicleEntity.toModel() = Vehicle(id, organizationId, clientId, registrationNumber, vin, make, model, year, bodyType, color, mileageKm, archived, SyncState.valueOf(syncState))
+private fun ServiceObjectEntity.toModel() = ServiceObject(id, organizationId, clientId, name, address, accessMode, responsibleContact, archived, SyncState.valueOf(syncState))
+private fun EquipmentEntity.toModel() = Equipment(id, organizationId, serviceObjectId, type, make, model, serialNumber, inventoryNumber, barcode, commissionedNote, warrantyNote, archived, SyncState.valueOf(syncState))
+private fun BranchEntity.toModel() = Branch(id, organizationId, name, address, phone, email, workSchedule, timeZoneId, active, SyncState.valueOf(syncState))
+private fun EmployeeEntity.toModel() = Employee(id, organizationId, branchId, displayName, position, phone, email, active, SyncState.valueOf(syncState))

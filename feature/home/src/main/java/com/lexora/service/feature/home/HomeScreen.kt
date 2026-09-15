@@ -28,6 +28,7 @@ fun HomeScreen(
     onOpenRequests: () -> Unit,
     onOpenFieldWork: () -> Unit,
     onOpenDocuments: () -> Unit = {},
+    onOpenReports: () -> Unit = {},
     onOpenWash: () -> Unit,
     onOpenTires: () -> Unit,
     onOpenSettings: () -> Unit,
@@ -53,6 +54,7 @@ fun HomeScreen(
         Button(onClick = onOpenRequests) { Text("Обращения и заявки") }
         Button(onClick = onOpenFieldWork) { Text("Выезды и работы") }
         Button(onClick = onOpenDocuments) { Text("Документы и платежи") }
+        Button(onClick = onOpenReports) { Text("Отчёты и интеграции") }
         Button(onClick = onOpenAssets) { Text("Объекты и оборудование") }
         Button(onClick = onOpenOrganization) { Text("Филиалы и сотрудники") }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

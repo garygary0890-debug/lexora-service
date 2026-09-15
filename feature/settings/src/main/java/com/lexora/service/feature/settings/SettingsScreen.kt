@@ -23,6 +23,7 @@ fun SettingsScreen(
     organization: Organization,
     user: ServiceUser,
     modules: List<ModuleDescriptor>,
+    appVersion: String,
     onModuleEnabledChange: (LexoraModuleId, Boolean) -> Unit,
 ) {
     Column(
@@ -30,6 +31,7 @@ fun SettingsScreen(
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Text("Настройки Lexora Service")
+        Text("Версия: $appVersion")
         Text("Организация: ${organization.name}")
         Text("Пользователь: ${user.displayName}")
         Text("Роли: ${user.roles.joinToString()}")

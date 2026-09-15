@@ -18,7 +18,9 @@ class TireRepository private constructor(private val database: LexoraServiceData
         val now = System.currentTimeMillis()
         val request = serviceDao.serviceRequests(organizationId).firstOrNull { it.status != "CLOSED" && it.status != "CANCELLED" }
         val position = (tireDao.activeQueue(organizationId).maxOfOrNull { it.position } ?: 0) + 1
-        tireDao.upsertQueueItem(TireQueueItemEntity(UUID.randomUUID().toString(), organizationId, request?.id, request?.vehicleId, position, TireQueueStatus.WAITING.name, now, SyncState.PENDING_CREATE.name, now))
+        val id = UUID.randomUUID().toString()
+        tireDao.upsertQueueItem(TireQueueItemEntity(id, organizationId, request?.id, request?.vehicleId, position, TireQueueStatus.WAITING.name, now, SyncState.PENDING_CREATE.name, now))
+        audit(organizationId, "TIRE_QUEUE", id, "CREATE", "Добавлено в очередь шиномонтажа: позиция $position")
     }
 
     suspend fun advanceQueueItem(item: TireQueueItem) {
@@ -28,21 +30,27 @@ class TireRepository private constructor(private val database: LexoraServiceData
             TireQueueStatus.IN_SERVICE -> TireQueueStatus.COMPLETED
             TireQueueStatus.COMPLETED, TireQueueStatus.CANCELLED -> return
         }
-        tireDao.updateQueueStatus(item.id, next.name, SyncState.PENDING_UPDATE.name, System.currentTimeMillis())
+        val now = System.currentTimeMillis()
+        tireDao.updateQueueStatus(item.id, next.name, SyncState.PENDING_UPDATE.name, now)
+        audit(item.organizationId, "TIRE_QUEUE", item.id, "STATUS_CHANGE", "${item.status.name} → ${next.name}")
     }
 
     suspend fun addDiagnostic(organizationId: String) {
         val now = System.currentTimeMillis()
         val active = tireDao.activeQueue(organizationId).firstOrNull { it.status == TireQueueStatus.IN_SERVICE.name }
             ?: tireDao.activeQueue(organizationId).firstOrNull()
-        tireDao.insertDiagnostic(TireDiagnosticEntity(UUID.randomUUID().toString(), organizationId, active?.requestId, active?.vehicleId, "Давление проверено", 5.0, null, "Проверить давление и состояние протектора перед выдачей", now, SyncState.PENDING_CREATE.name, now))
+        val id = UUID.randomUUID().toString()
+        tireDao.insertDiagnostic(TireDiagnosticEntity(id, organizationId, active?.requestId, active?.vehicleId, "Давление проверено", 5.0, null, "Проверить давление и состояние протектора перед выдачей", now, SyncState.PENDING_CREATE.name, now))
+        audit(organizationId, "TIRE_DIAGNOSTIC", id, "CREATE", "Выполнена диагностика шин")
     }
 
     suspend fun addWorkEntry(organizationId: String) {
         val now = System.currentTimeMillis()
         val active = tireDao.activeQueue(organizationId).firstOrNull { it.status == TireQueueStatus.IN_SERVICE.name }
             ?: tireDao.activeQueue(organizationId).firstOrNull()
-        tireDao.insertWorkEntry(TireWorkEntryEntity(UUID.randomUUID().toString(), organizationId, active?.requestId, active?.vehicleId, "Шиномонтаж колеса", 1.0, null, now, SyncState.PENDING_CREATE.name, now))
+        val id = UUID.randomUUID().toString()
+        tireDao.insertWorkEntry(TireWorkEntryEntity(id, organizationId, active?.requestId, active?.vehicleId, "Шиномонтаж колеса", 1.0, null, now, SyncState.PENDING_CREATE.name, now))
+        audit(organizationId, "TIRE_WORK", id, "CREATE", "Добавлена шиномонтажная работа")
     }
 
     suspend fun addStorageItem(organizationId: String) {
@@ -51,13 +59,20 @@ class TireRepository private constructor(private val database: LexoraServiceData
         val vehicle = request?.vehicleId?.let { serviceDao.vehicle(it) }
         val next = tireDao.storage(organizationId).size + 1
         val code = "TS-%06d".format(next)
-        tireDao.upsertStorageItem(TireStorageItemEntity(UUID.randomUUID().toString(), organizationId, vehicle?.clientId, vehicle?.id, code, "Комплект шин", 4, "Склад", TireStorageStatus.STORED.name, now, null, SyncState.PENDING_CREATE.name, now))
+        val id = UUID.randomUUID().toString()
+        tireDao.upsertStorageItem(TireStorageItemEntity(id, organizationId, vehicle?.clientId, vehicle?.id, code, "Комплект шин", 4, "Склад", TireStorageStatus.STORED.name, now, null, SyncState.PENDING_CREATE.name, now))
+        audit(organizationId, "TIRE_STORAGE", id, "CREATE", "Принят комплект шин на хранение: $code")
     }
 
     suspend fun issueStorageItem(item: TireStorageItem) {
         if (item.status != TireStorageStatus.STORED) return
         val now = System.currentTimeMillis()
         tireDao.issueStorageItem(item.id, now, SyncState.PENDING_UPDATE.name, now)
+        audit(item.organizationId, "TIRE_STORAGE", item.id, "ISSUE", "Выдан комплект шин: ${item.storageCode}")
+    }
+
+    private suspend fun audit(organizationId: String, entityType: String, entityId: String, action: String, summary: String) {
+        serviceDao.insertAuditEvent(AuditEventEntity(UUID.randomUUID().toString(), organizationId, "user-local-admin", entityType, entityId, action, summary, System.currentTimeMillis()))
     }
 
     companion object {

@@ -21,39 +21,11 @@ import androidx.room.PrimaryKey
 @Entity(tableName = "visit_work_entries", indices = [Index("visitId")]) data class VisitWorkEntryEntity(@PrimaryKey val id: String, val visitId: String, val serviceCode: String?, val title: String, val quantity: Double, val unit: String?, val note: String?, val syncState: String, val updatedAtEpochMs: Long)
 @Entity(tableName = "visit_material_usage", indices = [Index("visitId")]) data class VisitMaterialUsageEntity(@PrimaryKey val id: String, val visitId: String, val materialCode: String?, val title: String, val quantity: Double, val unit: String?, val note: String?, val syncState: String, val updatedAtEpochMs: Long)
 @Entity(tableName = "visit_photos", indices = [Index("visitId"), Index("takenAtEpochMs")]) data class VisitPhotoEntity(@PrimaryKey val id: String, val visitId: String, val localUri: String, val caption: String?, val takenAtEpochMs: Long, val syncState: String, val updatedAtEpochMs: Long)
-
-@Entity(tableName = "service_documents", indices = [Index("organizationId"), Index("requestId"), Index("visitId"), Index("clientId"), Index("type"), Index(value = ["organizationId", "number"], unique = true)])
-data class ServiceDocumentEntity(@PrimaryKey val id: String, val organizationId: String, val requestId: String?, val visitId: String?, val clientId: String?, val type: String, val number: String, val status: String, val issuedAtEpochMs: Long?, val totalMinor: Long, val currency: String, val externalFileRef: String?, val note: String?, val archived: Boolean, val syncState: String, val createdAtEpochMs: Long, val updatedAtEpochMs: Long)
-
-@Entity(tableName = "payments", indices = [Index("organizationId"), Index("requestId"), Index("documentId"), Index("clientId"), Index("status")])
-data class PaymentEntity(@PrimaryKey val id: String, val organizationId: String, val requestId: String?, val documentId: String?, val clientId: String?, val amountMinor: Long, val currency: String, val status: String, val method: String, val paidAtEpochMs: Long?, val externalReference: String?, val note: String?, val archived: Boolean, val syncState: String, val createdAtEpochMs: Long, val updatedAtEpochMs: Long)
-
-@Entity(tableName = "sync_operations", indices = [Index("organizationId"), Index("entityType"), Index("entityId"), Index("status"), Index("nextAttemptAtEpochMs"), Index(value = ["organizationId", "idempotencyKey"], unique = true)])
-data class SyncOperationEntity(
-    @PrimaryKey val id: String,
-    val organizationId: String,
-    val entityType: String,
-    val entityId: String,
-    val operationType: String,
-    val idempotencyKey: String,
-    val payloadJson: String?,
-    val status: String,
-    val attemptCount: Int,
-    val nextAttemptAtEpochMs: Long?,
-    val lastError: String?,
-    val createdAtEpochMs: Long,
-    val updatedAtEpochMs: Long,
-)
-
-@Entity(tableName = "sync_conflicts", indices = [Index("organizationId"), Index("entityType"), Index("entityId"), Index("resolution"), Index("detectedAtEpochMs")])
-data class SyncConflictEntity(
-    @PrimaryKey val id: String,
-    val organizationId: String,
-    val entityType: String,
-    val entityId: String,
-    val localVersionJson: String?,
-    val remoteVersionJson: String?,
-    val resolution: String,
-    val detectedAtEpochMs: Long,
-    val resolvedAtEpochMs: Long?,
-)
+@Entity(tableName = "service_documents", indices = [Index("organizationId"), Index("requestId"), Index("visitId"), Index("clientId"), Index("type"), Index(value = ["organizationId", "number"], unique = true)]) data class ServiceDocumentEntity(@PrimaryKey val id: String, val organizationId: String, val requestId: String?, val visitId: String?, val clientId: String?, val type: String, val number: String, val status: String, val issuedAtEpochMs: Long?, val totalMinor: Long, val currency: String, val externalFileRef: String?, val note: String?, val archived: Boolean, val syncState: String, val createdAtEpochMs: Long, val updatedAtEpochMs: Long)
+@Entity(tableName = "payments", indices = [Index("organizationId"), Index("requestId"), Index("documentId"), Index("clientId"), Index("status")]) data class PaymentEntity(@PrimaryKey val id: String, val organizationId: String, val requestId: String?, val documentId: String?, val clientId: String?, val amountMinor: Long, val currency: String, val status: String, val method: String, val paidAtEpochMs: Long?, val externalReference: String?, val note: String?, val archived: Boolean, val syncState: String, val createdAtEpochMs: Long, val updatedAtEpochMs: Long)
+@Entity(tableName = "sync_operations", indices = [Index("organizationId"), Index("entityType"), Index("entityId"), Index("status"), Index("nextAttemptAtEpochMs"), Index(value = ["organizationId", "idempotencyKey"], unique = true)]) data class SyncOperationEntity(@PrimaryKey val id: String, val organizationId: String, val entityType: String, val entityId: String, val operationType: String, val idempotencyKey: String, val payloadJson: String?, val status: String, val attemptCount: Int, val nextAttemptAtEpochMs: Long?, val lastError: String?, val createdAtEpochMs: Long, val updatedAtEpochMs: Long)
+@Entity(tableName = "sync_conflicts", indices = [Index("organizationId"), Index("entityType"), Index("entityId"), Index("resolution"), Index("detectedAtEpochMs")]) data class SyncConflictEntity(@PrimaryKey val id: String, val organizationId: String, val entityType: String, val entityId: String, val localVersionJson: String?, val remoteVersionJson: String?, val resolution: String, val detectedAtEpochMs: Long, val resolvedAtEpochMs: Long?)
+@Entity(tableName = "wash_posts", indices = [Index("organizationId"), Index("branchId"), Index("status")]) data class WashPostEntity(@PrimaryKey val id: String, val organizationId: String, val branchId: String?, val name: String, val status: String, val active: Boolean, val syncState: String, val updatedAtEpochMs: Long)
+@Entity(tableName = "wash_queue", indices = [Index("organizationId"), Index("requestId"), Index("vehicleId"), Index("postId"), Index("status"), Index("position")]) data class WashQueueItemEntity(@PrimaryKey val id: String, val organizationId: String, val requestId: String?, val vehicleId: String?, val postId: String?, val position: Int, val status: String, val createdAtEpochMs: Long, val syncState: String, val updatedAtEpochMs: Long)
+@Entity(tableName = "wash_tech_cards", indices = [Index("organizationId"), Index("active")]) data class WashTechCardEntity(@PrimaryKey val id: String, val organizationId: String, val name: String, val durationMinutes: Int, val stepsText: String, val active: Boolean, val syncState: String, val updatedAtEpochMs: Long)
+@Entity(tableName = "wash_chemical_usage", indices = [Index("organizationId"), Index("requestId"), Index("postId"), Index("usedAtEpochMs")]) data class WashChemicalUsageEntity(@PrimaryKey val id: String, val organizationId: String, val requestId: String?, val postId: String?, val chemicalName: String, val quantityMl: Double, val usedAtEpochMs: Long, val syncState: String, val updatedAtEpochMs: Long)

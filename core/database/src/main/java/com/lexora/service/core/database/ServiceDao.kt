@@ -61,4 +61,12 @@ interface ServiceDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun upsertEquipment(value: EquipmentEntity)
     @Query("UPDATE equipment SET archived = 1, syncState = :syncState, updatedAtEpochMs = :updatedAt WHERE id = :id") suspend fun archiveEquipment(id: String, syncState: String, updatedAt: Long)
     @Query("UPDATE equipment SET archived = 0, syncState = :syncState, updatedAtEpochMs = :updatedAt WHERE id = :id") suspend fun restoreEquipment(id: String, syncState: String, updatedAt: Long)
+
+    @Query("SELECT * FROM service_requests WHERE organizationId = :organizationId AND archived = 0 ORDER BY updatedAtEpochMs DESC") suspend fun serviceRequests(organizationId: String): List<ServiceRequestEntity>
+    @Query("SELECT * FROM service_requests WHERE id = :id LIMIT 1") suspend fun serviceRequest(id: String): ServiceRequestEntity?
+    @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun upsertServiceRequest(value: ServiceRequestEntity)
+    @Query("UPDATE service_requests SET status = :status, syncState = :syncState, updatedAtEpochMs = :updatedAt, closedAtEpochMs = :closedAt WHERE id = :id") suspend fun updateRequestStatus(id: String, status: String, syncState: String, updatedAt: Long, closedAt: Long?)
+    @Query("UPDATE service_requests SET archived = 1, syncState = :syncState, updatedAtEpochMs = :updatedAt WHERE id = :id") suspend fun archiveServiceRequest(id: String, syncState: String, updatedAt: Long)
+    @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun insertRequestStatusHistory(value: RequestStatusHistoryEntity)
+    @Query("SELECT * FROM request_status_history WHERE requestId = :requestId ORDER BY changedAtEpochMs DESC") suspend fun requestStatusHistory(requestId: String): List<RequestStatusHistoryEntity>
 }

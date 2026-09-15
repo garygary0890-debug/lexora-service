@@ -160,7 +160,7 @@ fun DocumentsScreen(
                                     } else document.totalMinor
                                     Text("${localTotal / 100.0} ${document.currency}")
                                     document.externalFileRef?.let { ref ->
-                                        Text("Файл: ${ref.substringAfterLast('/').substringAfterLast('\\\\')}")
+                                        Text("Файл: ${ref.substringAfterLast('/').substringAfterLast("\\")}")
                                     }
                                     if (document.type == ServiceDocumentType.WORK_ORDER && document.status == ServiceDocumentStatus.DRAFT) {
                                         OutlinedButton(onClick = { scope.launch { reloadWorkOrderItems(document.id) } }) { Text("Открыть состав работ") }
@@ -176,7 +176,7 @@ fun DocumentsScreen(
                                             transferMessage = null
                                             val suggestedName = document.externalFileRef
                                                 ?.substringAfterLast('/')
-                                                ?.substringAfterLast('\\\\')
+                                                ?.substringAfterLast("\\")
                                                 ?.takeIf { it.isNotBlank() }
                                                 ?: "${document.number}.txt"
                                             exportLauncher.launch(suggestedName)

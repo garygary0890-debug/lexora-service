@@ -31,6 +31,7 @@ import com.lexora.service.feature.clients.ClientsScreen
 import com.lexora.service.feature.documents.DocumentsScreen
 import com.lexora.service.feature.fieldwork.FieldWorkScreen
 import com.lexora.service.feature.home.HomeScreen
+import com.lexora.service.feature.notifications.NotificationsScreen
 import com.lexora.service.feature.organization.OrganizationScreen
 import com.lexora.service.feature.reports.ReportsScreen
 import com.lexora.service.feature.requests.RequestsScreen
@@ -154,6 +155,7 @@ private fun LexoraServiceApp() {
                         onOpenDocuments = { navController.navigate(Routes.Documents) },
                         onOpenReports = { navController.navigate(Routes.Reports) },
                         onOpenCatalog = { navController.navigate(Routes.Catalog) },
+                        onOpenNotifications = { navController.navigate(Routes.Notifications) },
                         onOpenWash = { if (accessibleModules.any { it.id == LexoraModuleId.WASH }) navController.navigate(Routes.Wash) },
                         onOpenTires = { if (accessibleModules.any { it.id == LexoraModuleId.TIRES }) navController.navigate(Routes.Tires) },
                         onOpenSettings = { navController.navigate(Routes.Settings) },
@@ -346,11 +348,13 @@ private fun LexoraServiceApp() {
                     )
                 }
                 composable(Routes.Catalog) { CatalogScreen() }
+                composable(Routes.Notifications) { NotificationsScreen(organization = organization) }
                 composable(Routes.Settings) {
                     SettingsScreen(
                         organization = organization,
                         user = user,
                         modules = modules,
+                        appVersion = "0.26.0",
                         onModuleEnabledChange = { _, _ -> scope.launch { reloadModules() } },
                     )
                 }

@@ -24,6 +24,7 @@ fun HomeScreen(
     onOpenClients: () -> Unit,
     onOpenVehicles: () -> Unit,
     onOpenAssets: () -> Unit,
+    onOpenOrganization: () -> Unit,
     onOpenWash: () -> Unit,
     onOpenTires: () -> Unit,
     onOpenSettings: () -> Unit,
@@ -43,15 +44,14 @@ fun HomeScreen(
         }
 
         Text("Подключенные модули", style = MaterialTheme.typography.titleMedium)
-        modules.filter { it.enabled && it.licensed }.forEach { module ->
-            Text("• ${module.title}")
-        }
+        modules.filter { it.enabled && it.licensed }.forEach { module -> Text("• ${module.title}") }
 
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(onClick = onOpenClients) { Text("Клиенты") }
             Button(onClick = onOpenVehicles) { Text("Автомобили") }
         }
         Button(onClick = onOpenAssets) { Text("Объекты и оборудование") }
+        Button(onClick = onOpenOrganization) { Text("Филиалы и сотрудники") }
 
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(onClick = onOpenWash) { Text("Автомойка") }

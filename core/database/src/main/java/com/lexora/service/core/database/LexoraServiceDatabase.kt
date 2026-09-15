@@ -26,95 +26,43 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         VisitWorkEntryEntity::class,
         VisitMaterialUsageEntity::class,
         VisitPhotoEntity::class,
+        ServiceDocumentEntity::class,
+        PaymentEntity::class,
     ],
-    version = 7,
+    version = 8,
     exportSchema = true,
 )
 abstract class LexoraServiceDatabase : RoomDatabase() {
     abstract fun serviceDao(): ServiceDao
 
     companion object {
-        private val MIGRATION_1_2 = object : Migration(1, 2) {
+        private val MIGRATION_1_2 = object : Migration(1, 2) { override fun migrate(db: SupportSQLiteDatabase) { db.execSQL("ALTER TABLE clients ADD COLUMN kpp TEXT"); db.execSQL("ALTER TABLE clients ADD COLUMN registrationAddress TEXT"); db.execSQL("ALTER TABLE clients ADD COLUMN actualAddress TEXT"); db.execSQL("ALTER TABLE clients ADD COLUMN note TEXT"); db.execSQL("ALTER TABLE clients ADD COLUMN consentPersonalData INTEGER NOT NULL DEFAULT 0") } }
+        private val MIGRATION_2_3 = object : Migration(2, 3) { override fun migrate(db: SupportSQLiteDatabase) { db.execSQL("ALTER TABLE vehicles ADD COLUMN bodyType TEXT"); db.execSQL("ALTER TABLE vehicles ADD COLUMN color TEXT"); db.execSQL("CREATE TABLE IF NOT EXISTS service_history (id TEXT NOT NULL PRIMARY KEY, organizationId TEXT NOT NULL, vehicleId TEXT NOT NULL, sourceType TEXT NOT NULL, sourceId TEXT, title TEXT NOT NULL, description TEXT, mileageKm INTEGER, occurredAtEpochMs INTEGER NOT NULL, createdAtEpochMs INTEGER NOT NULL)"); db.execSQL("CREATE INDEX IF NOT EXISTS index_service_history_organizationId ON service_history(organizationId)"); db.execSQL("CREATE INDEX IF NOT EXISTS index_service_history_vehicleId ON service_history(vehicleId)"); db.execSQL("CREATE INDEX IF NOT EXISTS index_service_history_occurredAtEpochMs ON service_history(occurredAtEpochMs)") } }
+        private val MIGRATION_3_4 = object : Migration(3, 4) { override fun migrate(db: SupportSQLiteDatabase) { db.execSQL("CREATE TABLE IF NOT EXISTS service_objects (id TEXT NOT NULL PRIMARY KEY, organizationId TEXT NOT NULL, clientId TEXT, name TEXT NOT NULL, address TEXT, accessMode TEXT, responsibleContact TEXT, archived INTEGER NOT NULL, syncState TEXT NOT NULL, createdAtEpochMs INTEGER NOT NULL, updatedAtEpochMs INTEGER NOT NULL)"); db.execSQL("CREATE INDEX IF NOT EXISTS index_service_objects_organizationId ON service_objects(organizationId)"); db.execSQL("CREATE INDEX IF NOT EXISTS index_service_objects_clientId ON service_objects(clientId)"); db.execSQL("CREATE TABLE IF NOT EXISTS equipment (id TEXT NOT NULL PRIMARY KEY, organizationId TEXT NOT NULL, serviceObjectId TEXT, type TEXT NOT NULL, make TEXT, model TEXT, serialNumber TEXT, inventoryNumber TEXT, barcode TEXT, commissionedNote TEXT, warrantyNote TEXT, archived INTEGER NOT NULL, syncState TEXT NOT NULL, createdAtEpochMs INTEGER NOT NULL, updatedAtEpochMs INTEGER NOT NULL)"); db.execSQL("CREATE INDEX IF NOT EXISTS index_equipment_organizationId ON equipment(organizationId)"); db.execSQL("CREATE INDEX IF NOT EXISTS index_equipment_serviceObjectId ON equipment(serviceObjectId)"); db.execSQL("CREATE INDEX IF NOT EXISTS index_equipment_organizationId_serialNumber ON equipment(organizationId, serialNumber)") } }
+        private val MIGRATION_4_5 = object : Migration(4, 5) { override fun migrate(db: SupportSQLiteDatabase) { db.execSQL("ALTER TABLE branches ADD COLUMN phone TEXT"); db.execSQL("ALTER TABLE branches ADD COLUMN email TEXT"); db.execSQL("ALTER TABLE branches ADD COLUMN workSchedule TEXT"); db.execSQL("ALTER TABLE employees ADD COLUMN phone TEXT"); db.execSQL("ALTER TABLE employees ADD COLUMN email TEXT") } }
+        private val MIGRATION_5_6 = object : Migration(5, 6) { override fun migrate(db: SupportSQLiteDatabase) { db.execSQL("CREATE TABLE IF NOT EXISTS service_requests (id TEXT NOT NULL PRIMARY KEY, organizationId TEXT NOT NULL, number TEXT NOT NULL, clientId TEXT, vehicleId TEXT, serviceObjectId TEXT, equipmentId TEXT, branchId TEXT, assigneeEmployeeId TEXT, title TEXT NOT NULL, description TEXT, status TEXT NOT NULL, priority TEXT NOT NULL, plannedAtEpochMs INTEGER, dueAtEpochMs INTEGER, slaDeadlineEpochMs INTEGER, closedAtEpochMs INTEGER, archived INTEGER NOT NULL, syncState TEXT NOT NULL, createdAtEpochMs INTEGER NOT NULL, updatedAtEpochMs INTEGER NOT NULL)"); db.execSQL("CREATE INDEX IF NOT EXISTS index_service_requests_organizationId ON service_requests(organizationId)"); db.execSQL("CREATE INDEX IF NOT EXISTS index_service_requests_clientId ON service_requests(clientId)"); db.execSQL("CREATE INDEX IF NOT EXISTS index_service_requests_branchId ON service_requests(branchId)"); db.execSQL("CREATE INDEX IF NOT EXISTS index_service_requests_assigneeEmployeeId ON service_requests(assigneeEmployeeId)"); db.execSQL("CREATE INDEX IF NOT EXISTS index_service_requests_status ON service_requests(status)"); db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_service_requests_organizationId_number ON service_requests(organizationId, number)"); db.execSQL("CREATE TABLE IF NOT EXISTS request_status_history (id TEXT NOT NULL PRIMARY KEY, requestId TEXT NOT NULL, fromStatus TEXT, toStatus TEXT NOT NULL, changedByUserId TEXT NOT NULL, changedAtEpochMs INTEGER NOT NULL, comment TEXT)"); db.execSQL("CREATE INDEX IF NOT EXISTS index_request_status_history_requestId ON request_status_history(requestId)"); db.execSQL("CREATE INDEX IF NOT EXISTS index_request_status_history_changedAtEpochMs ON request_status_history(changedAtEpochMs)") } }
+        private val MIGRATION_6_7 = object : Migration(6, 7) { override fun migrate(db: SupportSQLiteDatabase) { db.execSQL("CREATE TABLE IF NOT EXISTS service_visits (id TEXT NOT NULL PRIMARY KEY, organizationId TEXT NOT NULL, requestId TEXT NOT NULL, branchId TEXT, employeeId TEXT, status TEXT NOT NULL, plannedStartEpochMs INTEGER, plannedEndEpochMs INTEGER, actualStartEpochMs INTEGER, actualEndEpochMs INTEGER, resultNote TEXT, customerName TEXT, customerSignatureRef TEXT, syncState TEXT NOT NULL, createdAtEpochMs INTEGER NOT NULL, updatedAtEpochMs INTEGER NOT NULL)"); db.execSQL("CREATE INDEX IF NOT EXISTS index_service_visits_organizationId ON service_visits(organizationId)"); db.execSQL("CREATE INDEX IF NOT EXISTS index_service_visits_requestId ON service_visits(requestId)"); db.execSQL("CREATE INDEX IF NOT EXISTS index_service_visits_employeeId ON service_visits(employeeId)"); db.execSQL("CREATE INDEX IF NOT EXISTS index_service_visits_status ON service_visits(status)"); db.execSQL("CREATE TABLE IF NOT EXISTS visit_checklist_items (id TEXT NOT NULL PRIMARY KEY, visitId TEXT NOT NULL, title TEXT NOT NULL, state TEXT NOT NULL, comment TEXT, sortOrder INTEGER NOT NULL, syncState TEXT NOT NULL, updatedAtEpochMs INTEGER NOT NULL)"); db.execSQL("CREATE INDEX IF NOT EXISTS index_visit_checklist_items_visitId ON visit_checklist_items(visitId)"); db.execSQL("CREATE INDEX IF NOT EXISTS index_visit_checklist_items_sortOrder ON visit_checklist_items(sortOrder)"); db.execSQL("CREATE TABLE IF NOT EXISTS visit_work_entries (id TEXT NOT NULL PRIMARY KEY, visitId TEXT NOT NULL, serviceCode TEXT, title TEXT NOT NULL, quantity REAL NOT NULL, unit TEXT, note TEXT, syncState TEXT NOT NULL, updatedAtEpochMs INTEGER NOT NULL)"); db.execSQL("CREATE INDEX IF NOT EXISTS index_visit_work_entries_visitId ON visit_work_entries(visitId)"); db.execSQL("CREATE TABLE IF NOT EXISTS visit_material_usage (id TEXT NOT NULL PRIMARY KEY, visitId TEXT NOT NULL, materialCode TEXT, title TEXT NOT NULL, quantity REAL NOT NULL, unit TEXT, note TEXT, syncState TEXT NOT NULL, updatedAtEpochMs INTEGER NOT NULL)"); db.execSQL("CREATE INDEX IF NOT EXISTS index_visit_material_usage_visitId ON visit_material_usage(visitId)"); db.execSQL("CREATE TABLE IF NOT EXISTS visit_photos (id TEXT NOT NULL PRIMARY KEY, visitId TEXT NOT NULL, localUri TEXT NOT NULL, caption TEXT, takenAtEpochMs INTEGER NOT NULL, syncState TEXT NOT NULL, updatedAtEpochMs INTEGER NOT NULL)"); db.execSQL("CREATE INDEX IF NOT EXISTS index_visit_photos_visitId ON visit_photos(visitId)"); db.execSQL("CREATE INDEX IF NOT EXISTS index_visit_photos_takenAtEpochMs ON visit_photos(takenAtEpochMs)") } }
+        private val MIGRATION_7_8 = object : Migration(7, 8) {
             override fun migrate(db: SupportSQLiteDatabase) {
-                db.execSQL("ALTER TABLE clients ADD COLUMN kpp TEXT")
-                db.execSQL("ALTER TABLE clients ADD COLUMN registrationAddress TEXT")
-                db.execSQL("ALTER TABLE clients ADD COLUMN actualAddress TEXT")
-                db.execSQL("ALTER TABLE clients ADD COLUMN note TEXT")
-                db.execSQL("ALTER TABLE clients ADD COLUMN consentPersonalData INTEGER NOT NULL DEFAULT 0")
-            }
-        }
-
-        private val MIGRATION_2_3 = object : Migration(2, 3) {
-            override fun migrate(db: SupportSQLiteDatabase) {
-                db.execSQL("ALTER TABLE vehicles ADD COLUMN bodyType TEXT")
-                db.execSQL("ALTER TABLE vehicles ADD COLUMN color TEXT")
-                db.execSQL("CREATE TABLE IF NOT EXISTS service_history (id TEXT NOT NULL PRIMARY KEY, organizationId TEXT NOT NULL, vehicleId TEXT NOT NULL, sourceType TEXT NOT NULL, sourceId TEXT, title TEXT NOT NULL, description TEXT, mileageKm INTEGER, occurredAtEpochMs INTEGER NOT NULL, createdAtEpochMs INTEGER NOT NULL)")
-                db.execSQL("CREATE INDEX IF NOT EXISTS index_service_history_organizationId ON service_history(organizationId)")
-                db.execSQL("CREATE INDEX IF NOT EXISTS index_service_history_vehicleId ON service_history(vehicleId)")
-                db.execSQL("CREATE INDEX IF NOT EXISTS index_service_history_occurredAtEpochMs ON service_history(occurredAtEpochMs)")
-            }
-        }
-
-        private val MIGRATION_3_4 = object : Migration(3, 4) {
-            override fun migrate(db: SupportSQLiteDatabase) {
-                db.execSQL("CREATE TABLE IF NOT EXISTS service_objects (id TEXT NOT NULL PRIMARY KEY, organizationId TEXT NOT NULL, clientId TEXT, name TEXT NOT NULL, address TEXT, accessMode TEXT, responsibleContact TEXT, archived INTEGER NOT NULL, syncState TEXT NOT NULL, createdAtEpochMs INTEGER NOT NULL, updatedAtEpochMs INTEGER NOT NULL)")
-                db.execSQL("CREATE INDEX IF NOT EXISTS index_service_objects_organizationId ON service_objects(organizationId)")
-                db.execSQL("CREATE INDEX IF NOT EXISTS index_service_objects_clientId ON service_objects(clientId)")
-                db.execSQL("CREATE TABLE IF NOT EXISTS equipment (id TEXT NOT NULL PRIMARY KEY, organizationId TEXT NOT NULL, serviceObjectId TEXT, type TEXT NOT NULL, make TEXT, model TEXT, serialNumber TEXT, inventoryNumber TEXT, barcode TEXT, commissionedNote TEXT, warrantyNote TEXT, archived INTEGER NOT NULL, syncState TEXT NOT NULL, createdAtEpochMs INTEGER NOT NULL, updatedAtEpochMs INTEGER NOT NULL)")
-                db.execSQL("CREATE INDEX IF NOT EXISTS index_equipment_organizationId ON equipment(organizationId)")
-                db.execSQL("CREATE INDEX IF NOT EXISTS index_equipment_serviceObjectId ON equipment(serviceObjectId)")
-                db.execSQL("CREATE INDEX IF NOT EXISTS index_equipment_organizationId_serialNumber ON equipment(organizationId, serialNumber)")
-            }
-        }
-
-        private val MIGRATION_4_5 = object : Migration(4, 5) {
-            override fun migrate(db: SupportSQLiteDatabase) {
-                db.execSQL("ALTER TABLE branches ADD COLUMN phone TEXT")
-                db.execSQL("ALTER TABLE branches ADD COLUMN email TEXT")
-                db.execSQL("ALTER TABLE branches ADD COLUMN workSchedule TEXT")
-                db.execSQL("ALTER TABLE employees ADD COLUMN phone TEXT")
-                db.execSQL("ALTER TABLE employees ADD COLUMN email TEXT")
-            }
-        }
-
-        private val MIGRATION_5_6 = object : Migration(5, 6) {
-            override fun migrate(db: SupportSQLiteDatabase) {
-                db.execSQL("CREATE TABLE IF NOT EXISTS service_requests (id TEXT NOT NULL PRIMARY KEY, organizationId TEXT NOT NULL, number TEXT NOT NULL, clientId TEXT, vehicleId TEXT, serviceObjectId TEXT, equipmentId TEXT, branchId TEXT, assigneeEmployeeId TEXT, title TEXT NOT NULL, description TEXT, status TEXT NOT NULL, priority TEXT NOT NULL, plannedAtEpochMs INTEGER, dueAtEpochMs INTEGER, slaDeadlineEpochMs INTEGER, closedAtEpochMs INTEGER, archived INTEGER NOT NULL, syncState TEXT NOT NULL, createdAtEpochMs INTEGER NOT NULL, updatedAtEpochMs INTEGER NOT NULL)")
-                db.execSQL("CREATE INDEX IF NOT EXISTS index_service_requests_organizationId ON service_requests(organizationId)")
-                db.execSQL("CREATE INDEX IF NOT EXISTS index_service_requests_clientId ON service_requests(clientId)")
-                db.execSQL("CREATE INDEX IF NOT EXISTS index_service_requests_branchId ON service_requests(branchId)")
-                db.execSQL("CREATE INDEX IF NOT EXISTS index_service_requests_assigneeEmployeeId ON service_requests(assigneeEmployeeId)")
-                db.execSQL("CREATE INDEX IF NOT EXISTS index_service_requests_status ON service_requests(status)")
-                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_service_requests_organizationId_number ON service_requests(organizationId, number)")
-                db.execSQL("CREATE TABLE IF NOT EXISTS request_status_history (id TEXT NOT NULL PRIMARY KEY, requestId TEXT NOT NULL, fromStatus TEXT, toStatus TEXT NOT NULL, changedByUserId TEXT NOT NULL, changedAtEpochMs INTEGER NOT NULL, comment TEXT)")
-                db.execSQL("CREATE INDEX IF NOT EXISTS index_request_status_history_requestId ON request_status_history(requestId)")
-                db.execSQL("CREATE INDEX IF NOT EXISTS index_request_status_history_changedAtEpochMs ON request_status_history(changedAtEpochMs)")
-            }
-        }
-
-        private val MIGRATION_6_7 = object : Migration(6, 7) {
-            override fun migrate(db: SupportSQLiteDatabase) {
-                db.execSQL("CREATE TABLE IF NOT EXISTS service_visits (id TEXT NOT NULL PRIMARY KEY, organizationId TEXT NOT NULL, requestId TEXT NOT NULL, branchId TEXT, employeeId TEXT, status TEXT NOT NULL, plannedStartEpochMs INTEGER, plannedEndEpochMs INTEGER, actualStartEpochMs INTEGER, actualEndEpochMs INTEGER, resultNote TEXT, customerName TEXT, customerSignatureRef TEXT, syncState TEXT NOT NULL, createdAtEpochMs INTEGER NOT NULL, updatedAtEpochMs INTEGER NOT NULL)")
-                db.execSQL("CREATE INDEX IF NOT EXISTS index_service_visits_organizationId ON service_visits(organizationId)")
-                db.execSQL("CREATE INDEX IF NOT EXISTS index_service_visits_requestId ON service_visits(requestId)")
-                db.execSQL("CREATE INDEX IF NOT EXISTS index_service_visits_employeeId ON service_visits(employeeId)")
-                db.execSQL("CREATE INDEX IF NOT EXISTS index_service_visits_status ON service_visits(status)")
-                db.execSQL("CREATE TABLE IF NOT EXISTS visit_checklist_items (id TEXT NOT NULL PRIMARY KEY, visitId TEXT NOT NULL, title TEXT NOT NULL, state TEXT NOT NULL, comment TEXT, sortOrder INTEGER NOT NULL, syncState TEXT NOT NULL, updatedAtEpochMs INTEGER NOT NULL)")
-                db.execSQL("CREATE INDEX IF NOT EXISTS index_visit_checklist_items_visitId ON visit_checklist_items(visitId)")
-                db.execSQL("CREATE INDEX IF NOT EXISTS index_visit_checklist_items_sortOrder ON visit_checklist_items(sortOrder)")
-                db.execSQL("CREATE TABLE IF NOT EXISTS visit_work_entries (id TEXT NOT NULL PRIMARY KEY, visitId TEXT NOT NULL, serviceCode TEXT, title TEXT NOT NULL, quantity REAL NOT NULL, unit TEXT, note TEXT, syncState TEXT NOT NULL, updatedAtEpochMs INTEGER NOT NULL)")
-                db.execSQL("CREATE INDEX IF NOT EXISTS index_visit_work_entries_visitId ON visit_work_entries(visitId)")
-                db.execSQL("CREATE TABLE IF NOT EXISTS visit_material_usage (id TEXT NOT NULL PRIMARY KEY, visitId TEXT NOT NULL, materialCode TEXT, title TEXT NOT NULL, quantity REAL NOT NULL, unit TEXT, note TEXT, syncState TEXT NOT NULL, updatedAtEpochMs INTEGER NOT NULL)")
-                db.execSQL("CREATE INDEX IF NOT EXISTS index_visit_material_usage_visitId ON visit_material_usage(visitId)")
-                db.execSQL("CREATE TABLE IF NOT EXISTS visit_photos (id TEXT NOT NULL PRIMARY KEY, visitId TEXT NOT NULL, localUri TEXT NOT NULL, caption TEXT, takenAtEpochMs INTEGER NOT NULL, syncState TEXT NOT NULL, updatedAtEpochMs INTEGER NOT NULL)")
-                db.execSQL("CREATE INDEX IF NOT EXISTS index_visit_photos_visitId ON visit_photos(visitId)")
-                db.execSQL("CREATE INDEX IF NOT EXISTS index_visit_photos_takenAtEpochMs ON visit_photos(takenAtEpochMs)")
+                db.execSQL("CREATE TABLE IF NOT EXISTS service_documents (id TEXT NOT NULL PRIMARY KEY, organizationId TEXT NOT NULL, requestId TEXT, visitId TEXT, clientId TEXT, type TEXT NOT NULL, number TEXT NOT NULL, status TEXT NOT NULL, issuedAtEpochMs INTEGER, totalMinor INTEGER NOT NULL, currency TEXT NOT NULL, externalFileRef TEXT, note TEXT, archived INTEGER NOT NULL, syncState TEXT NOT NULL, createdAtEpochMs INTEGER NOT NULL, updatedAtEpochMs INTEGER NOT NULL)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_service_documents_organizationId ON service_documents(organizationId)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_service_documents_requestId ON service_documents(requestId)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_service_documents_visitId ON service_documents(visitId)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_service_documents_clientId ON service_documents(clientId)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_service_documents_type ON service_documents(type)")
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_service_documents_organizationId_number ON service_documents(organizationId, number)")
+                db.execSQL("CREATE TABLE IF NOT EXISTS payments (id TEXT NOT NULL PRIMARY KEY, organizationId TEXT NOT NULL, requestId TEXT, documentId TEXT, clientId TEXT, amountMinor INTEGER NOT NULL, currency TEXT NOT NULL, status TEXT NOT NULL, method TEXT NOT NULL, paidAtEpochMs INTEGER, externalReference TEXT, note TEXT, archived INTEGER NOT NULL, syncState TEXT NOT NULL, createdAtEpochMs INTEGER NOT NULL, updatedAtEpochMs INTEGER NOT NULL)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_payments_organizationId ON payments(organizationId)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_payments_requestId ON payments(requestId)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_payments_documentId ON payments(documentId)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_payments_clientId ON payments(clientId)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_payments_status ON payments(status)")
             }
         }
 
         fun create(context: Context): LexoraServiceDatabase =
             Room.databaseBuilder(context.applicationContext, LexoraServiceDatabase::class.java, "lexora-service.db")
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
                 .build()
     }
 }

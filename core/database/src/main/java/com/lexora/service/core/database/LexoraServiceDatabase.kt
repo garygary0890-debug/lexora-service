@@ -19,9 +19,9 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         TireWorkEntryEntity::class, TireStorageItemEntity::class, ServiceCatalogItemEntity::class,
         PriceListEntity::class, PriceListItemEntity::class, WorkOrderItemEntity::class,
         LoyaltyAccountEntity::class, LoyaltyTransactionEntity::class, QualityControlRecordEntity::class,
-        ServiceContractEntity::class,
+        ServiceContractEntity::class, PublicBookingEntity::class, PortalAccessGrantEntity::class,
     ],
-    version = 15,
+    version = 16,
     exportSchema = true,
 )
 abstract class LexoraServiceDatabase : RoomDatabase() {
@@ -32,6 +32,7 @@ abstract class LexoraServiceDatabase : RoomDatabase() {
     abstract fun workOrderDao(): WorkOrderDao
     abstract fun customerCareDao(): CustomerCareDao
     abstract fun contractDao(): ContractDao
+    abstract fun publicPortalDao(): PublicPortalDao
 
     companion object {
         private val MIGRATION_1_2 = object : Migration(1, 2) { override fun migrate(db: SupportSQLiteDatabase) { db.execSQL("ALTER TABLE clients ADD COLUMN kpp TEXT"); db.execSQL("ALTER TABLE clients ADD COLUMN registrationAddress TEXT"); db.execSQL("ALTER TABLE clients ADD COLUMN actualAddress TEXT"); db.execSQL("ALTER TABLE clients ADD COLUMN note TEXT"); db.execSQL("ALTER TABLE clients ADD COLUMN consentPersonalData INTEGER NOT NULL DEFAULT 0") } }
@@ -103,7 +104,24 @@ abstract class LexoraServiceDatabase : RoomDatabase() {
             db.execSQL("CREATE INDEX IF NOT EXISTS index_service_contracts_endAtEpochMs ON service_contracts(endAtEpochMs)")
             db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_service_contracts_organizationId_number ON service_contracts(organizationId, number)")
         } }
+        private val MIGRATION_15_16 = object : Migration(15, 16) { override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("CREATE TABLE IF NOT EXISTS public_bookings (id TEXT NOT NULL PRIMARY KEY, organizationId TEXT NOT NULL, branchId TEXT, clientId TEXT, vehicleId TEXT, serviceCatalogItemId TEXT, contactName TEXT NOT NULL, phone TEXT, email TEXT, desiredAtEpochMs INTEGER, comment TEXT, status TEXT NOT NULL, convertedRequestId TEXT, source TEXT NOT NULL, createdAtEpochMs INTEGER NOT NULL, updatedAtEpochMs INTEGER NOT NULL, syncState TEXT NOT NULL)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_public_bookings_organizationId ON public_bookings(organizationId)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_public_bookings_branchId ON public_bookings(branchId)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_public_bookings_clientId ON public_bookings(clientId)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_public_bookings_vehicleId ON public_bookings(vehicleId)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_public_bookings_serviceCatalogItemId ON public_bookings(serviceCatalogItemId)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_public_bookings_status ON public_bookings(status)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_public_bookings_desiredAtEpochMs ON public_bookings(desiredAtEpochMs)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_public_bookings_convertedRequestId ON public_bookings(convertedRequestId)")
+            db.execSQL("CREATE TABLE IF NOT EXISTS portal_access_grants (id TEXT NOT NULL PRIMARY KEY, organizationId TEXT NOT NULL, clientId TEXT NOT NULL, tokenHash TEXT NOT NULL, status TEXT NOT NULL, expiresAtEpochMs INTEGER NOT NULL, revokedAtEpochMs INTEGER, createdAtEpochMs INTEGER NOT NULL, updatedAtEpochMs INTEGER NOT NULL, syncState TEXT NOT NULL)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_portal_access_grants_organizationId ON portal_access_grants(organizationId)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_portal_access_grants_clientId ON portal_access_grants(clientId)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_portal_access_grants_status ON portal_access_grants(status)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_portal_access_grants_expiresAtEpochMs ON portal_access_grants(expiresAtEpochMs)")
+            db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_portal_access_grants_organizationId_tokenHash ON portal_access_grants(organizationId, tokenHash)")
+        } }
 
-        fun create(context: Context): LexoraServiceDatabase = Room.databaseBuilder(context.applicationContext, LexoraServiceDatabase::class.java, "lexora-service.db").addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15).build()
+        fun create(context: Context): LexoraServiceDatabase = Room.databaseBuilder(context.applicationContext, LexoraServiceDatabase::class.java, "lexora-service.db").addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16).build()
     }
 }

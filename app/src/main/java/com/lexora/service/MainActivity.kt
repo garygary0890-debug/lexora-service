@@ -21,22 +21,25 @@ import com.lexora.service.core.data.InMemoryOrganizationRepository
 import com.lexora.service.core.data.InMemoryUserRepository
 import com.lexora.service.core.database.AuditEventEntity
 import com.lexora.service.core.database.ClientEntity
+import com.lexora.service.core.database.EquipmentEntity
 import com.lexora.service.core.database.LexoraServiceDatabase
 import com.lexora.service.core.database.OrganizationEntity
+import com.lexora.service.core.database.ServiceObjectEntity
 import com.lexora.service.core.database.VehicleEntity
 import com.lexora.service.core.designsystem.LexoraTheme
 import com.lexora.service.core.domain.ModuleAccessPolicy
 import com.lexora.service.core.model.Client
 import com.lexora.service.core.model.ClientType
+import com.lexora.service.core.model.Equipment
 import com.lexora.service.core.model.LexoraModuleId
+import com.lexora.service.core.model.ServiceObject
 import com.lexora.service.core.model.SyncState
 import com.lexora.service.core.model.Vehicle
 import com.lexora.service.core.navigation.Routes
-import com.lexora.service.feature.clients.ClientDraft
+import com.lexora.service.feature.assets.AssetsScreen
 import com.lexora.service.feature.clients.ClientsScreen
 import com.lexora.service.feature.home.HomeScreen
 import com.lexora.service.feature.settings.SettingsScreen
-import com.lexora.service.feature.vehicles.VehicleDraft
 import com.lexora.service.feature.vehicles.VehiclesScreen
 import com.lexora.service.feature.tires.TiresScreen
 import com.lexora.service.feature.wash.WashScreen
@@ -66,6 +69,10 @@ private fun LexoraServiceApp() {
         var archivedClients by remember { mutableStateOf<List<Client>>(emptyList()) }
         var vehicles by remember { mutableStateOf<List<Vehicle>>(emptyList()) }
         var archivedVehicles by remember { mutableStateOf<List<Vehicle>>(emptyList()) }
+        var serviceObjects by remember { mutableStateOf<List<ServiceObject>>(emptyList()) }
+        var archivedServiceObjects by remember { mutableStateOf<List<ServiceObject>>(emptyList()) }
+        var equipment by remember { mutableStateOf<List<Equipment>>(emptyList()) }
+        var archivedEquipment by remember { mutableStateOf<List<Equipment>>(emptyList()) }
 
         val organization = requireNotNull(organizationRepository.activeOrganization())
         val user = userRepository.currentUser()
@@ -80,6 +87,13 @@ private fun LexoraServiceApp() {
         suspend fun reloadVehicles() {
             vehicles = dao.vehicles(organization.id).map(VehicleEntity::toModel)
             archivedVehicles = dao.archivedVehicles(organization.id).map(VehicleEntity::toModel)
+        }
+
+        suspend fun reloadAssets() {
+            serviceObjects = dao.serviceObjects(organization.id).map(ServiceObjectEntity::toModel)
+            archivedServiceObjects = dao.archivedServiceObjects(organization.id).map(ServiceObjectEntity::toModel)
+            equipment = dao.equipment(organization.id).map(EquipmentEntity::toModel)
+            archivedEquipment = dao.archivedEquipment(organization.id).map(EquipmentEntity::toModel)
         }
 
         suspend fun audit(entityType: String, entityId: String?, action: String, summary: String) {
@@ -131,6 +145,7 @@ private fun LexoraServiceApp() {
             }
             reloadClients()
             reloadVehicles()
+            reloadAssets()
         }
 
         val navController = rememberNavController()
@@ -142,6 +157,7 @@ private fun LexoraServiceApp() {
                         modules = accessibleModules,
                         onOpenClients = { navController.navigate(Routes.Clients) },
                         onOpenVehicles = { navController.navigate(Routes.Vehicles) },
+                        onOpenAssets = { navController.navigate(Routes.Assets) },
                         onOpenWash = {
                             if (accessibleModules.any { it.id == LexoraModuleId.WASH }) {
                                 navController.navigate(Routes.Wash)
@@ -262,6 +278,100 @@ private fun LexoraServiceApp() {
                         },
                     )
                 }
+                composable(Routes.Assets) {
+                    AssetsScreen(
+                        objects = serviceObjects,
+                        archivedObjects = archivedServiceObjects,
+                        equipment = equipment,
+                        archivedEquipment = archivedEquipment,
+                        clients = clients + archivedClients,
+                        onSaveObject = { draft, existingId ->
+                            scope.launch {
+                                val now = System.currentTimeMillis()
+                                val id = existingId ?: UUID.randomUUID().toString()
+                                val existing = existingId?.let { dao.serviceObject(it) }
+                                dao.upsertServiceObject(
+                                    ServiceObjectEntity(
+                                        id = id,
+                                        organizationId = organization.id,
+                                        clientId = draft.clientId,
+                                        name = draft.name.trim(),
+                                        address = draft.address.trim().ifBlank { null },
+                                        accessMode = draft.accessMode.trim().ifBlank { null },
+                                        responsibleContact = draft.responsibleContact.trim().ifBlank { null },
+                                        archived = existing?.archived ?: false,
+                                        syncState = if (existing == null) SyncState.PENDING_CREATE.name else SyncState.PENDING_UPDATE.name,
+                                        createdAtEpochMs = existing?.createdAtEpochMs ?: now,
+                                        updatedAtEpochMs = now,
+                                    )
+                                )
+                                audit("SERVICE_OBJECT", id, if (existing == null) "CREATE" else "UPDATE", draft.name.trim())
+                                reloadAssets()
+                            }
+                        },
+                        onArchiveObject = { id ->
+                            scope.launch {
+                                val name = dao.serviceObject(id)?.name.orEmpty()
+                                dao.archiveServiceObject(id, SyncState.PENDING_UPDATE.name, System.currentTimeMillis())
+                                audit("SERVICE_OBJECT", id, "ARCHIVE", name)
+                                reloadAssets()
+                            }
+                        },
+                        onRestoreObject = { id ->
+                            scope.launch {
+                                val name = dao.serviceObject(id)?.name.orEmpty()
+                                dao.restoreServiceObject(id, SyncState.PENDING_UPDATE.name, System.currentTimeMillis())
+                                audit("SERVICE_OBJECT", id, "RESTORE", name)
+                                reloadAssets()
+                            }
+                        },
+                        onSaveEquipment = { draft, existingId ->
+                            scope.launch {
+                                val now = System.currentTimeMillis()
+                                val id = existingId ?: UUID.randomUUID().toString()
+                                val existing = existingId?.let { dao.equipmentItem(it) }
+                                dao.upsertEquipment(
+                                    EquipmentEntity(
+                                        id = id,
+                                        organizationId = organization.id,
+                                        serviceObjectId = draft.serviceObjectId,
+                                        type = draft.type.trim(),
+                                        make = draft.make.trim().ifBlank { null },
+                                        model = draft.model.trim().ifBlank { null },
+                                        serialNumber = draft.serialNumber.trim().uppercase().ifBlank { null },
+                                        inventoryNumber = draft.inventoryNumber.trim().ifBlank { null },
+                                        barcode = draft.barcode.trim().ifBlank { null },
+                                        commissionedNote = draft.commissionedNote.trim().ifBlank { null },
+                                        warrantyNote = draft.warrantyNote.trim().ifBlank { null },
+                                        archived = existing?.archived ?: false,
+                                        syncState = if (existing == null) SyncState.PENDING_CREATE.name else SyncState.PENDING_UPDATE.name,
+                                        createdAtEpochMs = existing?.createdAtEpochMs ?: now,
+                                        updatedAtEpochMs = now,
+                                    )
+                                )
+                                val summary = listOf(draft.make, draft.model, draft.serialNumber).filter { it.isNotBlank() }.joinToString(" ")
+                                audit("EQUIPMENT", id, if (existing == null) "CREATE" else "UPDATE", summary.ifBlank { draft.type })
+                                reloadAssets()
+                            }
+                        },
+                        onArchiveEquipment = { id ->
+                            scope.launch {
+                                val serial = dao.equipmentItem(id)?.serialNumber.orEmpty()
+                                dao.archiveEquipment(id, SyncState.PENDING_UPDATE.name, System.currentTimeMillis())
+                                audit("EQUIPMENT", id, "ARCHIVE", serial)
+                                reloadAssets()
+                            }
+                        },
+                        onRestoreEquipment = { id ->
+                            scope.launch {
+                                val serial = dao.equipmentItem(id)?.serialNumber.orEmpty()
+                                dao.restoreEquipment(id, SyncState.PENDING_UPDATE.name, System.currentTimeMillis())
+                                audit("EQUIPMENT", id, "RESTORE", serial)
+                                reloadAssets()
+                            }
+                        },
+                    )
+                }
                 composable(Routes.Settings) {
                     SettingsScreen(
                         organization = organization,
@@ -310,6 +420,34 @@ private fun VehicleEntity.toModel(): Vehicle = Vehicle(
     bodyType = bodyType,
     color = color,
     mileageKm = mileageKm,
+    archived = archived,
+    syncState = SyncState.valueOf(syncState),
+)
+
+private fun ServiceObjectEntity.toModel(): ServiceObject = ServiceObject(
+    id = id,
+    organizationId = organizationId,
+    clientId = clientId,
+    name = name,
+    address = address,
+    accessMode = accessMode,
+    responsibleContact = responsibleContact,
+    archived = archived,
+    syncState = SyncState.valueOf(syncState),
+)
+
+private fun EquipmentEntity.toModel(): Equipment = Equipment(
+    id = id,
+    organizationId = organizationId,
+    serviceObjectId = serviceObjectId,
+    type = type,
+    make = make,
+    model = model,
+    serialNumber = serialNumber,
+    inventoryNumber = inventoryNumber,
+    barcode = barcode,
+    commissionedNote = commissionedNote,
+    warrantyNote = warrantyNote,
     archived = archived,
     syncState = SyncState.valueOf(syncState),
 )

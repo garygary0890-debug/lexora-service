@@ -23,16 +23,22 @@ class OrganizationSessionRepository(
         return session(organization, user)
     }
 
+    suspend fun switch(user: ServiceUser, organizationId: String): OrganizationSession =
+        switchOrganization(user.id, organizationId)
+
     suspend fun switchOrganization(userId: String, organizationId: String): OrganizationSession {
         val user = requireNotNull(userRepository.user(userId))
-        require(organizationId in user.organizationIds)
+        require(organizationId in user.organizationIds) { "Нет доступа к выбранной организации." }
         val organization = organizationRepository.setActiveOrganization(userId, organizationId)
         return session(organization, requireNotNull(userRepository.user(userId)))
     }
 
+    suspend fun createAndSwitch(actor: ServiceUser, name: String): OrganizationSession =
+        createOrganization(actor.id, name)
+
     suspend fun createOrganization(actorUserId: String, name: String): OrganizationSession {
         val actor = requireNotNull(userRepository.user(actorUserId))
-        require(accessPolicy.can(actor, Permission.MANAGE_ORGANIZATION))
+        require(accessPolicy.can(actor, Permission.MANAGE_ORGANIZATION)) { "Недостаточно прав для создания организации." }
         val created = organizationRepository.createOrganization(actorUserId, name)
         userRepository.setRole(actorUserId, actorUserId, created.id, UserRole.ADMIN, true)
         val organization = organizationRepository.setActiveOrganization(actorUserId, created.id)

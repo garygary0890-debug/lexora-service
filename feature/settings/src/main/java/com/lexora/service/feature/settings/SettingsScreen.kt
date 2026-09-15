@@ -23,7 +23,7 @@ fun SettingsScreen(
     organization: Organization,
     user: ServiceUser,
     modules: List<ModuleDescriptor>,
-    appVersion: String,
+    appVersion: String = "0.13.0",
     onModuleEnabledChange: (LexoraModuleId, Boolean) -> Unit,
 ) {
     Column(

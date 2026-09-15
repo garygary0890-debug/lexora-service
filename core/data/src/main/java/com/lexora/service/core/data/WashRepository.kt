@@ -60,13 +60,15 @@ class WashRepository private constructor(
                 WashQueueStatus.CALLED
             }
             WashQueueStatus.CALLED -> {
-                if (item.postId != null) washDao.updatePostStatus(item.postId, WashPostStatus.OCCUPIED.name, SyncState.PENDING_UPDATE.name, now)
-                washDao.assignQueueItem(item.id, item.postId, WashQueueStatus.IN_SERVICE.name, SyncState.PENDING_UPDATE.name, now)
+                val postId = item.postId
+                if (postId != null) washDao.updatePostStatus(postId, WashPostStatus.OCCUPIED.name, SyncState.PENDING_UPDATE.name, now)
+                washDao.assignQueueItem(item.id, postId, WashQueueStatus.IN_SERVICE.name, SyncState.PENDING_UPDATE.name, now)
                 WashQueueStatus.IN_SERVICE
             }
             WashQueueStatus.IN_SERVICE -> {
-                if (item.postId != null) washDao.updatePostStatus(item.postId, WashPostStatus.AVAILABLE.name, SyncState.PENDING_UPDATE.name, now)
-                washDao.assignQueueItem(item.id, item.postId, WashQueueStatus.COMPLETED.name, SyncState.PENDING_UPDATE.name, now)
+                val postId = item.postId
+                if (postId != null) washDao.updatePostStatus(postId, WashPostStatus.AVAILABLE.name, SyncState.PENDING_UPDATE.name, now)
+                washDao.assignQueueItem(item.id, postId, WashQueueStatus.COMPLETED.name, SyncState.PENDING_UPDATE.name, now)
                 WashQueueStatus.COMPLETED
             }
             WashQueueStatus.COMPLETED, WashQueueStatus.CANCELLED -> item.status

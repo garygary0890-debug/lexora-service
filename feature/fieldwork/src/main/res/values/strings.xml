@@ -1,0 +1,20 @@
+<resources>
+    <string name="fieldwork_title">Выезды и работы</string>
+    <string name="fieldwork_create_visit">Создать выезд</string>
+    <string name="fieldwork_empty">Выезды не найдены</string>
+    <string name="fieldwork_request">Заявка</string>
+    <string name="fieldwork_employee">Исполнитель</string>
+    <string name="fieldwork_checklist">Чек-лист</string>
+    <string name="fieldwork_add_check">Добавить пункт</string>
+    <string name="fieldwork_start">Начать</string>
+    <string name="fieldwork_on_site">На объекте</string>
+    <string name="fieldwork_complete">Завершить</string>
+    <string name="fieldwork_cancel">Отменить</string>
+    <string name="fieldwork_status_planned">Запланирован</string>
+    <string name="fieldwork_status_en_route">В пути</string>
+    <string name="fieldwork_status_on_site">На объекте</string>
+    <string name="fieldwork_status_completed">Завершён</string>
+    <string name="fieldwork_status_cancelled">Отменён</string>
+    <string name="fieldwork_photo_foundation">Фото: локальное хранение подготовлено</string>
+    <string name="fieldwork_signature_foundation">Подпись клиента: хранение ссылки подготовлено</string>
+</resources>

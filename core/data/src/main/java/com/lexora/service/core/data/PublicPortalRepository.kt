@@ -4,11 +4,15 @@ import com.lexora.service.core.database.AuditEventEntity
 import com.lexora.service.core.database.PortalAccessGrantEntity
 import com.lexora.service.core.database.PublicBookingEntity
 import com.lexora.service.core.database.PublicPortalDao
+import com.lexora.service.core.database.RequestStatusHistoryEntity
 import com.lexora.service.core.database.ServiceDao
+import com.lexora.service.core.database.ServiceRequestEntity
 import com.lexora.service.core.model.PortalAccessGrant
 import com.lexora.service.core.model.PortalAccessStatus
 import com.lexora.service.core.model.PublicBooking
 import com.lexora.service.core.model.PublicBookingStatus
+import com.lexora.service.core.model.RequestPriority
+import com.lexora.service.core.model.RequestStatus
 import com.lexora.service.core.model.SyncState
 import java.security.MessageDigest
 import java.security.SecureRandom
@@ -86,6 +90,77 @@ class PublicPortalRepository(
         audit(organizationId, userId, "PUBLIC_BOOKING", bookingId, "STATUS_CHANGE", "$from → $target")
     }
 
+    suspend fun convertConfirmedBookingToRequest(
+        organizationId: String,
+        userId: String,
+        bookingId: String,
+    ): String {
+        val booking = portalDao.booking(bookingId) ?: error("Онлайн-запись не найдена")
+        require(booking.organizationId == organizationId) { "Запись относится к другой организации" }
+        require(PublicBookingStatus.valueOf(booking.status) == PublicBookingStatus.CONFIRMED) {
+            "Конвертировать можно только подтверждённую онлайн-запись"
+        }
+        require(booking.convertedRequestId.isNullOrBlank()) { "Онлайн-запись уже преобразована в заявку" }
+
+        val now = System.currentTimeMillis()
+        val requestId = UUID.randomUUID().toString()
+        val requestNumber = nextRequestNumber(organizationId)
+        val title = "Онлайн-запись: ${booking.contactName}"
+        val description = buildList {
+            booking.serviceCatalogItemId?.let { add("Услуга: $it") }
+            booking.phone?.let { add("Телефон: $it") }
+            booking.email?.let { add("Email: $it") }
+            booking.comment?.let { add(it) }
+        }.joinToString("\n").ifBlank { null }
+
+        serviceDao.upsertServiceRequest(
+            ServiceRequestEntity(
+                id = requestId,
+                organizationId = organizationId,
+                number = requestNumber,
+                clientId = booking.clientId,
+                vehicleId = booking.vehicleId,
+                serviceObjectId = null,
+                equipmentId = null,
+                branchId = booking.branchId,
+                assigneeEmployeeId = null,
+                title = title,
+                description = description,
+                status = RequestStatus.NEW.name,
+                priority = RequestPriority.NORMAL.name,
+                plannedAtEpochMs = booking.desiredAtEpochMs,
+                dueAtEpochMs = null,
+                slaDeadlineEpochMs = null,
+                closedAtEpochMs = null,
+                archived = false,
+                syncState = SyncState.PENDING_CREATE.name,
+                createdAtEpochMs = now,
+                updatedAtEpochMs = now,
+            ),
+        )
+        serviceDao.insertRequestStatusHistory(
+            RequestStatusHistoryEntity(
+                id = UUID.randomUUID().toString(),
+                requestId = requestId,
+                fromStatus = null,
+                toStatus = RequestStatus.NEW.name,
+                changedByUserId = userId,
+                changedAtEpochMs = now,
+                comment = "Создано из онлайн-записи $bookingId",
+            ),
+        )
+        portalDao.updateBookingStatus(
+            id = bookingId,
+            status = PublicBookingStatus.CONVERTED_TO_REQUEST.name,
+            convertedRequestId = requestId,
+            syncState = SyncState.PENDING_UPDATE.name,
+            updatedAtEpochMs = now,
+        )
+        audit(organizationId, userId, "SERVICE_REQUEST", requestId, "CREATE_FROM_PUBLIC_BOOKING", requestNumber)
+        audit(organizationId, userId, "PUBLIC_BOOKING", bookingId, "CONVERT_TO_REQUEST", requestNumber)
+        return requestId
+    }
+
     /**
      * Возвращает открытый токен только один раз. В БД сохраняется исключительно SHA-256 hash.
      */
@@ -138,6 +213,13 @@ class PublicPortalRepository(
             updatedAtEpochMs = now,
         )
         audit(organizationId, userId, "PORTAL_ACCESS", current.id, "REVOKE", "Доступ к клиентскому кабинету отозван")
+    }
+
+    private suspend fun nextRequestNumber(organizationId: String): String {
+        val max = portalDao.requestNumbers(organizationId)
+            .mapNotNull { it.removePrefix("REQ-").toIntOrNull() }
+            .maxOrNull() ?: 0
+        return "REQ-%06d".format(max + 1)
     }
 
     private fun isAllowed(from: PublicBookingStatus, to: PublicBookingStatus): Boolean = when (from) {

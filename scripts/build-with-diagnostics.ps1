@@ -72,25 +72,42 @@ function Publish-Diagnostics([string]$status) {
 Capture-WorkingTree
 
 $gradle = Join-Path $projectRoot "gradlew.bat"
-if (-not (Test-Path $gradle)) {
-    $finishedAt = Get-Date
-    $message = @"
+$wrapperJar = Join-Path $projectRoot "gradle\wrapper\gradle-wrapper.jar"
+if (-not (Test-Path $gradle) -or -not (Test-Path $wrapperJar)) {
+    Write-Host "Gradle Wrapper is incomplete. Running automatic bootstrap..."
+    $bootstrap = Join-Path $PSScriptRoot "bootstrap-gradle-wrapper.ps1"
+    if (-not (Test-Path $bootstrap)) {
+        $bootstrapMessage = "Gradle Wrapper is incomplete and bootstrap script is missing: $bootstrap"
+        $bootstrapMessage | Set-Content -Path $latestLog -Encoding UTF8
+        $bootstrapMessage | Set-Content -Path $latestSummary -Encoding UTF8
+        if (-not $NoHistory) { $bootstrapMessage | Set-Content -Path $historyLog -Encoding UTF8 }
+        Publish-Diagnostics "BOOTSTRAP_MISSING"
+        exit 127
+    }
+
+    & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $bootstrap $(if ($NoPush) { "-NoPush" } else { $null }) 2>&1 | Tee-Object -FilePath $latestLog
+    $bootstrapExit = $LASTEXITCODE
+    if ($bootstrapExit -ne 0 -or -not (Test-Path $gradle) -or -not (Test-Path $wrapperJar)) {
+        $finishedAt = Get-Date
+        $message = @"
 Lexora Service build diagnostics
-Status: NOT_STARTED
-ExitCode: 127
+Status: BOOTSTRAP_FAILED
+ExitCode: $bootstrapExit
 Task: $Task
 Started: $($startedAt.ToString("s"))
 Finished: $($finishedAt.ToString("s"))
-Reason: gradlew.bat is missing. Generate/add Gradle Wrapper before using this build entry point.
+Reason: Gradle Wrapper bootstrap did not complete successfully.
+LatestLog: build-diagnostics/latest-build.log
 WorkingTreePatch: build-diagnostics/working-tree.patch
 GitStatus: build-diagnostics/git-status.txt
 "@
-    $message | Set-Content -Path $latestSummary -Encoding UTF8
-    $message | Set-Content -Path $latestLog -Encoding UTF8
-    if (-not $NoHistory) { $message | Set-Content -Path $historyLog -Encoding UTF8 }
-    Write-Host $message
-    Publish-Diagnostics "NOT_STARTED"
-    exit 127
+        $message | Set-Content -Path $latestSummary -Encoding UTF8
+        if (-not $NoHistory) { Copy-Item $latestLog $historyLog -Force }
+        Capture-WorkingTree
+        Write-Host $message
+        Publish-Diagnostics "BOOTSTRAP_FAILED"
+        exit 127
+    }
 }
 
 "" | Set-Content -Path $latestLog -Encoding UTF8

@@ -12,16 +12,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import com.lexora.service.core.data.ModuleLicenseRepository
-import com.lexora.service.core.database.LexoraServiceDatabase
 import com.lexora.service.core.model.LexoraModuleId
 import com.lexora.service.core.model.ModuleDescriptor
 import com.lexora.service.core.model.Organization
@@ -43,18 +35,8 @@ fun HomeScreen(
     onOpenTires: () -> Unit,
     onOpenSettings: () -> Unit,
 ) {
-    val context = LocalContext.current
-    val repository = remember {
-        ModuleLicenseRepository(LexoraServiceDatabase.create(context.applicationContext).serviceDao())
-    }
-    var persistedModules by remember { mutableStateOf(modules) }
-
-    LaunchedEffect(organization.id, modules) {
-        persistedModules = repository.descriptors(organization.id)
-    }
-
-    val washAvailable = persistedModules.any { it.id == LexoraModuleId.WASH && it.enabled && it.licensed }
-    val tiresAvailable = persistedModules.any { it.id == LexoraModuleId.TIRES && it.enabled && it.licensed }
+    val washAvailable = modules.any { it.id == LexoraModuleId.WASH && it.enabled && it.licensed }
+    val tiresAvailable = modules.any { it.id == LexoraModuleId.TIRES && it.enabled && it.licensed }
 
     Column(
         modifier = Modifier.fillMaxSize().padding(24.dp),
@@ -69,7 +51,7 @@ fun HomeScreen(
             }
         }
         Text("Подключенные модули", style = MaterialTheme.typography.titleMedium)
-        persistedModules.filter { it.enabled && it.licensed }.forEach { module -> Text("• ${module.title}") }
+        modules.filter { it.enabled && it.licensed }.forEach { module -> Text("• ${module.title}") }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(onClick = onOpenClients) { Text("Клиенты") }
             Button(onClick = onOpenVehicles) { Text("Автомобили") }

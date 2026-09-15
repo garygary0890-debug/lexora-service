@@ -1,6 +1,7 @@
 package com.lexora.service.core.navigation
 
 object Routes {
+    const val Documents = "documents"
     const val FieldWork = "fieldwork"
     const val Requests = "requests"
     const val Organization = "organization"

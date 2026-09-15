@@ -1,0 +1,26 @@
+<resources>
+    <string name="vehicles_title">Автомобили</string>
+    <string name="vehicles_search_hint">Поиск по госномеру, VIN, марке или модели</string>
+    <string name="vehicles_add">Добавить автомобиль</string>
+    <string name="vehicles_archive">Архивировать</string>
+    <string name="vehicles_restore">Восстановить</string>
+    <string name="vehicles_edit">Редактировать</string>
+    <string name="vehicles_active">Активные</string>
+    <string name="vehicles_archived">Архив</string>
+    <string name="vehicles_empty">Автомобили не найдены</string>
+    <string name="vehicles_owner">Владелец</string>
+    <string name="vehicles_no_owner">Владелец не указан</string>
+    <string name="vehicles_save">Сохранить</string>
+    <string name="vehicles_cancel">Отмена</string>
+    <string name="vehicles_registration">Госномер</string>
+    <string name="vehicles_vin">VIN</string>
+    <string name="vehicles_make">Марка</string>
+    <string name="vehicles_model">Модель</string>
+    <string name="vehicles_year">Год</string>
+    <string name="vehicles_body_type">Тип кузова</string>
+    <string name="vehicles_color">Цвет</string>
+    <string name="vehicles_mileage">Пробег, км</string>
+    <string name="vehicles_duplicate">Автомобиль с таким госномером или VIN уже существует.</string>
+    <string name="vehicles_invalid_year">Год должен быть от 1900 до 2100.</string>
+    <string name="vehicles_invalid_mileage">Пробег не может быть отрицательным.</string>
+</resources>

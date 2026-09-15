@@ -1,0 +1,2 @@
+# lexora-service
+lexora service

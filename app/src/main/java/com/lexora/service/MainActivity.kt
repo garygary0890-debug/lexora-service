@@ -21,6 +21,7 @@ import com.lexora.service.core.data.PersistentUserRepository
 import com.lexora.service.core.data.defaultIntegrationRegistry
 import com.lexora.service.core.database.*
 import com.lexora.service.core.designsystem.LexoraTheme
+import com.lexora.service.core.domain.AccessPolicy
 import com.lexora.service.core.domain.ModuleAccessPolicy
 import com.lexora.service.core.domain.RequestWorkflow
 import com.lexora.service.core.model.*
@@ -38,6 +39,7 @@ import com.lexora.service.feature.reports.ReportsScreen
 import com.lexora.service.feature.requests.RequestsScreen
 import com.lexora.service.feature.settings.SettingsScreen
 import com.lexora.service.feature.tires.TiresScreen
+import com.lexora.service.feature.users.UsersScreen
 import com.lexora.service.feature.vehicles.VehiclesScreen
 import com.lexora.service.feature.wash.WashScreen
 import java.util.UUID
@@ -60,10 +62,12 @@ private fun LexoraServiceApp() {
         val userRepository = remember(database, dao) { PersistentUserRepository(database.userDao(), dao) }
         val moduleLicenseRepository = remember(dao) { ModuleLicenseRepository(dao) }
         val moduleAccessPolicy = remember { ModuleAccessPolicy() }
+        val accessPolicy = remember { AccessPolicy() }
         val integrations = remember { defaultIntegrationRegistry() }
         val scope = rememberCoroutineScope()
 
         var user by remember { mutableStateOf<ServiceUser?>(null) }
+        var managedUsers by remember { mutableStateOf<List<ServiceUser>>(emptyList()) }
         var modules by remember { mutableStateOf<List<ModuleDescriptor>>(emptyList()) }
         var clients by remember { mutableStateOf<List<Client>>(emptyList()) }
         var archivedClients by remember { mutableStateOf<List<Client>>(emptyList()) }
@@ -94,7 +98,9 @@ private fun LexoraServiceApp() {
 
         val activeUser = user ?: return@LexoraTheme
         val accessibleModules = modules.filter { moduleAccessPolicy.isAvailable(it, activeUser) }
+        val canManageUsers = accessPolicy.can(activeUser, Permission.MANAGE_USERS)
 
+        suspend fun reloadUsers() { managedUsers = userRepository.usersForOrganization(organization.id) }
         suspend fun reloadModules() { modules = moduleLicenseRepository.descriptors(organization.id) }
         suspend fun reloadClients() {
             clients = dao.clients(organization.id).map(ClientEntity::toModel)
@@ -140,7 +146,7 @@ private fun LexoraServiceApp() {
             if (dao.clients(organization.id).isEmpty() && dao.archivedClients(organization.id).isEmpty()) {
                 dao.upsertClient(ClientEntity("client-demo-1", organization.id, ClientType.PERSON.name, "Демонстрационный клиент", "+7 900 000-00-00", null, null, null, null, null, null, false, false, SyncState.PENDING_CREATE.name, now, now))
             }
-            reloadModules(); reloadClients(); reloadVehicles(); reloadAssets(); reloadOrganization(); reloadRequests(); reloadVisits(); reloadDocumentsAndPayments()
+            reloadUsers(); reloadModules(); reloadClients(); reloadVehicles(); reloadAssets(); reloadOrganization(); reloadRequests(); reloadVisits(); reloadDocumentsAndPayments()
         }
 
         val navController = rememberNavController()
@@ -161,6 +167,7 @@ private fun LexoraServiceApp() {
                         onOpenCatalog = { navController.navigate(Routes.Catalog) },
                         onOpenNotifications = { navController.navigate(Routes.Notifications) },
                         onOpenAudit = { navController.navigate(Routes.Audit) },
+                        onOpenUsers = if (canManageUsers) ({ navController.navigate(Routes.Users) }) else null,
                         onOpenWash = { if (accessibleModules.any { it.id == LexoraModuleId.WASH }) navController.navigate(Routes.Wash) },
                         onOpenTires = { if (accessibleModules.any { it.id == LexoraModuleId.TIRES }) navController.navigate(Routes.Tires) },
                         onOpenSettings = { navController.navigate(Routes.Settings) },
@@ -256,6 +263,27 @@ private fun LexoraServiceApp() {
                 composable(Routes.Catalog) { CatalogScreen() }
                 composable(Routes.Notifications) { NotificationsScreen(organization = organization) }
                 composable(Routes.Audit) { AuditScreen(organization = organization) }
+                composable(Routes.Users) {
+                    UsersScreen(
+                        organization = organization,
+                        currentUser = activeUser,
+                        users = managedUsers,
+                        canManageUsers = canManageUsers,
+                        onCreateUser = { displayName, role ->
+                            if (canManageUsers) scope.launch {
+                                userRepository.createLocalUser(activeUser.id, organization.id, displayName, role)
+                                reloadUsers()
+                            }
+                        },
+                        onSetRole = { userId, role, enabled ->
+                            if (canManageUsers) scope.launch {
+                                runCatching { userRepository.setRole(activeUser.id, userId, organization.id, role, enabled) }
+                                reloadUsers()
+                                if (userId == activeUser.id) user = userRepository.user(activeUser.id)
+                            }
+                        },
+                    )
+                }
                 composable(Routes.Settings) { SettingsScreen(organization = organization, user = activeUser, modules = modules, appVersion = "0.28.0", onModuleEnabledChange = { _, _ -> scope.launch { reloadModules() } }) }
                 composable(Routes.Wash) { WashScreen() }
                 composable(Routes.Tires) { TiresScreen() }

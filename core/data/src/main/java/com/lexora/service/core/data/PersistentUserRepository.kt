@@ -1,14 +1,18 @@
 package com.lexora.service.core.data
 
+import com.lexora.service.core.database.AuditEventEntity
+import com.lexora.service.core.database.ServiceDao
 import com.lexora.service.core.database.ServiceUserEntity
 import com.lexora.service.core.database.UserDao
 import com.lexora.service.core.database.UserOrganizationRoleEntity
 import com.lexora.service.core.model.ServiceUser
 import com.lexora.service.core.model.SyncState
 import com.lexora.service.core.model.UserRole
+import java.util.UUID
 
 class PersistentUserRepository(
     private val userDao: UserDao,
+    private val serviceDao: ServiceDao,
 ) {
     suspend fun ensureLocalAdmin(organizationId: String): ServiceUser {
         val now = System.currentTimeMillis()
@@ -70,14 +74,17 @@ class PersistentUserRepository(
     }
 
     suspend fun setRole(
+        actorUserId: String,
         userId: String,
         organizationId: String,
         role: UserRole,
         active: Boolean,
     ) {
+        require(actorUserId.isNotBlank())
         val now = System.currentTimeMillis()
         val existing = userDao.activeRolesForUserInOrganization(userId, organizationId)
             .firstOrNull { it.role == role.name }
+
         if (existing == null && active) {
             userDao.upsertOrganizationRole(
                 UserOrganizationRoleEntity(
@@ -98,7 +105,47 @@ class PersistentUserRepository(
                 syncState = SyncState.PENDING_UPDATE.name,
                 updatedAtEpochMs = now,
             )
+        } else {
+            return
         }
+
+        serviceDao.insertAuditEvent(
+            AuditEventEntity(
+                id = UUID.randomUUID().toString(),
+                organizationId = organizationId,
+                userId = actorUserId,
+                entityType = "USER_ROLE",
+                entityId = userId,
+                action = if (active) "ROLE_GRANTED" else "ROLE_REVOKED",
+                summary = "${role.name} · user=$userId",
+                occurredAtEpochMs = now,
+            ),
+        )
+    }
+
+    suspend fun setUserActive(
+        actorUserId: String,
+        userId: String,
+        organizationId: String,
+        active: Boolean,
+    ) {
+        require(actorUserId.isNotBlank())
+        val existing = userDao.user(userId) ?: return
+        if (existing.active == active) return
+        val now = System.currentTimeMillis()
+        userDao.setUserActive(userId, active, SyncState.PENDING_UPDATE.name, now)
+        serviceDao.insertAuditEvent(
+            AuditEventEntity(
+                id = UUID.randomUUID().toString(),
+                organizationId = organizationId,
+                userId = actorUserId,
+                entityType = "USER",
+                entityId = userId,
+                action = if (active) "USER_ACTIVATED" else "USER_DEACTIVATED",
+                summary = existing.displayName,
+                occurredAtEpochMs = now,
+            ),
+        )
     }
 
     companion object {

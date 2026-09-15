@@ -23,6 +23,7 @@ fun HomeScreen(
     modules: List<ModuleDescriptor>,
     onOpenClients: () -> Unit,
     onOpenVehicles: () -> Unit,
+    onOpenAssets: () -> Unit,
     onOpenWash: () -> Unit,
     onOpenTires: () -> Unit,
     onOpenSettings: () -> Unit,
@@ -50,6 +51,7 @@ fun HomeScreen(
             Button(onClick = onOpenClients) { Text("Клиенты") }
             Button(onClick = onOpenVehicles) { Text("Автомобили") }
         }
+        Button(onClick = onOpenAssets) { Text("Объекты и оборудование") }
 
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(onClick = onOpenWash) { Text("Автомойка") }

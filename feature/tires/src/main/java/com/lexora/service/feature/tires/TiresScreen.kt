@@ -23,7 +23,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import com.lexora.service.core.data.PersistentOrganizationRepository
 import com.lexora.service.core.data.TireRepository
+import com.lexora.service.core.database.LexoraServiceDatabase
 import com.lexora.service.core.model.Organization
 import com.lexora.service.core.model.TireDiagnostic
 import com.lexora.service.core.model.TireQueueItem
@@ -34,33 +36,41 @@ import com.lexora.service.core.model.TireWorkEntry
 import kotlinx.coroutines.launch
 
 @Composable
-fun TiresScreen(organization: Organization) {
+fun TiresScreen(organization: Organization? = null) {
     val context = LocalContext.current
+    val database = remember { LexoraServiceDatabase.create(context.applicationContext) }
     val repository = remember { TireRepository.create(context) }
+    val organizationRepository = remember(database) { PersistentOrganizationRepository(database.serviceDao()) }
     val scope = rememberCoroutineScope()
+    var resolvedOrganization by remember(organization?.id) { mutableStateOf(organization) }
 
     var queue by remember { mutableStateOf<List<TireQueueItem>>(emptyList()) }
     var diagnostics by remember { mutableStateOf<List<TireDiagnostic>>(emptyList()) }
     var workEntries by remember { mutableStateOf<List<TireWorkEntry>>(emptyList()) }
     var storage by remember { mutableStateOf<List<TireStorageItem>>(emptyList()) }
 
-    suspend fun reload() {
-        queue = repository.queue(organization.id)
-        diagnostics = repository.diagnostics(organization.id)
-        workEntries = repository.workEntries(organization.id)
-        storage = repository.storage(organization.id)
+    LaunchedEffect(organization?.id) {
+        resolvedOrganization = organization ?: organizationRepository.ensureBootstrapOrganization()
     }
 
-    LaunchedEffect(organization.id) { reload() }
+    val activeOrganization = resolvedOrganization ?: return
+
+    suspend fun reload() {
+        queue = repository.queue(activeOrganization.id)
+        diagnostics = repository.diagnostics(activeOrganization.id)
+        workEntries = repository.workEntries(activeOrganization.id)
+        storage = repository.storage(activeOrganization.id)
+    }
+
+    LaunchedEffect(activeOrganization.id) { reload() }
 
     Column(
         modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Text("Шиномонтаж", style = MaterialTheme.typography.headlineMedium)
-
         Text("Очередь", style = MaterialTheme.typography.titleMedium)
-        Button(onClick = { scope.launch { repository.addQueueItem(organization.id); reload() } }) { Text("Добавить в очередь") }
+        Button(onClick = { scope.launch { repository.addQueueItem(activeOrganization.id); reload() } }) { Text("Добавить в очередь") }
         queue.sortedBy { it.position }.forEach { item ->
             Card(Modifier.fillMaxWidth()) {
                 Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -78,7 +88,7 @@ fun TiresScreen(organization: Organization) {
         }
 
         Text("Диагностика", style = MaterialTheme.typography.titleMedium)
-        Button(onClick = { scope.launch { repository.addDiagnostic(organization.id); reload() } }) { Text("Добавить диагностику") }
+        Button(onClick = { scope.launch { repository.addDiagnostic(activeOrganization.id); reload() } }) { Text("Добавить диагностику") }
         diagnostics.take(20).forEach { diagnostic ->
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp)) {
@@ -91,11 +101,11 @@ fun TiresScreen(organization: Organization) {
         }
 
         Text("Работы", style = MaterialTheme.typography.titleMedium)
-        Button(onClick = { scope.launch { repository.addWorkEntry(organization.id); reload() } }) { Text("Добавить работу") }
+        Button(onClick = { scope.launch { repository.addWorkEntry(activeOrganization.id); reload() } }) { Text("Добавить работу") }
         workEntries.take(20).forEach { work -> Text("${work.title} × ${work.quantity}") }
 
         Text("Хранение шин", style = MaterialTheme.typography.titleMedium)
-        Button(onClick = { scope.launch { repository.addStorageItem(organization.id); reload() } }) { Text("Принять на хранение") }
+        Button(onClick = { scope.launch { repository.addStorageItem(activeOrganization.id); reload() } }) { Text("Принять на хранение") }
         storage.forEach { item ->
             Card(Modifier.fillMaxWidth()) {
                 Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween) {

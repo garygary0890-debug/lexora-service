@@ -15,8 +15,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
-import com.lexora.service.core.data.InMemoryOrganizationRepository
 import com.lexora.service.core.data.ModuleLicenseRepository
+import com.lexora.service.core.data.OrganizationSessionRepository
+import com.lexora.service.core.data.PersistentOrganizationRepository
 import com.lexora.service.core.data.PersistentUserRepository
 import com.lexora.service.core.data.defaultIntegrationRegistry
 import com.lexora.service.core.database.*
@@ -34,7 +35,7 @@ import com.lexora.service.feature.documents.DocumentsScreen
 import com.lexora.service.feature.fieldwork.FieldWorkScreen
 import com.lexora.service.feature.home.HomeScreen
 import com.lexora.service.feature.notifications.NotificationsScreen
-import com.lexora.service.feature.organization.OrganizationScreen
+import com.lexora.service.feature.organization.OrganizationHubScreen
 import com.lexora.service.feature.reports.ReportsScreen
 import com.lexora.service.feature.requests.RequestsScreen
 import com.lexora.service.feature.settings.SettingsScreen
@@ -58,15 +59,20 @@ private fun LexoraServiceApp() {
         val context = LocalContext.current
         val database = remember { LexoraServiceDatabase.create(context) }
         val dao = remember(database) { database.serviceDao() }
-        val organizationRepository = remember { InMemoryOrganizationRepository() }
+        val organizationRepository = remember(dao) { PersistentOrganizationRepository(dao) }
         val userRepository = remember(database, dao) { PersistentUserRepository(database.userDao(), dao) }
+        val accessPolicy = remember { AccessPolicy() }
+        val organizationSessionRepository = remember(organizationRepository, userRepository, accessPolicy) {
+            OrganizationSessionRepository(organizationRepository, userRepository, accessPolicy)
+        }
         val moduleLicenseRepository = remember(dao) { ModuleLicenseRepository(dao) }
         val moduleAccessPolicy = remember { ModuleAccessPolicy() }
-        val accessPolicy = remember { AccessPolicy() }
         val integrations = remember { defaultIntegrationRegistry() }
         val scope = rememberCoroutineScope()
 
+        var activeOrganization by remember { mutableStateOf<Organization?>(null) }
         var user by remember { mutableStateOf<ServiceUser?>(null) }
+        var organizations by remember { mutableStateOf<List<Organization>>(emptyList()) }
         var managedUsers by remember { mutableStateOf<List<ServiceUser>>(emptyList()) }
         var modules by remember { mutableStateOf<List<ModuleDescriptor>>(emptyList()) }
         var clients by remember { mutableStateOf<List<Client>>(emptyList()) }
@@ -88,17 +94,18 @@ private fun LexoraServiceApp() {
         var serviceDocuments by remember { mutableStateOf<List<ServiceDocument>>(emptyList()) }
         var payments by remember { mutableStateOf<List<Payment>>(emptyList()) }
 
-        val organization = requireNotNull(organizationRepository.activeOrganization())
-
-        LaunchedEffect(organization.id) {
-            val now = System.currentTimeMillis()
-            dao.upsertOrganization(OrganizationEntity(organization.id, organization.name, true, now))
-            user = userRepository.ensureLocalAdmin(organization.id)
+        LaunchedEffect(Unit) {
+            val session = organizationSessionRepository.bootstrap()
+            activeOrganization = session.organization
+            user = session.user
+            organizations = session.organizations
         }
 
+        val organization = activeOrganization ?: return@LexoraTheme
         val activeUser = user ?: return@LexoraTheme
         val accessibleModules = modules.filter { moduleAccessPolicy.isAvailable(it, activeUser) }
         val canManageUsers = accessPolicy.can(activeUser, Permission.MANAGE_USERS)
+        val canManageOrganization = accessPolicy.can(activeUser, Permission.MANAGE_ORGANIZATION)
 
         suspend fun reloadUsers() { managedUsers = userRepository.usersForOrganization(organization.id) }
         suspend fun reloadModules() { modules = moduleLicenseRepository.descriptors(organization.id) }
@@ -144,7 +151,7 @@ private fun LexoraServiceApp() {
         LaunchedEffect(organization.id, activeUser.id) {
             val now = System.currentTimeMillis()
             if (dao.clients(organization.id).isEmpty() && dao.archivedClients(organization.id).isEmpty()) {
-                dao.upsertClient(ClientEntity("client-demo-1", organization.id, ClientType.PERSON.name, "Демонстрационный клиент", "+7 900 000-00-00", null, null, null, null, null, null, false, false, SyncState.PENDING_CREATE.name, now, now))
+                dao.upsertClient(ClientEntity("client-demo-1-${organization.id}", organization.id, ClientType.PERSON.name, "Демонстрационный клиент", "+7 900 000-00-00", null, null, null, null, null, null, false, false, SyncState.PENDING_CREATE.name, now, now))
             }
             reloadUsers(); reloadModules(); reloadClients(); reloadVehicles(); reloadAssets(); reloadOrganization(); reloadRequests(); reloadVisits(); reloadDocumentsAndPayments()
         }
@@ -212,7 +219,27 @@ private fun LexoraServiceApp() {
                     )
                 }
                 composable(Routes.Organization) {
-                    OrganizationScreen(
+                    OrganizationHubScreen(
+                        activeOrganization = organization,
+                        organizations = organizations,
+                        allowedOrganizationIds = activeUser.organizationIds,
+                        canManageOrganization = canManageOrganization,
+                        onCreateOrganization = { name ->
+                            if (canManageOrganization) scope.launch {
+                                val session = runCatching { organizationSessionRepository.createAndSwitch(activeUser, name) }.getOrNull() ?: return@launch
+                                activeOrganization = session.organization
+                                user = session.user
+                                organizations = session.organizations
+                            }
+                        },
+                        onSwitchOrganization = { organizationId ->
+                            scope.launch {
+                                val session = runCatching { organizationSessionRepository.switch(activeUser, organizationId) }.getOrNull() ?: return@launch
+                                activeOrganization = session.organization
+                                user = session.user
+                                organizations = session.organizations
+                            }
+                        },
                         branches = branches, inactiveBranches = inactiveBranches, employees = employees, inactiveEmployees = inactiveEmployees,
                         onSaveBranch = { draft, existingId -> scope.launch { val id = existingId ?: UUID.randomUUID().toString(); val existing = existingId?.let { dao.branch(it) }; val now = System.currentTimeMillis(); dao.upsertBranch(BranchEntity(id, organization.id, draft.name, draft.address.ifBlank { null }, draft.phone.ifBlank { null }, draft.email.ifBlank { null }, draft.workSchedule.ifBlank { null }, draft.timeZoneId, existing?.active ?: true, if (existing == null) SyncState.PENDING_CREATE.name else SyncState.PENDING_UPDATE.name, now)); audit("BRANCH", id, if (existing == null) "CREATE" else "UPDATE", draft.name); reloadOrganization() } },
                         onDeactivateBranch = { id -> scope.launch { val value = dao.branch(id)?.name.orEmpty(); dao.deactivateBranch(id, SyncState.PENDING_UPDATE.name, System.currentTimeMillis()); audit("BRANCH", id, "DEACTIVATE", value); reloadOrganization() } },

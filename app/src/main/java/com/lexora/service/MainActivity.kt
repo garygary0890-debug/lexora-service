@@ -287,7 +287,7 @@ private fun LexoraServiceApp() {
                     )
                 }
                 composable(Routes.Reports) { ReportsScreen(requests = requests, visits = visits, documents = serviceDocuments, payments = payments, integrations = integrations) }
-                composable(Routes.Catalog) { CatalogScreen() }
+                composable(Routes.Catalog) { CatalogScreen(organization = organization, user = activeUser) }
                 composable(Routes.Notifications) { NotificationsScreen(organization = organization) }
                 composable(Routes.Audit) { AuditScreen(organization = organization) }
                 composable(Routes.Users) {
@@ -312,8 +312,8 @@ private fun LexoraServiceApp() {
                     )
                 }
                 composable(Routes.Settings) { SettingsScreen(organization = organization, user = activeUser, modules = modules, appVersion = "0.28.0", onModuleEnabledChange = { _, _ -> scope.launch { reloadModules() } }) }
-                composable(Routes.Wash) { WashScreen() }
-                composable(Routes.Tires) { TiresScreen() }
+                composable(Routes.Wash) { WashScreen(organization = organization) }
+                composable(Routes.Tires) { TiresScreen(organization = organization) }
             }
         }
     }

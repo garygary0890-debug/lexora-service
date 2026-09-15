@@ -82,10 +82,20 @@ interface ServiceDao {
 
     @Query("SELECT * FROM visit_work_entries WHERE visitId = :visitId ORDER BY title") suspend fun visitWorkEntries(visitId: String): List<VisitWorkEntryEntity>
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun upsertVisitWorkEntry(value: VisitWorkEntryEntity)
-
     @Query("SELECT * FROM visit_material_usage WHERE visitId = :visitId ORDER BY title") suspend fun visitMaterialUsage(visitId: String): List<VisitMaterialUsageEntity>
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun upsertVisitMaterialUsage(value: VisitMaterialUsageEntity)
-
     @Query("SELECT * FROM visit_photos WHERE visitId = :visitId ORDER BY takenAtEpochMs DESC") suspend fun visitPhotos(visitId: String): List<VisitPhotoEntity>
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun upsertVisitPhoto(value: VisitPhotoEntity)
+
+    @Query("SELECT * FROM service_documents WHERE organizationId = :organizationId AND archived = 0 ORDER BY updatedAtEpochMs DESC") suspend fun serviceDocuments(organizationId: String): List<ServiceDocumentEntity>
+    @Query("SELECT * FROM service_documents WHERE id = :id LIMIT 1") suspend fun serviceDocument(id: String): ServiceDocumentEntity?
+    @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun upsertServiceDocument(value: ServiceDocumentEntity)
+    @Query("UPDATE service_documents SET status = :status, issuedAtEpochMs = :issuedAt, syncState = :syncState, updatedAtEpochMs = :updatedAt WHERE id = :id") suspend fun updateServiceDocumentStatus(id: String, status: String, issuedAt: Long?, syncState: String, updatedAt: Long)
+    @Query("UPDATE service_documents SET archived = 1, syncState = :syncState, updatedAtEpochMs = :updatedAt WHERE id = :id") suspend fun archiveServiceDocument(id: String, syncState: String, updatedAt: Long)
+
+    @Query("SELECT * FROM payments WHERE organizationId = :organizationId AND archived = 0 ORDER BY updatedAtEpochMs DESC") suspend fun payments(organizationId: String): List<PaymentEntity>
+    @Query("SELECT * FROM payments WHERE id = :id LIMIT 1") suspend fun payment(id: String): PaymentEntity?
+    @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun upsertPayment(value: PaymentEntity)
+    @Query("UPDATE payments SET status = :status, paidAtEpochMs = :paidAt, syncState = :syncState, updatedAtEpochMs = :updatedAt WHERE id = :id") suspend fun updatePaymentStatus(id: String, status: String, paidAt: Long?, syncState: String, updatedAt: Long)
+    @Query("UPDATE payments SET archived = 1, syncState = :syncState, updatedAtEpochMs = :updatedAt WHERE id = :id") suspend fun archivePayment(id: String, syncState: String, updatedAt: Long)
 }

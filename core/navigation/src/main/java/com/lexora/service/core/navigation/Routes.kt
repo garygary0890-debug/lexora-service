@@ -12,6 +12,7 @@ object Routes {
     const val Clients = "clients"
     const val Home = "home"
     const val Settings = "settings"
+    const val Notifications = "notifications"
     const val Wash = "wash"
     const val Tires = "tires"
 }

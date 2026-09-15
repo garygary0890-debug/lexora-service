@@ -6,6 +6,10 @@ enum class RequestStatus { NEW, QUALIFICATION, PLANNED, IN_PROGRESS, WAITING, WO
 enum class RequestPriority { LOW, NORMAL, HIGH, URGENT }
 enum class VisitStatus { PLANNED, EN_ROUTE, ON_SITE, COMPLETED, CANCELLED }
 enum class ChecklistItemState { PENDING, DONE, NOT_APPLICABLE }
+enum class ServiceDocumentType { WORK_ORDER, ACT, INVOICE }
+enum class ServiceDocumentStatus { DRAFT, ISSUED, SIGNED, CANCELLED }
+enum class PaymentStatus { PLANNED, PAID, CANCELLED }
+enum class PaymentMethod { CASH, CARD, BANK_TRANSFER, OTHER }
 
 data class Client(
     val id: String,
@@ -52,15 +56,7 @@ data class ServiceRequest(
     val syncState: SyncState = SyncState.PENDING_CREATE,
 )
 
-data class RequestStatusHistory(
-    val id: String,
-    val requestId: String,
-    val fromStatus: RequestStatus?,
-    val toStatus: RequestStatus,
-    val changedByUserId: String,
-    val changedAtEpochMs: Long,
-    val comment: String? = null,
-)
+data class RequestStatusHistory(val id: String, val requestId: String, val fromStatus: RequestStatus?, val toStatus: RequestStatus, val changedByUserId: String, val changedAtEpochMs: Long, val comment: String? = null)
 
 data class ServiceVisit(
     val id: String,
@@ -79,43 +75,42 @@ data class ServiceVisit(
     val syncState: SyncState = SyncState.PENDING_CREATE,
 )
 
-data class VisitChecklistItem(
-    val id: String,
-    val visitId: String,
-    val title: String,
-    val state: ChecklistItemState = ChecklistItemState.PENDING,
-    val comment: String? = null,
-    val sortOrder: Int = 0,
-    val syncState: SyncState = SyncState.PENDING_CREATE,
-)
+data class VisitChecklistItem(val id: String, val visitId: String, val title: String, val state: ChecklistItemState = ChecklistItemState.PENDING, val comment: String? = null, val sortOrder: Int = 0, val syncState: SyncState = SyncState.PENDING_CREATE)
+data class VisitWorkEntry(val id: String, val visitId: String, val serviceCode: String? = null, val title: String, val quantity: Double = 1.0, val unit: String? = null, val note: String? = null, val syncState: SyncState = SyncState.PENDING_CREATE)
+data class VisitMaterialUsage(val id: String, val visitId: String, val materialCode: String? = null, val title: String, val quantity: Double, val unit: String? = null, val note: String? = null, val syncState: SyncState = SyncState.PENDING_CREATE)
+data class VisitPhoto(val id: String, val visitId: String, val localUri: String, val caption: String? = null, val takenAtEpochMs: Long, val syncState: SyncState = SyncState.PENDING_CREATE)
 
-data class VisitWorkEntry(
+data class ServiceDocument(
     val id: String,
-    val visitId: String,
-    val serviceCode: String? = null,
-    val title: String,
-    val quantity: Double = 1.0,
-    val unit: String? = null,
+    val organizationId: String,
+    val requestId: String?,
+    val visitId: String?,
+    val clientId: String?,
+    val type: ServiceDocumentType,
+    val number: String,
+    val status: ServiceDocumentStatus = ServiceDocumentStatus.DRAFT,
+    val issuedAtEpochMs: Long? = null,
+    val totalMinor: Long = 0,
+    val currency: String = "RUB",
+    val externalFileRef: String? = null,
     val note: String? = null,
+    val archived: Boolean = false,
     val syncState: SyncState = SyncState.PENDING_CREATE,
 )
 
-data class VisitMaterialUsage(
+data class Payment(
     val id: String,
-    val visitId: String,
-    val materialCode: String? = null,
-    val title: String,
-    val quantity: Double,
-    val unit: String? = null,
+    val organizationId: String,
+    val requestId: String?,
+    val documentId: String?,
+    val clientId: String?,
+    val amountMinor: Long,
+    val currency: String = "RUB",
+    val status: PaymentStatus = PaymentStatus.PLANNED,
+    val method: PaymentMethod = PaymentMethod.BANK_TRANSFER,
+    val paidAtEpochMs: Long? = null,
+    val externalReference: String? = null,
     val note: String? = null,
-    val syncState: SyncState = SyncState.PENDING_CREATE,
-)
-
-data class VisitPhoto(
-    val id: String,
-    val visitId: String,
-    val localUri: String,
-    val caption: String? = null,
-    val takenAtEpochMs: Long,
+    val archived: Boolean = false,
     val syncState: SyncState = SyncState.PENDING_CREATE,
 )

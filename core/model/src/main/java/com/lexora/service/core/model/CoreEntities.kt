@@ -13,135 +13,27 @@ enum class PaymentMethod { CASH, CARD, BANK_TRANSFER, OTHER }
 enum class SyncOperationType { CREATE, UPDATE, DELETE }
 enum class SyncOperationStatus { PENDING, IN_PROGRESS, RETRY_WAIT, SUCCEEDED, FAILED, CONFLICT }
 enum class SyncConflictResolution { UNRESOLVED, KEEP_LOCAL, KEEP_REMOTE, MERGED }
+enum class WashPostStatus { AVAILABLE, OCCUPIED, OUT_OF_SERVICE }
+enum class WashQueueStatus { WAITING, CALLED, IN_SERVICE, COMPLETED, CANCELLED }
 
-data class Client(
-    val id: String,
-    val organizationId: String,
-    val type: ClientType,
-    val displayName: String,
-    val phone: String? = null,
-    val email: String? = null,
-    val taxId: String? = null,
-    val kpp: String? = null,
-    val registrationAddress: String? = null,
-    val actualAddress: String? = null,
-    val note: String? = null,
-    val consentPersonalData: Boolean = false,
-    val archived: Boolean = false,
-    val syncState: SyncState = SyncState.PENDING_CREATE,
-)
-
+data class Client(val id: String, val organizationId: String, val type: ClientType, val displayName: String, val phone: String? = null, val email: String? = null, val taxId: String? = null, val kpp: String? = null, val registrationAddress: String? = null, val actualAddress: String? = null, val note: String? = null, val consentPersonalData: Boolean = false, val archived: Boolean = false, val syncState: SyncState = SyncState.PENDING_CREATE)
 data class Vehicle(val id: String, val organizationId: String, val clientId: String?, val registrationNumber: String, val vin: String? = null, val make: String? = null, val model: String? = null, val year: Int? = null, val bodyType: String? = null, val color: String? = null, val mileageKm: Int? = null, val archived: Boolean = false, val syncState: SyncState = SyncState.PENDING_CREATE)
 data class Branch(val id: String, val organizationId: String, val name: String, val address: String? = null, val phone: String? = null, val email: String? = null, val workSchedule: String? = null, val timeZoneId: String, val active: Boolean = true, val syncState: SyncState = SyncState.PENDING_CREATE)
 data class Employee(val id: String, val organizationId: String, val branchId: String?, val displayName: String, val position: String? = null, val phone: String? = null, val email: String? = null, val active: Boolean = true, val syncState: SyncState = SyncState.PENDING_CREATE)
 data class ServiceObject(val id: String, val organizationId: String, val clientId: String?, val name: String, val address: String? = null, val accessMode: String? = null, val responsibleContact: String? = null, val archived: Boolean = false, val syncState: SyncState = SyncState.PENDING_CREATE)
 data class Equipment(val id: String, val organizationId: String, val serviceObjectId: String?, val type: String, val make: String? = null, val model: String? = null, val serialNumber: String? = null, val inventoryNumber: String? = null, val barcode: String? = null, val commissionedNote: String? = null, val warrantyNote: String? = null, val archived: Boolean = false, val syncState: SyncState = SyncState.PENDING_CREATE)
-
-data class ServiceRequest(
-    val id: String,
-    val organizationId: String,
-    val number: String,
-    val clientId: String?,
-    val vehicleId: String? = null,
-    val serviceObjectId: String? = null,
-    val equipmentId: String? = null,
-    val branchId: String? = null,
-    val assigneeEmployeeId: String? = null,
-    val title: String,
-    val description: String? = null,
-    val status: RequestStatus = RequestStatus.NEW,
-    val priority: RequestPriority = RequestPriority.NORMAL,
-    val plannedAtEpochMs: Long? = null,
-    val dueAtEpochMs: Long? = null,
-    val slaDeadlineEpochMs: Long? = null,
-    val closedAtEpochMs: Long? = null,
-    val archived: Boolean = false,
-    val syncState: SyncState = SyncState.PENDING_CREATE,
-)
-
+data class ServiceRequest(val id: String, val organizationId: String, val number: String, val clientId: String?, val vehicleId: String? = null, val serviceObjectId: String? = null, val equipmentId: String? = null, val branchId: String? = null, val assigneeEmployeeId: String? = null, val title: String, val description: String? = null, val status: RequestStatus = RequestStatus.NEW, val priority: RequestPriority = RequestPriority.NORMAL, val plannedAtEpochMs: Long? = null, val dueAtEpochMs: Long? = null, val slaDeadlineEpochMs: Long? = null, val closedAtEpochMs: Long? = null, val archived: Boolean = false, val syncState: SyncState = SyncState.PENDING_CREATE)
 data class RequestStatusHistory(val id: String, val requestId: String, val fromStatus: RequestStatus?, val toStatus: RequestStatus, val changedByUserId: String, val changedAtEpochMs: Long, val comment: String? = null)
-
-data class ServiceVisit(
-    val id: String,
-    val organizationId: String,
-    val requestId: String,
-    val branchId: String? = null,
-    val employeeId: String? = null,
-    val status: VisitStatus = VisitStatus.PLANNED,
-    val plannedStartEpochMs: Long? = null,
-    val plannedEndEpochMs: Long? = null,
-    val actualStartEpochMs: Long? = null,
-    val actualEndEpochMs: Long? = null,
-    val resultNote: String? = null,
-    val customerName: String? = null,
-    val customerSignatureRef: String? = null,
-    val syncState: SyncState = SyncState.PENDING_CREATE,
-)
-
+data class ServiceVisit(val id: String, val organizationId: String, val requestId: String, val branchId: String? = null, val employeeId: String? = null, val status: VisitStatus = VisitStatus.PLANNED, val plannedStartEpochMs: Long? = null, val plannedEndEpochMs: Long? = null, val actualStartEpochMs: Long? = null, val actualEndEpochMs: Long? = null, val resultNote: String? = null, val customerName: String? = null, val customerSignatureRef: String? = null, val syncState: SyncState = SyncState.PENDING_CREATE)
 data class VisitChecklistItem(val id: String, val visitId: String, val title: String, val state: ChecklistItemState = ChecklistItemState.PENDING, val comment: String? = null, val sortOrder: Int = 0, val syncState: SyncState = SyncState.PENDING_CREATE)
 data class VisitWorkEntry(val id: String, val visitId: String, val serviceCode: String? = null, val title: String, val quantity: Double = 1.0, val unit: String? = null, val note: String? = null, val syncState: SyncState = SyncState.PENDING_CREATE)
 data class VisitMaterialUsage(val id: String, val visitId: String, val materialCode: String? = null, val title: String, val quantity: Double, val unit: String? = null, val note: String? = null, val syncState: SyncState = SyncState.PENDING_CREATE)
 data class VisitPhoto(val id: String, val visitId: String, val localUri: String, val caption: String? = null, val takenAtEpochMs: Long, val syncState: SyncState = SyncState.PENDING_CREATE)
-
-data class ServiceDocument(
-    val id: String,
-    val organizationId: String,
-    val requestId: String?,
-    val visitId: String?,
-    val clientId: String?,
-    val type: ServiceDocumentType,
-    val number: String,
-    val status: ServiceDocumentStatus = ServiceDocumentStatus.DRAFT,
-    val issuedAtEpochMs: Long? = null,
-    val totalMinor: Long = 0,
-    val currency: String = "RUB",
-    val externalFileRef: String? = null,
-    val note: String? = null,
-    val archived: Boolean = false,
-    val syncState: SyncState = SyncState.PENDING_CREATE,
-)
-
-data class Payment(
-    val id: String,
-    val organizationId: String,
-    val requestId: String?,
-    val documentId: String?,
-    val clientId: String?,
-    val amountMinor: Long,
-    val currency: String = "RUB",
-    val status: PaymentStatus = PaymentStatus.PLANNED,
-    val method: PaymentMethod = PaymentMethod.BANK_TRANSFER,
-    val paidAtEpochMs: Long? = null,
-    val externalReference: String? = null,
-    val note: String? = null,
-    val archived: Boolean = false,
-    val syncState: SyncState = SyncState.PENDING_CREATE,
-)
-
-data class SyncOperation(
-    val id: String,
-    val organizationId: String,
-    val entityType: String,
-    val entityId: String,
-    val operationType: SyncOperationType,
-    val idempotencyKey: String,
-    val payloadJson: String? = null,
-    val status: SyncOperationStatus = SyncOperationStatus.PENDING,
-    val attemptCount: Int = 0,
-    val nextAttemptAtEpochMs: Long? = null,
-    val lastError: String? = null,
-    val createdAtEpochMs: Long,
-    val updatedAtEpochMs: Long,
-)
-
-data class SyncConflict(
-    val id: String,
-    val organizationId: String,
-    val entityType: String,
-    val entityId: String,
-    val localVersionJson: String?,
-    val remoteVersionJson: String?,
-    val resolution: SyncConflictResolution = SyncConflictResolution.UNRESOLVED,
-    val detectedAtEpochMs: Long,
-    val resolvedAtEpochMs: Long? = null,
-)
+data class ServiceDocument(val id: String, val organizationId: String, val requestId: String?, val visitId: String?, val clientId: String?, val type: ServiceDocumentType, val number: String, val status: ServiceDocumentStatus = ServiceDocumentStatus.DRAFT, val issuedAtEpochMs: Long? = null, val totalMinor: Long = 0, val currency: String = "RUB", val externalFileRef: String? = null, val note: String? = null, val archived: Boolean = false, val syncState: SyncState = SyncState.PENDING_CREATE)
+data class Payment(val id: String, val organizationId: String, val requestId: String?, val documentId: String?, val clientId: String?, val amountMinor: Long, val currency: String = "RUB", val status: PaymentStatus = PaymentStatus.PLANNED, val method: PaymentMethod = PaymentMethod.BANK_TRANSFER, val paidAtEpochMs: Long? = null, val externalReference: String? = null, val note: String? = null, val archived: Boolean = false, val syncState: SyncState = SyncState.PENDING_CREATE)
+data class SyncOperation(val id: String, val organizationId: String, val entityType: String, val entityId: String, val operationType: SyncOperationType, val idempotencyKey: String, val payloadJson: String? = null, val status: SyncOperationStatus = SyncOperationStatus.PENDING, val attemptCount: Int = 0, val nextAttemptAtEpochMs: Long? = null, val lastError: String? = null, val createdAtEpochMs: Long, val updatedAtEpochMs: Long)
+data class SyncConflict(val id: String, val organizationId: String, val entityType: String, val entityId: String, val localVersionJson: String?, val remoteVersionJson: String?, val resolution: SyncConflictResolution = SyncConflictResolution.UNRESOLVED, val detectedAtEpochMs: Long, val resolvedAtEpochMs: Long? = null)
+data class WashPost(val id: String, val organizationId: String, val branchId: String?, val name: String, val status: WashPostStatus = WashPostStatus.AVAILABLE, val active: Boolean = true, val syncState: SyncState = SyncState.PENDING_CREATE)
+data class WashQueueItem(val id: String, val organizationId: String, val requestId: String?, val vehicleId: String?, val postId: String?, val position: Int, val status: WashQueueStatus = WashQueueStatus.WAITING, val createdAtEpochMs: Long, val syncState: SyncState = SyncState.PENDING_CREATE)
+data class WashTechCard(val id: String, val organizationId: String, val name: String, val durationMinutes: Int, val stepsText: String, val active: Boolean = true, val syncState: SyncState = SyncState.PENDING_CREATE)
+data class WashChemicalUsage(val id: String, val organizationId: String, val requestId: String?, val postId: String?, val chemicalName: String, val quantityMl: Double, val usedAtEpochMs: Long, val syncState: SyncState = SyncState.PENDING_CREATE)

@@ -4,8 +4,15 @@
     <string name="request_search">Поиск по номеру или названию</string>
     <string name="request_filter_all">Все</string>
     <string name="requests_empty">Заявки не найдены</string>
-    <string name="request_open">Открыть</string>
+    <string name="request_open">Редактировать</string>
     <string name="request_sla_present">Контроль SLA включён</string>
+    <string name="request_title">Название</string>
+    <string name="request_description">Описание</string>
+    <string name="request_save">Сохранить</string>
+    <string name="request_cancel">Отмена</string>
+    <string name="request_priority">Приоритет</string>
+    <string name="request_next_status">Следующий статус</string>
+    <string name="request_required">Укажите название заявки</string>
     <string name="request_status_new">Новая</string>
     <string name="request_status_qualification">Квалификация</string>
     <string name="request_status_planned">Запланирована</string>

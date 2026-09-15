@@ -11,8 +11,8 @@ android {
         applicationId = "com.lexora.service"
         minSdk = 26
         targetSdk = 36
-        versionCode = 22
-        versionName = "0.22.0"
+        versionCode = 23
+        versionName = "0.23.0"
     }
 
     buildFeatures { compose = true }

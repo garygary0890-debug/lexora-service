@@ -29,3 +29,5 @@ include(":feature:tires")
 include(":core:database")
 include(":feature:clients")
 include(":feature:vehicles")
+
+include(":feature:assets")

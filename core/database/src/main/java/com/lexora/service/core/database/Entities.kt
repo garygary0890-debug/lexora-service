@@ -118,3 +118,43 @@ data class ServiceHistoryEntity(
     val occurredAtEpochMs: Long,
     val createdAtEpochMs: Long,
 )
+
+@Entity(
+    tableName = "service_objects",
+    indices = [Index("organizationId"), Index("clientId")],
+)
+data class ServiceObjectEntity(
+    @PrimaryKey val id: String,
+    val organizationId: String,
+    val clientId: String?,
+    val name: String,
+    val address: String?,
+    val accessMode: String?,
+    val responsibleContact: String?,
+    val archived: Boolean,
+    val syncState: String,
+    val createdAtEpochMs: Long,
+    val updatedAtEpochMs: Long,
+)
+
+@Entity(
+    tableName = "equipment",
+    indices = [Index("organizationId"), Index("serviceObjectId"), Index(value = ["organizationId", "serialNumber"])],
+)
+data class EquipmentEntity(
+    @PrimaryKey val id: String,
+    val organizationId: String,
+    val serviceObjectId: String?,
+    val type: String,
+    val make: String?,
+    val model: String?,
+    val serialNumber: String?,
+    val inventoryNumber: String?,
+    val barcode: String?,
+    val commissionedNote: String?,
+    val warrantyNote: String?,
+    val archived: Boolean,
+    val syncState: String,
+    val createdAtEpochMs: Long,
+    val updatedAtEpochMs: Long,
+)

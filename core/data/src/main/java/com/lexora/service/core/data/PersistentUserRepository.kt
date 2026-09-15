@@ -73,6 +73,52 @@ class PersistentUserRepository(
         }
     }
 
+    suspend fun createLocalUser(
+        actorUserId: String,
+        organizationId: String,
+        displayName: String,
+        initialRole: UserRole,
+    ): ServiceUser {
+        require(actorUserId.isNotBlank())
+        require(displayName.isNotBlank())
+        val now = System.currentTimeMillis()
+        val userId = UUID.randomUUID().toString()
+        userDao.upsertUser(
+            ServiceUserEntity(
+                id = userId,
+                displayName = displayName.trim(),
+                login = null,
+                active = true,
+                syncState = SyncState.PENDING_CREATE.name,
+                createdAtEpochMs = now,
+                updatedAtEpochMs = now,
+            ),
+        )
+        userDao.upsertOrganizationRole(
+            UserOrganizationRoleEntity(
+                userId = userId,
+                organizationId = organizationId,
+                role = initialRole.name,
+                active = true,
+                syncState = SyncState.PENDING_CREATE.name,
+                updatedAtEpochMs = now,
+            ),
+        )
+        serviceDao.insertAuditEvent(
+            AuditEventEntity(
+                id = UUID.randomUUID().toString(),
+                organizationId = organizationId,
+                userId = actorUserId,
+                entityType = "USER",
+                entityId = userId,
+                action = "CREATE",
+                summary = "${displayName.trim()} · ${initialRole.name}",
+                occurredAtEpochMs = now,
+            ),
+        )
+        return requireNotNull(user(userId))
+    }
+
     suspend fun setRole(
         actorUserId: String,
         userId: String,
@@ -81,6 +127,9 @@ class PersistentUserRepository(
         active: Boolean,
     ) {
         require(actorUserId.isNotBlank())
+        require(!(actorUserId == userId && role == UserRole.ADMIN && !active)) {
+            "Нельзя отозвать собственную роль ADMIN."
+        }
         val now = System.currentTimeMillis()
         val existing = userDao.activeRolesForUserInOrganization(userId, organizationId)
             .firstOrNull { it.role == role.name }
@@ -130,6 +179,7 @@ class PersistentUserRepository(
         active: Boolean,
     ) {
         require(actorUserId.isNotBlank())
+        require(!(actorUserId == userId && !active)) { "Нельзя деактивировать текущего пользователя." }
         val existing = userDao.user(userId) ?: return
         if (existing.active == active) return
         val now = System.currentTimeMillis()

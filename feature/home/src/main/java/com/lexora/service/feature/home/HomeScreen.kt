@@ -27,7 +27,7 @@ fun HomeScreen(
     onOpenOrganization: () -> Unit,
     onOpenRequests: () -> Unit,
     onOpenFieldWork: () -> Unit,
-    onOpenDocuments: () -> Unit,
+    onOpenDocuments: () -> Unit = {},
     onOpenWash: () -> Unit,
     onOpenTires: () -> Unit,
     onOpenSettings: () -> Unit,
@@ -38,17 +38,14 @@ fun HomeScreen(
     ) {
         Text("Lexora Service", style = MaterialTheme.typography.headlineMedium)
         Text("Рабочий стол", style = MaterialTheme.typography.titleMedium)
-
         Card(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(16.dp)) {
                 Text("Активная организация", style = MaterialTheme.typography.labelMedium)
                 Text(organization.name, style = MaterialTheme.typography.titleMedium)
             }
         }
-
         Text("Подключенные модули", style = MaterialTheme.typography.titleMedium)
         modules.filter { it.enabled && it.licensed }.forEach { module -> Text("• ${module.title}") }
-
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(onClick = onOpenClients) { Text("Клиенты") }
             Button(onClick = onOpenVehicles) { Text("Автомобили") }
@@ -58,7 +55,6 @@ fun HomeScreen(
         Button(onClick = onOpenDocuments) { Text("Документы и платежи") }
         Button(onClick = onOpenAssets) { Text("Объекты и оборудование") }
         Button(onClick = onOpenOrganization) { Text("Филиалы и сотрудники") }
-
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(onClick = onOpenWash) { Text("Автомойка") }
             Button(onClick = onOpenTires) { Text("Шиномонтаж") }

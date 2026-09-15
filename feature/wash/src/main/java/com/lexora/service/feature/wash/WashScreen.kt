@@ -23,8 +23,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import com.lexora.service.core.data.InMemoryOrganizationRepository
 import com.lexora.service.core.data.WashRepository
+import com.lexora.service.core.model.Organization
 import com.lexora.service.core.model.WashChemicalUsage
 import com.lexora.service.core.model.WashPost
 import com.lexora.service.core.model.WashPostStatus
@@ -34,10 +34,9 @@ import com.lexora.service.core.model.WashTechCard
 import kotlinx.coroutines.launch
 
 @Composable
-fun WashScreen() {
+fun WashScreen(organization: Organization) {
     val context = LocalContext.current
     val repository = remember { WashRepository.create(context) }
-    val organization = remember { InMemoryOrganizationRepository().activeOrganization() }
     val scope = rememberCoroutineScope()
 
     var posts by remember { mutableStateOf<List<WashPost>>(emptyList()) }
@@ -46,14 +45,13 @@ fun WashScreen() {
     var chemicalUsage by remember { mutableStateOf<List<WashChemicalUsage>>(emptyList()) }
 
     suspend fun reload() {
-        val organizationId = organization?.id ?: return
-        posts = repository.posts(organizationId)
-        queue = repository.queue(organizationId)
-        techCards = repository.techCards(organizationId)
-        chemicalUsage = repository.chemicalUsage(organizationId)
+        posts = repository.posts(organization.id)
+        queue = repository.queue(organization.id)
+        techCards = repository.techCards(organization.id)
+        chemicalUsage = repository.chemicalUsage(organization.id)
     }
 
-    LaunchedEffect(organization?.id) { reload() }
+    LaunchedEffect(organization.id) { reload() }
 
     WashContent(
         posts = posts,
@@ -62,8 +60,7 @@ fun WashScreen() {
         chemicalUsage = chemicalUsage,
         onAddPost = {
             scope.launch {
-                val organizationId = organization?.id ?: return@launch
-                repository.addPost(organizationId, branchId = null, name = "Пост ${posts.size + 1}")
+                repository.addPost(organization.id, branchId = null, name = "Пост ${posts.size + 1}")
                 reload()
             }
         },
@@ -76,30 +73,26 @@ fun WashScreen() {
         },
         onAddQueueItem = {
             scope.launch {
-                val organizationId = organization?.id ?: return@launch
-                repository.addQueueItem(organizationId)
+                repository.addQueueItem(organization.id)
                 reload()
             }
         },
         onAdvanceQueueItem = { id ->
             scope.launch {
-                val organizationId = organization?.id ?: return@launch
                 val item = queue.firstOrNull { it.id == id } ?: return@launch
-                repository.advanceQueueItem(organizationId, item)
+                repository.advanceQueueItem(organization.id, item)
                 reload()
             }
         },
         onAddTechCard = {
             scope.launch {
-                val organizationId = organization?.id ?: return@launch
-                repository.addTechCard(organizationId)
+                repository.addTechCard(organization.id)
                 reload()
             }
         },
         onAddChemicalUsage = {
             scope.launch {
-                val organizationId = organization?.id ?: return@launch
-                repository.addChemicalUsage(organizationId)
+                repository.addChemicalUsage(organization.id)
                 reload()
             }
         },

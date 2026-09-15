@@ -17,8 +17,10 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         ModuleSettingEntity::class,
         AuditEventEntity::class,
         ServiceHistoryEntity::class,
+        ServiceObjectEntity::class,
+        EquipmentEntity::class,
     ],
-    version = 3,
+    version = 4,
     exportSchema = true,
 )
 abstract class LexoraServiceDatabase : RoomDatabase() {
@@ -61,13 +63,61 @@ abstract class LexoraServiceDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS service_objects (
+                        id TEXT NOT NULL PRIMARY KEY,
+                        organizationId TEXT NOT NULL,
+                        clientId TEXT,
+                        name TEXT NOT NULL,
+                        address TEXT,
+                        accessMode TEXT,
+                        responsibleContact TEXT,
+                        archived INTEGER NOT NULL,
+                        syncState TEXT NOT NULL,
+                        createdAtEpochMs INTEGER NOT NULL,
+                        updatedAtEpochMs INTEGER NOT NULL
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_service_objects_organizationId ON service_objects(organizationId)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_service_objects_clientId ON service_objects(clientId)")
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS equipment (
+                        id TEXT NOT NULL PRIMARY KEY,
+                        organizationId TEXT NOT NULL,
+                        serviceObjectId TEXT,
+                        type TEXT NOT NULL,
+                        make TEXT,
+                        model TEXT,
+                        serialNumber TEXT,
+                        inventoryNumber TEXT,
+                        barcode TEXT,
+                        commissionedNote TEXT,
+                        warrantyNote TEXT,
+                        archived INTEGER NOT NULL,
+                        syncState TEXT NOT NULL,
+                        createdAtEpochMs INTEGER NOT NULL,
+                        updatedAtEpochMs INTEGER NOT NULL
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_equipment_organizationId ON equipment(organizationId)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_equipment_serviceObjectId ON equipment(serviceObjectId)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_equipment_organizationId_serialNumber ON equipment(organizationId, serialNumber)")
+            }
+        }
+
         fun create(context: Context): LexoraServiceDatabase =
             Room.databaseBuilder(
                 context.applicationContext,
                 LexoraServiceDatabase::class.java,
                 "lexora-service.db",
             )
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
                 .build()
     }
 }

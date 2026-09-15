@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Transaction
 
 @Dao
 interface CustomerCareDao {
@@ -16,8 +17,19 @@ interface CustomerCareDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertLoyaltyAccount(value: LoyaltyAccountEntity)
 
+    @Query("UPDATE loyalty_accounts SET pointsBalance = pointsBalance + :delta, syncState = 'PENDING_UPDATE', updatedAtEpochMs = :updatedAt WHERE id = :accountId AND active = 1 AND pointsBalance + :delta >= 0")
+    suspend fun adjustLoyaltyBalance(accountId: String, delta: Long, updatedAt: Long): Int
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertLoyaltyTransaction(value: LoyaltyTransactionEntity)
+
+    @Transaction
+    suspend fun applyLoyaltyTransaction(accountId: String, delta: Long, transaction: LoyaltyTransactionEntity): Boolean {
+        val changed = adjustLoyaltyBalance(accountId, delta, transaction.updatedAtEpochMs)
+        if (changed != 1) return false
+        insertLoyaltyTransaction(transaction)
+        return true
+    }
 
     @Query("SELECT * FROM loyalty_transactions WHERE organizationId = :organizationId ORDER BY occurredAtEpochMs DESC LIMIT :limit")
     suspend fun loyaltyTransactions(organizationId: String, limit: Int = 100): List<LoyaltyTransactionEntity>

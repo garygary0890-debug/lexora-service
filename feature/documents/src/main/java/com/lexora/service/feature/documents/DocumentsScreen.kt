@@ -29,8 +29,10 @@ import com.lexora.service.core.data.InMemoryOrganizationRepository
 import com.lexora.service.core.data.InMemoryUserRepository
 import com.lexora.service.core.data.WorkOrderRepository
 import com.lexora.service.core.model.AdditionalWorkApprovalStatus
+import com.lexora.service.core.model.ContractStatus
 import com.lexora.service.core.model.Payment
 import com.lexora.service.core.model.PaymentStatus
+import com.lexora.service.core.model.ServiceContract
 import com.lexora.service.core.model.ServiceDocument
 import com.lexora.service.core.model.ServiceDocumentStatus
 import com.lexora.service.core.model.ServiceDocumentType
@@ -38,7 +40,7 @@ import com.lexora.service.core.model.ServiceRequest
 import com.lexora.service.core.model.WorkOrderItem
 import kotlinx.coroutines.launch
 
-private enum class Tab { DOCUMENTS, PAYMENTS }
+private enum class Tab { DOCUMENTS, PAYMENTS, CONTRACTS }
 
 @Composable
 fun DocumentsScreen(
@@ -49,6 +51,12 @@ fun DocumentsScreen(
     onChangeDocumentStatus: (String, ServiceDocumentStatus) -> Unit,
     onCreatePayment: (String?) -> Unit,
     onMarkPaymentPaid: (String) -> Unit,
+    contracts: List<ServiceContract> = emptyList(),
+    archivedContracts: List<ServiceContract> = emptyList(),
+    onCreateContract: () -> Unit = {},
+    onChangeContractStatus: (String, ContractStatus) -> Unit = { _, _ -> },
+    onArchiveContract: (String) -> Unit = {},
+    onRestoreContract: (String) -> Unit = {},
 ) {
     val context = LocalContext.current
     val workOrderRepository = remember { WorkOrderRepository.create(context) }
@@ -76,6 +84,7 @@ fun DocumentsScreen(
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             FilterChip(selected = tab == Tab.DOCUMENTS, onClick = { tab = Tab.DOCUMENTS }, label = { Text(stringResource(R.string.documents_tab)) })
             FilterChip(selected = tab == Tab.PAYMENTS, onClick = { tab = Tab.PAYMENTS }, label = { Text(stringResource(R.string.payments_tab)) })
+            FilterChip(selected = tab == Tab.CONTRACTS, onClick = { tab = Tab.CONTRACTS }, label = { Text("Договоры") })
         }
         val firstRequestId = requests.firstOrNull()?.id
         when (tab) {
@@ -155,6 +164,16 @@ fun DocumentsScreen(
                         }
                     }
                 }
+            }
+            Tab.CONTRACTS -> {
+                ContractsSection(
+                    contracts = contracts,
+                    archivedContracts = archivedContracts,
+                    onCreate = onCreateContract,
+                    onChangeStatus = onChangeContractStatus,
+                    onArchive = onArchiveContract,
+                    onRestore = onRestoreContract,
+                )
             }
         }
     }

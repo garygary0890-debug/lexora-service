@@ -25,19 +25,20 @@ class ServiceHistoryRepository(
         val mileage = vehicle.mileageKm
         val requests = dao.serviceRequests(organizationId).filter { it.vehicleId == vehicleId }
 
-        requests.filter { it.status == RequestStatus.CLOSED.name && it.closedAtEpochMs != null }.forEach { request ->
-            val occurredAt = requireNotNull(request.closedAtEpochMs)
-            upsertDeterministic(
-                id = "history-request-${request.id}",
-                organizationId = organizationId,
-                vehicleId = vehicleId,
-                sourceType = ServiceHistorySourceType.SERVICE_REQUEST,
-                sourceId = request.id,
-                title = "Заявка ${request.number} закрыта",
-                description = request.title,
-                mileageKm = mileage,
-                occurredAt = occurredAt,
-            )
+        requests.forEach { request ->
+            if (request.status == RequestStatus.CLOSED.name && request.closedAtEpochMs != null) {
+                upsertDeterministic(
+                    id = "history-request-${request.id}",
+                    organizationId = organizationId,
+                    vehicleId = vehicleId,
+                    sourceType = ServiceHistorySourceType.SERVICE_REQUEST,
+                    sourceId = request.id,
+                    title = "Заявка ${request.number} закрыта",
+                    description = request.title,
+                    mileageKm = mileage,
+                    occurredAt = request.closedAtEpochMs,
+                )
+            }
 
             dao.visitsForRequest(request.id)
                 .filter { it.status == VisitStatus.COMPLETED.name && it.actualEndEpochMs != null }
@@ -114,7 +115,7 @@ class ServiceHistoryRepository(
                 description = description,
                 mileageKm = mileageKm,
                 occurredAtEpochMs = occurredAt,
-                createdAtEpochMs = occurredAt,
+                createdAtEpochMs = System.currentTimeMillis(),
             ),
         )
     }

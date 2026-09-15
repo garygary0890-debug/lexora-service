@@ -20,7 +20,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         ServiceObjectEntity::class,
         EquipmentEntity::class,
     ],
-    version = 4,
+    version = 5,
     exportSchema = true,
 )
 abstract class LexoraServiceDatabase : RoomDatabase() {
@@ -41,8 +41,7 @@ abstract class LexoraServiceDatabase : RoomDatabase() {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE vehicles ADD COLUMN bodyType TEXT")
                 db.execSQL("ALTER TABLE vehicles ADD COLUMN color TEXT")
-                db.execSQL(
-                    """
+                db.execSQL("""
                     CREATE TABLE IF NOT EXISTS service_history (
                         id TEXT NOT NULL PRIMARY KEY,
                         organizationId TEXT NOT NULL,
@@ -55,8 +54,7 @@ abstract class LexoraServiceDatabase : RoomDatabase() {
                         occurredAtEpochMs INTEGER NOT NULL,
                         createdAtEpochMs INTEGER NOT NULL
                     )
-                    """.trimIndent()
-                )
+                """.trimIndent())
                 db.execSQL("CREATE INDEX IF NOT EXISTS index_service_history_organizationId ON service_history(organizationId)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS index_service_history_vehicleId ON service_history(vehicleId)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS index_service_history_occurredAtEpochMs ON service_history(occurredAtEpochMs)")
@@ -65,8 +63,7 @@ abstract class LexoraServiceDatabase : RoomDatabase() {
 
         private val MIGRATION_3_4 = object : Migration(3, 4) {
             override fun migrate(db: SupportSQLiteDatabase) {
-                db.execSQL(
-                    """
+                db.execSQL("""
                     CREATE TABLE IF NOT EXISTS service_objects (
                         id TEXT NOT NULL PRIMARY KEY,
                         organizationId TEXT NOT NULL,
@@ -80,12 +77,10 @@ abstract class LexoraServiceDatabase : RoomDatabase() {
                         createdAtEpochMs INTEGER NOT NULL,
                         updatedAtEpochMs INTEGER NOT NULL
                     )
-                    """.trimIndent()
-                )
+                """.trimIndent())
                 db.execSQL("CREATE INDEX IF NOT EXISTS index_service_objects_organizationId ON service_objects(organizationId)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS index_service_objects_clientId ON service_objects(clientId)")
-                db.execSQL(
-                    """
+                db.execSQL("""
                     CREATE TABLE IF NOT EXISTS equipment (
                         id TEXT NOT NULL PRIMARY KEY,
                         organizationId TEXT NOT NULL,
@@ -103,11 +98,20 @@ abstract class LexoraServiceDatabase : RoomDatabase() {
                         createdAtEpochMs INTEGER NOT NULL,
                         updatedAtEpochMs INTEGER NOT NULL
                     )
-                    """.trimIndent()
-                )
+                """.trimIndent())
                 db.execSQL("CREATE INDEX IF NOT EXISTS index_equipment_organizationId ON equipment(organizationId)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS index_equipment_serviceObjectId ON equipment(serviceObjectId)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS index_equipment_organizationId_serialNumber ON equipment(organizationId, serialNumber)")
+            }
+        }
+
+        private val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE branches ADD COLUMN phone TEXT")
+                db.execSQL("ALTER TABLE branches ADD COLUMN email TEXT")
+                db.execSQL("ALTER TABLE branches ADD COLUMN workSchedule TEXT")
+                db.execSQL("ALTER TABLE employees ADD COLUMN phone TEXT")
+                db.execSQL("ALTER TABLE employees ADD COLUMN email TEXT")
             }
         }
 
@@ -117,7 +121,7 @@ abstract class LexoraServiceDatabase : RoomDatabase() {
                 LexoraServiceDatabase::class.java,
                 "lexora-service.db",
             )
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
                 .build()
     }
 }

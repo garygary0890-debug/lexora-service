@@ -27,6 +27,7 @@ import com.lexora.service.core.model.*
 import com.lexora.service.core.navigation.Routes
 import com.lexora.service.feature.assets.AssetsScreen
 import com.lexora.service.feature.clients.ClientsScreen
+import com.lexora.service.feature.fieldwork.FieldWorkScreen
 import com.lexora.service.feature.home.HomeScreen
 import com.lexora.service.feature.organization.OrganizationScreen
 import com.lexora.service.feature.requests.RequestsScreen
@@ -55,6 +56,7 @@ private fun LexoraServiceApp() {
         val moduleRegistry = remember { InMemoryModuleRegistry() }
         val moduleAccessPolicy = remember { ModuleAccessPolicy() }
         val scope = rememberCoroutineScope()
+
         var stateVersion by remember { mutableIntStateOf(0) }
         var clients by remember { mutableStateOf<List<Client>>(emptyList()) }
         var archivedClients by remember { mutableStateOf<List<Client>>(emptyList()) }
@@ -69,6 +71,9 @@ private fun LexoraServiceApp() {
         var employees by remember { mutableStateOf<List<Employee>>(emptyList()) }
         var inactiveEmployees by remember { mutableStateOf<List<Employee>>(emptyList()) }
         var requests by remember { mutableStateOf<List<ServiceRequest>>(emptyList()) }
+        var visits by remember { mutableStateOf<List<ServiceVisit>>(emptyList()) }
+        var selectedVisitId by remember { mutableStateOf<String?>(null) }
+        var visitChecklist by remember { mutableStateOf<List<VisitChecklistItem>>(emptyList()) }
 
         val organization = requireNotNull(organizationRepository.activeOrganization())
         val user = userRepository.currentUser()
@@ -98,6 +103,16 @@ private fun LexoraServiceApp() {
         suspend fun reloadRequests() {
             requests = dao.serviceRequests(organization.id).map(ServiceRequestEntity::toModel)
         }
+        suspend fun reloadVisits() {
+            visits = dao.serviceVisits(organization.id).map(ServiceVisitEntity::toModel)
+            val activeSelection = selectedVisitId?.takeIf { id -> visits.any { it.id == id } }
+            selectedVisitId = activeSelection ?: visits.firstOrNull()?.id
+            visitChecklist = selectedVisitId?.let { dao.visitChecklist(it).map(VisitChecklistItemEntity::toModel) }.orEmpty()
+        }
+        suspend fun reloadChecklist(visitId: String) {
+            selectedVisitId = visitId
+            visitChecklist = dao.visitChecklist(visitId).map(VisitChecklistItemEntity::toModel)
+        }
         suspend fun audit(entityType: String, entityId: String?, action: String, summary: String) {
             dao.insertAuditEvent(AuditEventEntity(UUID.randomUUID().toString(), organization.id, user.id, entityType, entityId, action, summary, System.currentTimeMillis()))
         }
@@ -108,7 +123,7 @@ private fun LexoraServiceApp() {
             if (dao.clients(organization.id).isEmpty() && dao.archivedClients(organization.id).isEmpty()) {
                 dao.upsertClient(ClientEntity("client-demo-1", organization.id, ClientType.PERSON.name, "Демонстрационный клиент", "+7 900 000-00-00", null, null, null, null, null, null, false, false, SyncState.PENDING_CREATE.name, now, now))
             }
-            reloadClients(); reloadVehicles(); reloadAssets(); reloadOrganization(); reloadRequests()
+            reloadClients(); reloadVehicles(); reloadAssets(); reloadOrganization(); reloadRequests(); reloadVisits()
         }
 
         val navController = rememberNavController()
@@ -123,6 +138,7 @@ private fun LexoraServiceApp() {
                         onOpenAssets = { navController.navigate(Routes.Assets) },
                         onOpenOrganization = { navController.navigate(Routes.Organization) },
                         onOpenRequests = { navController.navigate(Routes.Requests) },
+                        onOpenFieldWork = { navController.navigate(Routes.FieldWork) },
                         onOpenWash = { if (accessibleModules.any { it.id == LexoraModuleId.WASH }) navController.navigate(Routes.Wash) },
                         onOpenTires = { if (accessibleModules.any { it.id == LexoraModuleId.TIRES }) navController.navigate(Routes.Tires) },
                         onOpenSettings = { navController.navigate(Routes.Settings) },
@@ -205,6 +221,75 @@ private fun LexoraServiceApp() {
                         } },
                     )
                 }
+                composable(Routes.FieldWork) {
+                    FieldWorkScreen(
+                        visits = visits,
+                        requests = requests,
+                        employees = employees,
+                        checklist = visitChecklist,
+                        onCreateVisit = { requestId, employeeId -> scope.launch {
+                            val request = dao.serviceRequest(requestId) ?: return@launch
+                            val now = System.currentTimeMillis()
+                            val id = UUID.randomUUID().toString()
+                            dao.upsertServiceVisit(
+                                ServiceVisitEntity(
+                                    id = id,
+                                    organizationId = organization.id,
+                                    requestId = requestId,
+                                    branchId = request.branchId,
+                                    employeeId = employeeId ?: request.assigneeEmployeeId,
+                                    status = VisitStatus.PLANNED.name,
+                                    plannedStartEpochMs = request.plannedAtEpochMs,
+                                    plannedEndEpochMs = request.dueAtEpochMs,
+                                    actualStartEpochMs = null,
+                                    actualEndEpochMs = null,
+                                    resultNote = null,
+                                    customerName = null,
+                                    customerSignatureRef = null,
+                                    syncState = SyncState.PENDING_CREATE.name,
+                                    createdAtEpochMs = now,
+                                    updatedAtEpochMs = now,
+                                )
+                            )
+                            audit("SERVICE_VISIT", id, "CREATE", "Выезд по заявке ${request.number}")
+                            reloadVisits()
+                        } },
+                        onSelectVisit = { id -> scope.launch { reloadChecklist(id) } },
+                        onChangeVisitStatus = { id, target -> scope.launch {
+                            val current = dao.serviceVisit(id) ?: return@launch
+                            val from = VisitStatus.valueOf(current.status)
+                            if (from == VisitStatus.COMPLETED || from == VisitStatus.CANCELLED || from == target) return@launch
+                            val allowed = when (from) {
+                                VisitStatus.PLANNED -> target == VisitStatus.EN_ROUTE || target == VisitStatus.CANCELLED
+                                VisitStatus.EN_ROUTE -> target == VisitStatus.ON_SITE || target == VisitStatus.CANCELLED
+                                VisitStatus.ON_SITE -> target == VisitStatus.COMPLETED || target == VisitStatus.CANCELLED
+                                VisitStatus.COMPLETED, VisitStatus.CANCELLED -> false
+                            }
+                            if (!allowed) return@launch
+                            val now = System.currentTimeMillis()
+                            val actualStart = if (target == VisitStatus.EN_ROUTE || target == VisitStatus.ON_SITE) now else current.actualStartEpochMs
+                            val actualEnd = if (target == VisitStatus.COMPLETED || target == VisitStatus.CANCELLED) now else null
+                            dao.updateVisitStatus(id, target.name, actualStart, actualEnd, SyncState.PENDING_UPDATE.name, now)
+                            audit("SERVICE_VISIT", id, "STATUS_CHANGE", "${from.name} → ${target.name}")
+                            reloadVisits()
+                        } },
+                        onAddChecklistItem = { visitId -> scope.launch {
+                            val now = System.currentTimeMillis()
+                            val nextOrder = dao.visitChecklist(visitId).maxOfOrNull { it.sortOrder }?.plus(1) ?: 0
+                            val id = UUID.randomUUID().toString()
+                            dao.upsertVisitChecklistItem(VisitChecklistItemEntity(id, visitId, "Новый пункт чек-листа", ChecklistItemState.PENDING.name, null, nextOrder, SyncState.PENDING_CREATE.name, now))
+                            audit("VISIT_CHECKLIST_ITEM", id, "CREATE", "Добавлен пункт чек-листа")
+                            reloadChecklist(visitId)
+                        } },
+                        onToggleChecklistItem = { itemId -> scope.launch {
+                            val current = visitChecklist.firstOrNull { it.id == itemId } ?: return@launch
+                            val next = if (current.state == ChecklistItemState.DONE) ChecklistItemState.PENDING else ChecklistItemState.DONE
+                            dao.updateChecklistItemState(itemId, next.name, SyncState.PENDING_UPDATE.name, System.currentTimeMillis())
+                            audit("VISIT_CHECKLIST_ITEM", itemId, "STATE_CHANGE", "${current.state.name} → ${next.name}")
+                            reloadChecklist(current.visitId)
+                        } },
+                    )
+                }
                 composable(Routes.Settings) { SettingsScreen(organization = organization, user = user, modules = modules, onModuleEnabledChange = { moduleId, enabled -> moduleRegistry.updateEnabled(organization.id, moduleId, enabled); stateVersion++ }) }
                 composable(Routes.Wash) { WashScreen() }
                 composable(Routes.Tires) { TiresScreen() }
@@ -221,3 +306,5 @@ private fun EquipmentEntity.toModel() = Equipment(id, organizationId, serviceObj
 private fun BranchEntity.toModel() = Branch(id, organizationId, name, address, phone, email, workSchedule, timeZoneId, active, SyncState.valueOf(syncState))
 private fun EmployeeEntity.toModel() = Employee(id, organizationId, branchId, displayName, position, phone, email, active, SyncState.valueOf(syncState))
 private fun ServiceRequestEntity.toModel() = ServiceRequest(id, organizationId, number, clientId, vehicleId, serviceObjectId, equipmentId, branchId, assigneeEmployeeId, title, description, RequestStatus.valueOf(status), RequestPriority.valueOf(priority), plannedAtEpochMs, dueAtEpochMs, slaDeadlineEpochMs, closedAtEpochMs, archived, SyncState.valueOf(syncState))
+private fun ServiceVisitEntity.toModel() = ServiceVisit(id, organizationId, requestId, branchId, employeeId, VisitStatus.valueOf(status), plannedStartEpochMs, plannedEndEpochMs, actualStartEpochMs, actualEndEpochMs, resultNote, customerName, customerSignatureRef, SyncState.valueOf(syncState))
+private fun VisitChecklistItemEntity.toModel() = VisitChecklistItem(id, visitId, title, ChecklistItemState.valueOf(state), comment, sortOrder, SyncState.valueOf(syncState))

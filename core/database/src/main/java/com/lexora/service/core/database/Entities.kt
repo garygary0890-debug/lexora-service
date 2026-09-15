@@ -50,3 +50,72 @@ data class RequestStatusHistoryEntity(
     val changedAtEpochMs: Long,
     val comment: String?,
 )
+
+@Entity(tableName = "service_visits", indices = [Index("organizationId"), Index("requestId"), Index("employeeId"), Index("status")])
+data class ServiceVisitEntity(
+    @PrimaryKey val id: String,
+    val organizationId: String,
+    val requestId: String,
+    val branchId: String?,
+    val employeeId: String?,
+    val status: String,
+    val plannedStartEpochMs: Long?,
+    val plannedEndEpochMs: Long?,
+    val actualStartEpochMs: Long?,
+    val actualEndEpochMs: Long?,
+    val resultNote: String?,
+    val customerName: String?,
+    val customerSignatureRef: String?,
+    val syncState: String,
+    val createdAtEpochMs: Long,
+    val updatedAtEpochMs: Long,
+)
+
+@Entity(tableName = "visit_checklist_items", indices = [Index("visitId"), Index("sortOrder")])
+data class VisitChecklistItemEntity(
+    @PrimaryKey val id: String,
+    val visitId: String,
+    val title: String,
+    val state: String,
+    val comment: String?,
+    val sortOrder: Int,
+    val syncState: String,
+    val updatedAtEpochMs: Long,
+)
+
+@Entity(tableName = "visit_work_entries", indices = [Index("visitId")])
+data class VisitWorkEntryEntity(
+    @PrimaryKey val id: String,
+    val visitId: String,
+    val serviceCode: String?,
+    val title: String,
+    val quantity: Double,
+    val unit: String?,
+    val note: String?,
+    val syncState: String,
+    val updatedAtEpochMs: Long,
+)
+
+@Entity(tableName = "visit_material_usage", indices = [Index("visitId")])
+data class VisitMaterialUsageEntity(
+    @PrimaryKey val id: String,
+    val visitId: String,
+    val materialCode: String?,
+    val title: String,
+    val quantity: Double,
+    val unit: String?,
+    val note: String?,
+    val syncState: String,
+    val updatedAtEpochMs: Long,
+)
+
+@Entity(tableName = "visit_photos", indices = [Index("visitId"), Index("takenAtEpochMs")])
+data class VisitPhotoEntity(
+    @PrimaryKey val id: String,
+    val visitId: String,
+    val localUri: String,
+    val caption: String?,
+    val takenAtEpochMs: Long,
+    val syncState: String,
+    val updatedAtEpochMs: Long,
+)

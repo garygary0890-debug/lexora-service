@@ -9,6 +9,6 @@ android {
 }
 dependencies {
     implementation(project(":core:model"))
-    implementation("androidx.room:room-runtime:2.8.5")
+    api("androidx.room:room-runtime:2.8.5")
     ksp("androidx.room:room-compiler:2.8.5")
 }

@@ -1,0 +1,22 @@
+<resources>
+    <string name="requests_title">Заявки</string>
+    <string name="request_create">Создать</string>
+    <string name="request_search">Поиск по номеру или названию</string>
+    <string name="request_filter_all">Все</string>
+    <string name="requests_empty">Заявки не найдены</string>
+    <string name="request_open">Открыть</string>
+    <string name="request_sla_present">Контроль SLA включён</string>
+    <string name="request_status_new">Новая</string>
+    <string name="request_status_qualification">Квалификация</string>
+    <string name="request_status_planned">Запланирована</string>
+    <string name="request_status_in_progress">В работе</string>
+    <string name="request_status_waiting">Ожидание</string>
+    <string name="request_status_work_completed">Работы выполнены</string>
+    <string name="request_status_confirmation">Подтверждение</string>
+    <string name="request_status_closed">Закрыта</string>
+    <string name="request_status_cancelled">Отменена</string>
+    <string name="request_priority_low">Низкий приоритет</string>
+    <string name="request_priority_normal">Обычный приоритет</string>
+    <string name="request_priority_high">Высокий приоритет</string>
+    <string name="request_priority_urgent">Срочный приоритет</string>
+</resources>

@@ -10,6 +10,7 @@ android {
 }
 dependencies {
     implementation(project(":core:model"))
+    implementation(project(":core:domain"))
     implementation("androidx.compose.material3:material3:1.4.0")
     implementation("androidx.compose.foundation:foundation:1.12.1")
     implementation("androidx.compose.runtime:runtime:1.12.1")

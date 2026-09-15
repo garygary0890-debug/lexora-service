@@ -1,5 +1,7 @@
 package com.lexora.service.feature.documents
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -26,6 +28,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.lexora.service.core.data.ContractRepository
+import com.lexora.service.core.data.DocumentTransferRepository
 import com.lexora.service.core.data.InMemoryOrganizationRepository
 import com.lexora.service.core.data.InMemoryUserRepository
 import com.lexora.service.core.data.WorkOrderRepository
@@ -52,10 +55,12 @@ fun DocumentsScreen(
     onChangeDocumentStatus: (String, ServiceDocumentStatus) -> Unit,
     onCreatePayment: (String?) -> Unit,
     onMarkPaymentPaid: (String) -> Unit,
+    onDocumentsChanged: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val workOrderRepository = remember { WorkOrderRepository.create(context) }
     val contractRepository = remember { ContractRepository.create(context) }
+    val documentTransferRepository = remember { DocumentTransferRepository.create(context) }
     val organization = remember { InMemoryOrganizationRepository().activeOrganization() }
     val user = remember { InMemoryUserRepository().currentUser() }
     val scope = rememberCoroutineScope()
@@ -65,6 +70,44 @@ fun DocumentsScreen(
     var workOrderItems by remember { mutableStateOf<List<WorkOrderItem>>(emptyList()) }
     var contracts by remember { mutableStateOf<List<ServiceContract>>(emptyList()) }
     var archivedContracts by remember { mutableStateOf<List<ServiceContract>>(emptyList()) }
+    var pendingImportDocumentId by remember { mutableStateOf<String?>(null) }
+    var pendingExportDocumentId by remember { mutableStateOf<String?>(null) }
+    var transferMessage by remember { mutableStateOf<String?>(null) }
+
+    val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        val documentId = pendingImportDocumentId
+        pendingImportDocumentId = null
+        if (uri != null && documentId != null) {
+            val organizationId = organization?.id
+            if (organizationId != null) {
+                scope.launch {
+                    documentTransferRepository.importAttachment(organizationId, user.id, documentId, uri)
+                        .onSuccess { name ->
+                            transferMessage = "Файл импортирован: $name"
+                            onDocumentsChanged()
+                        }
+                        .onFailure { error -> transferMessage = "Ошибка импорта: ${error.message ?: "неизвестная ошибка"}" }
+                }
+            }
+        }
+    }
+
+    val exportLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/octet-stream"),
+    ) { uri ->
+        val documentId = pendingExportDocumentId
+        pendingExportDocumentId = null
+        if (uri != null && documentId != null) {
+            val organizationId = organization?.id
+            if (organizationId != null) {
+                scope.launch {
+                    documentTransferRepository.exportDocument(organizationId, user.id, documentId, uri)
+                        .onSuccess { name -> transferMessage = "Документ экспортирован: $name" }
+                        .onFailure { error -> transferMessage = "Ошибка экспорта: ${error.message ?: "неизвестная ошибка"}" }
+                }
+            }
+        }
+    }
 
     suspend fun reloadWorkOrderItems(documentId: String?) {
         selectedWorkOrderId = documentId
@@ -94,6 +137,7 @@ fun DocumentsScreen(
             FilterChip(selected = tab == Tab.PAYMENTS, onClick = { tab = Tab.PAYMENTS }, label = { Text(stringResource(R.string.payments_tab)) })
             FilterChip(selected = tab == Tab.CONTRACTS, onClick = { tab = Tab.CONTRACTS }, label = { Text("Договоры") })
         }
+        transferMessage?.let { Text(it) }
         val firstRequest = requests.firstOrNull()
         val firstRequestId = firstRequest?.id
         when (tab) {
@@ -115,8 +159,28 @@ fun DocumentsScreen(
                                         workOrderItems.filter { !it.additional || it.approvalStatus == AdditionalWorkApprovalStatus.APPROVED }.sumOf { it.totalMinor }
                                     } else document.totalMinor
                                     Text("${localTotal / 100.0} ${document.currency}")
+                                    document.externalFileRef?.let { ref ->
+                                        Text("Файл: ${ref.substringAfterLast('/').substringAfterLast('\\\\')}")
+                                    }
                                     if (document.type == ServiceDocumentType.WORK_ORDER && document.status == ServiceDocumentStatus.DRAFT) {
                                         OutlinedButton(onClick = { scope.launch { reloadWorkOrderItems(document.id) } }) { Text("Открыть состав работ") }
+                                    }
+                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        OutlinedButton(onClick = {
+                                            pendingImportDocumentId = document.id
+                                            transferMessage = null
+                                            importLauncher.launch(arrayOf("*/*"))
+                                        }) { Text("Импорт файла") }
+                                        OutlinedButton(onClick = {
+                                            pendingExportDocumentId = document.id
+                                            transferMessage = null
+                                            val suggestedName = document.externalFileRef
+                                                ?.substringAfterLast('/')
+                                                ?.substringAfterLast('\\\\')
+                                                ?.takeIf { it.isNotBlank() }
+                                                ?: "${document.number}.txt"
+                                            exportLauncher.launch(suggestedName)
+                                        }) { Text("Экспорт") }
                                     }
                                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                         if (document.status == ServiceDocumentStatus.DRAFT) Button(onClick = { onChangeDocumentStatus(document.id, ServiceDocumentStatus.ISSUED) }) { Text(stringResource(R.string.issue)) }

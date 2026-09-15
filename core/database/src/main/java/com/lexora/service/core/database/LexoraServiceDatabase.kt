@@ -22,9 +22,9 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         ServiceContractEntity::class, PublicBookingEntity::class, PortalAccessGrantEntity::class,
         ReferenceDirectoryEntity::class, ReferenceDirectoryItemEntity::class,
         ServiceRecipeEntity::class, ServiceRecipeComponentEntity::class,
-        ServiceNotificationEntity::class,
+        ServiceNotificationEntity::class, ServiceUserEntity::class, UserOrganizationRoleEntity::class,
     ],
-    version = 19,
+    version = 20,
     exportSchema = true,
 )
 abstract class LexoraServiceDatabase : RoomDatabase() {
@@ -39,6 +39,7 @@ abstract class LexoraServiceDatabase : RoomDatabase() {
     abstract fun referenceDataDao(): ReferenceDataDao
     abstract fun serviceConstructorDao(): ServiceConstructorDao
     abstract fun notificationDao(): NotificationDao
+    abstract fun userDao(): UserDao
 
     companion object {
         private val MIGRATION_1_2 = object : Migration(1, 2) { override fun migrate(db: SupportSQLiteDatabase) { db.execSQL("ALTER TABLE clients ADD COLUMN kpp TEXT"); db.execSQL("ALTER TABLE clients ADD COLUMN registrationAddress TEXT"); db.execSQL("ALTER TABLE clients ADD COLUMN actualAddress TEXT"); db.execSQL("ALTER TABLE clients ADD COLUMN note TEXT"); db.execSQL("ALTER TABLE clients ADD COLUMN consentPersonalData INTEGER NOT NULL DEFAULT 0") } }
@@ -164,7 +165,16 @@ abstract class LexoraServiceDatabase : RoomDatabase() {
             db.execSQL("CREATE INDEX IF NOT EXISTS index_service_notifications_readAtEpochMs ON service_notifications(readAtEpochMs)")
             db.execSQL("CREATE INDEX IF NOT EXISTS index_service_notifications_archived ON service_notifications(archived)")
         } }
+        private val MIGRATION_19_20 = object : Migration(19, 20) { override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("CREATE TABLE IF NOT EXISTS service_users (id TEXT NOT NULL PRIMARY KEY, displayName TEXT NOT NULL, login TEXT, active INTEGER NOT NULL, syncState TEXT NOT NULL, createdAtEpochMs INTEGER NOT NULL, updatedAtEpochMs INTEGER NOT NULL)")
+            db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_service_users_login ON service_users(login)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_service_users_active ON service_users(active)")
+            db.execSQL("CREATE TABLE IF NOT EXISTS user_organization_roles (userId TEXT NOT NULL, organizationId TEXT NOT NULL, role TEXT NOT NULL, active INTEGER NOT NULL, syncState TEXT NOT NULL, updatedAtEpochMs INTEGER NOT NULL, PRIMARY KEY(userId, organizationId, role))")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_user_organization_roles_userId ON user_organization_roles(userId)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_user_organization_roles_organizationId ON user_organization_roles(organizationId)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_user_organization_roles_userId_organizationId ON user_organization_roles(userId, organizationId)")
+        } }
 
-        fun create(context: Context): LexoraServiceDatabase = Room.databaseBuilder(context.applicationContext, LexoraServiceDatabase::class.java, "lexora-service.db").addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19).build()
+        fun create(context: Context): LexoraServiceDatabase = Room.databaseBuilder(context.applicationContext, LexoraServiceDatabase::class.java, "lexora-service.db").addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20).build()
     }
 }

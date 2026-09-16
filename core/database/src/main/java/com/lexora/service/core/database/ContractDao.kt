@@ -16,18 +16,18 @@ interface ContractDao {
     @Query("SELECT * FROM service_contracts WHERE organizationId = :organizationId ORDER BY number DESC")
     suspend fun allContracts(organizationId: String): List<ServiceContractEntity>
 
-    @Query("SELECT * FROM service_contracts WHERE id = :id LIMIT 1")
+    @Query("SELECT * FROM service_contracts WHERE id = :id AND organizationId = (SELECT id FROM organizations WHERE isActive = 1 LIMIT 1) LIMIT 1")
     suspend fun contract(id: String): ServiceContractEntity?
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertContract(value: ServiceContractEntity)
 
-    @Query("UPDATE service_contracts SET status = :status, signedAtEpochMs = :signedAtEpochMs, syncState = :syncState, updatedAtEpochMs = :updatedAtEpochMs WHERE id = :id")
+    @Query("UPDATE service_contracts SET status = :status, signedAtEpochMs = :signedAtEpochMs, syncState = :syncState, updatedAtEpochMs = :updatedAtEpochMs WHERE id = :id AND organizationId = (SELECT id FROM organizations WHERE isActive = 1 LIMIT 1)")
     suspend fun updateStatus(id: String, status: String, signedAtEpochMs: Long?, syncState: String, updatedAtEpochMs: Long)
 
-    @Query("UPDATE service_contracts SET archived = 1, syncState = :syncState, updatedAtEpochMs = :updatedAtEpochMs WHERE id = :id")
+    @Query("UPDATE service_contracts SET archived = 1, syncState = :syncState, updatedAtEpochMs = :updatedAtEpochMs WHERE id = :id AND organizationId = (SELECT id FROM organizations WHERE isActive = 1 LIMIT 1)")
     suspend fun archive(id: String, syncState: String, updatedAtEpochMs: Long)
 
-    @Query("UPDATE service_contracts SET archived = 0, syncState = :syncState, updatedAtEpochMs = :updatedAtEpochMs WHERE id = :id")
+    @Query("UPDATE service_contracts SET archived = 0, syncState = :syncState, updatedAtEpochMs = :updatedAtEpochMs WHERE id = :id AND organizationId = (SELECT id FROM organizations WHERE isActive = 1 LIMIT 1)")
     suspend fun restore(id: String, syncState: String, updatedAtEpochMs: Long)
 }

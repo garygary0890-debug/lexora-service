@@ -11,9 +11,9 @@ class ModuleAccessPolicy(
     fun isAvailable(module: ModuleDescriptor, user: ServiceUser): Boolean {
         if (!module.enabled || !module.licensed) return false
         val permission = when (module.id) {
-            LexoraModuleId.CORE -> Permission.VIEW_HOME
             LexoraModuleId.WASH -> Permission.VIEW_WASH
             LexoraModuleId.TIRES -> Permission.VIEW_TIRES
+            else -> Permission.VIEW_HOME
         }
         return accessPolicy.can(user, permission)
     }

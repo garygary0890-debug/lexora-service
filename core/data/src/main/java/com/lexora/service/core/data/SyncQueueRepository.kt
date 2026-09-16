@@ -44,11 +44,11 @@ class SyncQueueRepository(private val dao: ServiceDao) {
     suspend fun ready(organizationId: String, now: Long = System.currentTimeMillis(), limit: Int = 50): List<SyncOperation> =
         dao.readySyncOperations(organizationId, now, limit).map { it.toModel() }
 
-    suspend fun markInProgress(id: String, now: Long = System.currentTimeMillis()): Boolean =
-        dao.markSyncOperationInProgress(id, now) == 1
+    suspend fun markInProgress(operation: SyncOperation, now: Long = System.currentTimeMillis()): Boolean =
+        dao.markSyncOperationInProgress(operation.id, operation.organizationId, now) == 1
 
-    suspend fun markSucceeded(id: String, now: Long = System.currentTimeMillis()) {
-        dao.markSyncOperationSucceeded(id, now)
+    suspend fun markSucceeded(operation: SyncOperation, now: Long = System.currentTimeMillis()) {
+        dao.markSyncOperationSucceeded(operation.id, operation.organizationId, now)
     }
 
     suspend fun markRetry(
@@ -57,11 +57,11 @@ class SyncQueueRepository(private val dao: ServiceDao) {
         now: Long = System.currentTimeMillis(),
     ) {
         val nextAttempt = now + retryDelayMs(operation.attemptCount + 1)
-        dao.markSyncOperationRetry(operation.id, error?.take(MAX_ERROR_LENGTH), nextAttempt, now)
+        dao.markSyncOperationRetry(operation.id, operation.organizationId, error?.take(MAX_ERROR_LENGTH), nextAttempt, now)
     }
 
-    suspend fun markFailed(id: String, error: String?, now: Long = System.currentTimeMillis()) {
-        dao.markSyncOperationFailed(id, error?.take(MAX_ERROR_LENGTH), now)
+    suspend fun markFailed(operation: SyncOperation, error: String?, now: Long = System.currentTimeMillis()) {
+        dao.markSyncOperationFailed(operation.id, operation.organizationId, error?.take(MAX_ERROR_LENGTH), now)
     }
 
     suspend fun recordConflict(
@@ -71,7 +71,7 @@ class SyncQueueRepository(private val dao: ServiceDao) {
         error: String? = "Version conflict",
         now: Long = System.currentTimeMillis(),
     ): String {
-        dao.markSyncOperationConflict(operation.id, error?.take(MAX_ERROR_LENGTH), now)
+        dao.markSyncOperationConflict(operation.id, operation.organizationId, error?.take(MAX_ERROR_LENGTH), now)
         val conflictId = UUID.randomUUID().toString()
         dao.upsertSyncConflict(
             SyncConflictEntity(
@@ -92,9 +92,14 @@ class SyncQueueRepository(private val dao: ServiceDao) {
     suspend fun unresolvedConflicts(organizationId: String): List<SyncConflict> =
         dao.unresolvedSyncConflicts(organizationId).map { it.toModel() }
 
-    suspend fun resolveConflict(id: String, resolution: SyncConflictResolution, now: Long = System.currentTimeMillis()) {
+    suspend fun resolveConflict(
+        organizationId: String,
+        id: String,
+        resolution: SyncConflictResolution,
+        now: Long = System.currentTimeMillis(),
+    ) {
         require(resolution != SyncConflictResolution.UNRESOLVED)
-        dao.resolveSyncConflict(id, resolution.name, now)
+        dao.resolveSyncConflict(id, organizationId, resolution.name, now)
     }
 
     suspend fun cleanupSucceeded(organizationId: String, now: Long = System.currentTimeMillis(), retentionDays: Int = 14) {

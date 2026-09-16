@@ -10,13 +10,13 @@ interface PublicPortalDao {
     @Query("SELECT * FROM public_bookings WHERE organizationId = :organizationId ORDER BY createdAtEpochMs DESC")
     suspend fun bookings(organizationId: String): List<PublicBookingEntity>
 
-    @Query("SELECT * FROM public_bookings WHERE id = :id LIMIT 1")
+    @Query("SELECT * FROM public_bookings WHERE id = :id AND organizationId = (SELECT id FROM organizations WHERE isActive = 1 LIMIT 1) LIMIT 1")
     suspend fun booking(id: String): PublicBookingEntity?
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertBooking(value: PublicBookingEntity)
 
-    @Query("UPDATE public_bookings SET status = :status, convertedRequestId = :convertedRequestId, syncState = :syncState, updatedAtEpochMs = :updatedAtEpochMs WHERE id = :id")
+    @Query("UPDATE public_bookings SET status = :status, convertedRequestId = :convertedRequestId, syncState = :syncState, updatedAtEpochMs = :updatedAtEpochMs WHERE id = :id AND organizationId = (SELECT id FROM organizations WHERE isActive = 1 LIMIT 1)")
     suspend fun updateBookingStatus(
         id: String,
         status: String,
@@ -37,7 +37,7 @@ interface PublicPortalDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertAccessGrant(value: PortalAccessGrantEntity)
 
-    @Query("UPDATE portal_access_grants SET status = :status, revokedAtEpochMs = :revokedAtEpochMs, syncState = :syncState, updatedAtEpochMs = :updatedAtEpochMs WHERE id = :id")
+    @Query("UPDATE portal_access_grants SET status = :status, revokedAtEpochMs = :revokedAtEpochMs, syncState = :syncState, updatedAtEpochMs = :updatedAtEpochMs WHERE id = :id AND organizationId = (SELECT id FROM organizations WHERE isActive = 1 LIMIT 1)")
     suspend fun updateAccessGrantStatus(
         id: String,
         status: String,

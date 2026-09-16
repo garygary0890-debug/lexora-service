@@ -70,8 +70,10 @@ class AutoDispatchPolicy {
                 return@mapNotNull null
             }
             if (!candidate.skillCodes.containsAll(requiredSkills)) return@mapNotNull null
-            if (candidate.availableFromEpochMs != null && nowEpochMs < candidate.availableFromEpochMs) return@mapNotNull null
-            if (candidate.availableToEpochMs != null && nowEpochMs > candidate.availableToEpochMs) return@mapNotNull null
+            val availableFromEpochMs = candidate.availableFromEpochMs
+            if (availableFromEpochMs != null && nowEpochMs < availableFromEpochMs) return@mapNotNull null
+            val availableToEpochMs = candidate.availableToEpochMs
+            if (availableToEpochMs != null && nowEpochMs > availableToEpochMs) return@mapNotNull null
 
             var score = 100
             val reasons = mutableListOf<String>()
@@ -122,8 +124,8 @@ class RoutePlanner {
         }
         val remaining = stops.toMutableList()
         val result = mutableListOf<RouteStop>()
-        var lat = startLatitude
-        var lon = startLongitude
+        var lat: Double = startLatitude
+        var lon: Double = startLongitude
         while (remaining.isNotEmpty()) {
             val next = remaining
                 .filter { it.latitude != null && it.longitude != null }

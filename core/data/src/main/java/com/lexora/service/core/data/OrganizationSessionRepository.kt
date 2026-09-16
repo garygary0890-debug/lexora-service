@@ -27,22 +27,36 @@ class OrganizationSessionRepository(
         switchOrganization(user.id, organizationId)
 
     suspend fun switchOrganization(userId: String, organizationId: String): OrganizationSession {
-        val user = requireNotNull(userRepository.user(userId))
-        require(organizationId in user.organizationIds) { "Нет доступа к выбранной организации." }
+        val globalIdentity = requireNotNull(userRepository.user(userId))
+        require(globalIdentity.active) { "Пользователь деактивирован." }
+        require(organizationId in globalIdentity.organizationIds) { "Нет доступа к выбранной организации." }
         val organization = organizationRepository.setActiveOrganization(userId, organizationId)
-        return session(organization, requireNotNull(userRepository.user(userId)))
+        val scopedUser = requireNotNull(userRepository.userInOrganization(userId, organizationId)) {
+            "Нет активной роли в выбранной организации."
+        }
+        return session(organization, scopedUser)
     }
 
     suspend fun createAndSwitch(actor: ServiceUser, name: String): OrganizationSession =
         createOrganization(actor.id, name)
 
     suspend fun createOrganization(actorUserId: String, name: String): OrganizationSession {
-        val actor = requireNotNull(userRepository.user(actorUserId))
-        require(accessPolicy.can(actor, Permission.MANAGE_ORGANIZATION)) { "Недостаточно прав для создания организации." }
+        val actorIdentity = requireNotNull(userRepository.user(actorUserId))
+        require(actorIdentity.active) { "Пользователь деактивирован." }
+        val activeOrganizationId = organizationRepository.activeOrganizationId(actorUserId)
+            ?: actorIdentity.organizationIds.firstOrNull()
+            ?: error("Нет активной организации.")
+        val scopedActor = requireNotNull(userRepository.userInOrganization(actorUserId, activeOrganizationId))
+        require(accessPolicy.can(scopedActor, Permission.MANAGE_ORGANIZATION)) {
+            "Недостаточно прав для создания организации."
+        }
         val created = organizationRepository.createOrganization(actorUserId, name)
         userRepository.setRole(actorUserId, actorUserId, created.id, UserRole.ADMIN, true)
         val organization = organizationRepository.setActiveOrganization(actorUserId, created.id)
-        return session(organization, requireNotNull(userRepository.user(actorUserId)))
+        return session(
+            organization,
+            requireNotNull(userRepository.userInOrganization(actorUserId, created.id)),
+        )
     }
 
     private suspend fun session(organization: Organization, user: ServiceUser) = OrganizationSession(

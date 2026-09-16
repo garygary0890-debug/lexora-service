@@ -5,6 +5,7 @@ import com.lexora.service.core.database.AuditEventEntity
 import com.lexora.service.core.database.LexoraServiceDatabase
 import com.lexora.service.core.database.WorkOrderItemEntity
 import com.lexora.service.core.model.AdditionalWorkApprovalStatus
+import com.lexora.service.core.model.ServiceCatalogItem
 import com.lexora.service.core.model.ServiceDocumentStatus
 import com.lexora.service.core.model.ServiceDocumentType
 import com.lexora.service.core.model.SyncState
@@ -22,14 +23,52 @@ class WorkOrderRepository private constructor(
     suspend fun items(documentId: String): List<WorkOrderItem> =
         workOrderDao.items(documentId).map { it.toModel() }
 
+    suspend fun availableServices(organizationId: String): List<ServiceCatalogItem> =
+        catalogDao.services(organizationId)
+            .asSequence()
+            .filter { it.active }
+            .map {
+                ServiceCatalogItem(
+                    id = it.id,
+                    organizationId = it.organizationId,
+                    code = it.code,
+                    name = it.name,
+                    category = it.category,
+                    unit = it.unit,
+                    durationMinutes = it.durationMinutes,
+                    active = it.active,
+                    syncState = SyncState.valueOf(it.syncState),
+                )
+            }
+            .toList()
+
     suspend fun addCatalogItem(
         organizationId: String,
         userId: String,
         documentId: String,
         additional: Boolean,
     ) {
+        val serviceId = catalogDao.services(organizationId).firstOrNull { it.active }?.id ?: return
+        addCatalogItem(
+            organizationId = organizationId,
+            userId = userId,
+            documentId = documentId,
+            serviceCatalogItemId = serviceId,
+            additional = additional,
+        )
+    }
+
+    suspend fun addCatalogItem(
+        organizationId: String,
+        userId: String,
+        documentId: String,
+        serviceCatalogItemId: String,
+        additional: Boolean,
+    ) {
         val document = requireEditableWorkOrder(organizationId, documentId)
-        val service = catalogDao.services(organizationId).firstOrNull { it.active } ?: return
+        val service = catalogDao.services(organizationId).firstOrNull {
+            it.id == serviceCatalogItemId && it.active
+        } ?: return
         val now = System.currentTimeMillis()
         val priceList = catalogDao.priceLists(organizationId).firstOrNull {
             val effectiveTo = it.effectiveToEpochMs

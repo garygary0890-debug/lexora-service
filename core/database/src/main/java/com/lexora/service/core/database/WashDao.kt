@@ -13,7 +13,7 @@ interface WashDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertPost(value: WashPostEntity)
 
-    @Query("UPDATE wash_posts SET status = :status, syncState = :syncState, updatedAtEpochMs = :updatedAt WHERE id = :id")
+    @Query("UPDATE wash_posts SET status = :status, syncState = :syncState, updatedAtEpochMs = :updatedAt WHERE id = :id AND organizationId = (SELECT id FROM organizations WHERE isActive = 1 LIMIT 1)")
     suspend fun updatePostStatus(id: String, status: String, syncState: String, updatedAt: Long)
 
     @Query("SELECT * FROM wash_queue WHERE organizationId = :organizationId AND status NOT IN ('COMPLETED','CANCELLED') ORDER BY position, createdAtEpochMs")
@@ -22,7 +22,7 @@ interface WashDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertQueueItem(value: WashQueueItemEntity)
 
-    @Query("UPDATE wash_queue SET postId = :postId, status = :status, syncState = :syncState, updatedAtEpochMs = :updatedAt WHERE id = :id")
+    @Query("UPDATE wash_queue SET postId = :postId, status = :status, syncState = :syncState, updatedAtEpochMs = :updatedAt WHERE id = :id AND organizationId = (SELECT id FROM organizations WHERE isActive = 1 LIMIT 1) AND (:postId IS NULL OR :postId IN (SELECT id FROM wash_posts WHERE organizationId = (SELECT id FROM organizations WHERE isActive = 1 LIMIT 1)))")
     suspend fun assignQueueItem(id: String, postId: String?, status: String, syncState: String, updatedAt: Long)
 
     @Query("SELECT * FROM wash_tech_cards WHERE organizationId = :organizationId AND active = 1 ORDER BY name")

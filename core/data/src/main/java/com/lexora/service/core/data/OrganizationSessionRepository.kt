@@ -43,7 +43,7 @@ class OrganizationSessionRepository(
     suspend fun createOrganization(actorUserId: String, name: String): OrganizationSession {
         val actorIdentity = requireNotNull(userRepository.user(actorUserId))
         require(actorIdentity.active) { "Пользователь деактивирован." }
-        val activeOrganizationId = organizationRepository.activeOrganizationId(actorUserId)
+        val activeOrganizationId = organizationRepository.activeOrganization()?.id
             ?: actorIdentity.organizationIds.firstOrNull()
             ?: error("Нет активной организации.")
         val scopedActor = requireNotNull(userRepository.userInOrganization(actorUserId, activeOrganizationId))

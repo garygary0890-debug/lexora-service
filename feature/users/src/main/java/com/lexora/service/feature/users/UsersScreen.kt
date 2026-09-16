@@ -34,7 +34,7 @@ fun UsersScreen(
     canManageUsers: Boolean,
     onCreateUser: (String, UserRole) -> Unit,
     onSetRole: (String, UserRole, Boolean) -> Unit,
-    onSetUserActive: (String, Boolean) -> Unit,
+    onSetUserActive: (String, Boolean) -> Unit = { _, _ -> },
 ) {
     var displayName by remember { mutableStateOf("") }
     var initialRole by remember { mutableStateOf(UserRole.MANAGER) }

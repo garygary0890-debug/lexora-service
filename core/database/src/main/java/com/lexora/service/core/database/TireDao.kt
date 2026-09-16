@@ -13,7 +13,7 @@ interface TireDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertQueueItem(value: TireQueueItemEntity)
 
-    @Query("UPDATE tire_queue SET status = :status, syncState = :syncState, updatedAtEpochMs = :updatedAt WHERE id = :id")
+    @Query("UPDATE tire_queue SET status = :status, syncState = :syncState, updatedAtEpochMs = :updatedAt WHERE id = :id AND organizationId = (SELECT id FROM organizations WHERE isActive = 1 LIMIT 1)")
     suspend fun updateQueueStatus(id: String, status: String, syncState: String, updatedAt: Long)
 
     @Query("SELECT * FROM tire_diagnostics WHERE organizationId = :organizationId ORDER BY diagnosedAtEpochMs DESC LIMIT :limit")
@@ -34,6 +34,6 @@ interface TireDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertStorageItem(value: TireStorageItemEntity)
 
-    @Query("UPDATE tire_storage SET status = 'ISSUED', issuedAtEpochMs = :issuedAt, syncState = :syncState, updatedAtEpochMs = :updatedAt WHERE id = :id")
+    @Query("UPDATE tire_storage SET status = 'ISSUED', issuedAtEpochMs = :issuedAt, syncState = :syncState, updatedAtEpochMs = :updatedAt WHERE id = :id AND organizationId = (SELECT id FROM organizations WHERE isActive = 1 LIMIT 1)")
     suspend fun issueStorageItem(id: String, issuedAt: Long, syncState: String, updatedAt: Long)
 }

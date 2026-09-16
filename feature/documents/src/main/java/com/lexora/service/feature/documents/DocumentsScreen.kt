@@ -15,6 +15,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -209,11 +210,17 @@ fun DocumentsScreen(
                                             reloadWorkOrderItems(documentId)
                                         }
                                     },
-                                    onResolve = { itemId, approve ->
+                                    onResolve = { itemId, approve, comment ->
                                         val organizationId = organization?.id ?: return@WorkOrderEditor
                                         val documentId = selectedWorkOrderId ?: return@WorkOrderEditor
                                         scope.launch {
-                                            workOrderRepository.resolveAdditionalWork(organizationId, user.id, itemId, approve)
+                                            workOrderRepository.resolveAdditionalWork(
+                                                organizationId = organizationId,
+                                                userId = user.id,
+                                                itemId = itemId,
+                                                approve = approve,
+                                                comment = comment,
+                                            )
                                             reloadWorkOrderItems(documentId)
                                         }
                                     },
@@ -289,7 +296,7 @@ private fun WorkOrderEditor(
     items: List<WorkOrderItem>,
     onAddBaseWork: () -> Unit,
     onAddAdditionalWork: () -> Unit,
-    onResolve: (String, Boolean) -> Unit,
+    onResolve: (String, Boolean, String?) -> Unit,
 ) {
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -300,6 +307,9 @@ private fun WorkOrderEditor(
             }
             if (items.isEmpty()) Text("Позиции пока не добавлены")
             items.forEach { item ->
+                var approvalComment by remember(item.id, item.approvalComment) {
+                    mutableStateOf(item.approvalComment.orEmpty())
+                }
                 Card(Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Text(item.title)
@@ -307,9 +317,21 @@ private fun WorkOrderEditor(
                         if (item.additional) {
                             Text("Дополнительная работа: ${item.approvalStatus.name}")
                             if (item.approvalStatus == AdditionalWorkApprovalStatus.PENDING) {
+                                OutlinedTextField(
+                                    value = approvalComment,
+                                    onValueChange = { approvalComment = it },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    label = { Text("Комментарий к согласованию") },
+                                    placeholder = { Text("Например: согласовано по телефону или причина отказа") },
+                                    minLines = 2,
+                                )
                                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    Button(onClick = { onResolve(item.id, true) }) { Text("Согласовать") }
-                                    OutlinedButton(onClick = { onResolve(item.id, false) }) { Text("Отклонить") }
+                                    Button(onClick = { onResolve(item.id, true, approvalComment) }) { Text("Согласовать") }
+                                    OutlinedButton(onClick = { onResolve(item.id, false, approvalComment) }) { Text("Отклонить") }
+                                }
+                            } else {
+                                item.approvalComment?.takeIf { it.isNotBlank() }?.let { comment ->
+                                    Text("Комментарий: $comment")
                                 }
                             }
                         }

@@ -13,26 +13,13 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import com.lexora.service.core.data.CatalogRepository
-import com.lexora.service.core.data.ServiceConstructorRepository
-import com.lexora.service.core.database.LexoraServiceDatabase
-import com.lexora.service.core.model.Organization
 import com.lexora.service.core.model.PriceList
 import com.lexora.service.core.model.PriceListItem
 import com.lexora.service.core.model.ServiceCatalogItem
 import com.lexora.service.core.model.ServiceComponentType
 import com.lexora.service.core.model.ServiceRecipeSummary
-import com.lexora.service.core.model.ServiceUser
-import kotlinx.coroutines.launch
 
 data class CatalogUiState(
     val services: List<ServiceCatalogItem> = emptyList(),
@@ -54,116 +41,6 @@ data class CatalogActions(
 
 @Composable
 fun CatalogScreen(
-    state: CatalogUiState,
-    actions: CatalogActions,
-) {
-    CatalogContent(state = state, actions = actions)
-}
-
-/**
- * Transitional route kept for source compatibility while SRV-000037 moves orchestration to app-level.
- * It will be removed after MainActivity switches to the pure state/actions contract above.
- */
-@Composable
-fun CatalogScreen(
-    organization: Organization,
-    user: ServiceUser,
-) {
-    CatalogRoute(organization = organization, user = user)
-}
-
-@Composable
-private fun CatalogRoute(
-    organization: Organization,
-    user: ServiceUser,
-) {
-    val context = LocalContext.current
-    val database = remember { LexoraServiceDatabase.create(context.applicationContext) }
-    val repository = remember { CatalogRepository.create(context) }
-    val constructorRepository = remember(database) {
-        ServiceConstructorRepository(database.serviceConstructorDao(), database.serviceDao())
-    }
-    val scope = rememberCoroutineScope()
-
-    var services by remember { mutableStateOf<List<ServiceCatalogItem>>(emptyList()) }
-    var priceLists by remember { mutableStateOf<List<PriceList>>(emptyList()) }
-    var selectedPriceListId by remember { mutableStateOf<String?>(null) }
-    var priceItems by remember { mutableStateOf<List<PriceListItem>>(emptyList()) }
-    var recipeSummaries by remember { mutableStateOf<List<ServiceRecipeSummary>>(emptyList()) }
-
-    suspend fun reload() {
-        services = repository.services(organization.id)
-        services.filter { it.active }.forEach { service ->
-            constructorRepository.ensureRecipe(
-                organizationId = organization.id,
-                userId = user.id,
-                serviceCatalogItemId = service.id,
-                serviceName = service.name,
-                durationMinutes = service.durationMinutes,
-            )
-        }
-        recipeSummaries = constructorRepository.recipes(organization.id)
-        priceLists = repository.priceLists(organization.id)
-        val selected = selectedPriceListId
-            ?.takeIf { id -> priceLists.any { it.id == id } }
-            ?: priceLists.firstOrNull()?.id
-        selectedPriceListId = selected
-        priceItems = selected?.let { repository.priceItems(it) }.orEmpty()
-    }
-
-    LaunchedEffect(organization.id, user.id) { reload() }
-
-    CatalogScreen(
-        state = CatalogUiState(
-            services = services,
-            priceLists = priceLists,
-            selectedPriceListId = selectedPriceListId,
-            priceItems = priceItems,
-            recipeSummaries = recipeSummaries,
-        ),
-        actions = CatalogActions(
-            onAddService = { scope.launch { repository.addService(organization.id, user.id); reload() } },
-            onToggleService = { service -> scope.launch { repository.toggleService(service, user.id); reload() } },
-            onAddComponent = { recipeId, type, name, quantity, unit, unitCostMinor ->
-                scope.launch {
-                    constructorRepository.addComponent(
-                        organization.id,
-                        user.id,
-                        recipeId,
-                        type,
-                        name,
-                        quantity,
-                        unit,
-                        unitCostMinor,
-                    )
-                    reload()
-                }
-            },
-            onSetComponentActive = { componentId, active ->
-                scope.launch {
-                    constructorRepository.setComponentActive(organization.id, user.id, componentId, active)
-                    reload()
-                }
-            },
-            onAddPriceList = { scope.launch { repository.addPriceList(organization.id, user.id); reload() } },
-            onSelectPriceList = { priceListId ->
-                scope.launch {
-                    selectedPriceListId = priceListId
-                    priceItems = repository.priceItems(priceListId)
-                }
-            },
-            onAddPriceItem = { priceList, service ->
-                scope.launch {
-                    repository.addPriceItem(priceList, service, user.id)
-                    reload()
-                }
-            },
-        ),
-    )
-}
-
-@Composable
-private fun CatalogContent(
     state: CatalogUiState,
     actions: CatalogActions,
 ) {

@@ -305,7 +305,13 @@ private fun LexoraServiceApp() {
                             if (canManageUsers) scope.launch {
                                 runCatching { userRepository.setRole(activeUser.id, userId, organization.id, role, enabled) }
                                 reloadUsers()
-                                if (userId == activeUser.id) user = userRepository.user(activeUser.id)
+                                if (userId == activeUser.id) user = userRepository.userInOrganization(activeUser.id, organization.id)
+                            }
+                        },
+                        onSetUserActive = { userId, enabled ->
+                            if (canManageUsers) scope.launch {
+                                runCatching { userRepository.setUserActive(activeUser.id, userId, organization.id, enabled) }
+                                reloadUsers()
                             }
                         },
                     )

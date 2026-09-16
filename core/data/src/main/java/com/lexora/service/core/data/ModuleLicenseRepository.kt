@@ -12,47 +12,30 @@ class ModuleLicenseRepository(
     private val serviceDao: ServiceDao,
 ) {
     fun storeCatalog(): List<ModuleStoreItem> = listOf(
-        ModuleStoreItem(
-            moduleId = LexoraModuleId.CORE,
-            title = "Базовое ядро",
-            description = "Организации, пользователи, клиенты, автомобили и объекты, сотрудники, документы, платежи, уведомления и аудит.",
-            includedInCore = true,
-            availableForLicensing = false,
-        ),
-        ModuleStoreItem(
-            moduleId = LexoraModuleId.WASH,
-            title = "Автомойка",
-            description = "Посты, очередь, технологические карты и учёт расхода химии.",
-        ),
-        ModuleStoreItem(
-            moduleId = LexoraModuleId.TIRES,
-            title = "Шиномонтаж",
-            description = "Очередь, диагностика, шиномонтажные работы и сезонное хранение шин.",
-        ),
+        ModuleStoreItem(LexoraModuleId.CORE, "Базовое ядро", "Организации, пользователи, клиенты, автомобили и объекты, сотрудники, документы, платежи, уведомления и аудит.", includedInCore = true, availableForLicensing = false),
+        ModuleStoreItem(LexoraModuleId.WASH, "Автомойка", "Посты, очередь, технологические карты и учёт расхода химии."),
+        ModuleStoreItem(LexoraModuleId.TIRES, "Шиномонтаж", "Очередь, диагностика, шиномонтажные работы и сезонное хранение шин."),
+        ModuleStoreItem(LexoraModuleId.AUTO_SERVICE, "Автосервис", "Заказ-наряды, сервисные операции, диагностика и ремонт автомобилей."),
+        ModuleStoreItem(LexoraModuleId.DETAILING, "Детейлинг", "Услуги детейлинга, технологические карты и контроль качества."),
+        ModuleStoreItem(LexoraModuleId.BODY_REPAIR, "Кузовной ремонт", "Дефектовка, кузовные работы, материалы и этапы ремонта."),
+        ModuleStoreItem(LexoraModuleId.TOW, "Эвакуатор", "Выезды, маршруты, диспетчеризация и исполнение заявок эвакуатора."),
+        ModuleStoreItem(LexoraModuleId.STO, "СТО", "Расширяемый отраслевой модуль станции технического обслуживания."),
+        ModuleStoreItem(LexoraModuleId.AC_SERVICE, "Сервис кондиционеров", "Диагностика, обслуживание и ремонт климатического оборудования."),
+        ModuleStoreItem(LexoraModuleId.CLEANING, "Клининг", "Объекты, бригады, чек-листы, выезды и контроль качества."),
+        ModuleStoreItem(LexoraModuleId.APPLIANCE_REPAIR, "Ремонт техники", "Оборудование, диагностика, выездной ремонт и сервисная история."),
     )
 
     suspend fun ensureDefaults(organizationId: String) {
         val existing = serviceDao.moduleSettings(organizationId).associateBy { it.moduleId }
         val now = System.currentTimeMillis()
-        if (existing[LexoraModuleId.CORE.name] == null) {
-            serviceDao.upsertModuleSetting(
-                ModuleSettingEntity(
-                    organizationId = organizationId,
-                    moduleId = LexoraModuleId.CORE.name,
-                    enabled = true,
-                    licenseStatus = ModuleLicenseStatus.NOT_REQUIRED.name,
-                    updatedAtEpochMs = now,
-                ),
-            )
-        }
-        for (moduleId in listOf(LexoraModuleId.WASH, LexoraModuleId.TIRES)) {
-            if (existing[moduleId.name] == null) {
+        storeCatalog().forEach { item ->
+            if (existing[item.moduleId.name] == null) {
                 serviceDao.upsertModuleSetting(
                     ModuleSettingEntity(
                         organizationId = organizationId,
-                        moduleId = moduleId.name,
-                        enabled = false,
-                        licenseStatus = ModuleLicenseStatus.NOT_LICENSED.name,
+                        moduleId = item.moduleId.name,
+                        enabled = item.includedInCore,
+                        licenseStatus = if (item.includedInCore) ModuleLicenseStatus.NOT_REQUIRED.name else ModuleLicenseStatus.NOT_LICENSED.name,
                         updatedAtEpochMs = now,
                     ),
                 )
@@ -81,20 +64,15 @@ class ModuleLicenseRepository(
             ModuleDescriptor(
                 id = storeItem.moduleId,
                 title = storeItem.title,
-                enabled = if (storeItem.moduleId == LexoraModuleId.CORE) true else license?.enabled == true,
-                licenseStatus = if (storeItem.moduleId == LexoraModuleId.CORE) {
-                    ModuleLicenseStatus.NOT_REQUIRED
-                } else {
-                    license?.licenseStatus ?: ModuleLicenseStatus.NOT_LICENSED
-                },
+                enabled = if (storeItem.includedInCore) true else license?.enabled == true,
+                licenseStatus = if (storeItem.includedInCore) ModuleLicenseStatus.NOT_REQUIRED else license?.licenseStatus ?: ModuleLicenseStatus.NOT_LICENSED,
             )
         }
     }
 
     suspend fun setEnabled(organizationId: String, moduleId: LexoraModuleId, enabled: Boolean) {
         require(moduleId != LexoraModuleId.CORE) { "Базовое ядро нельзя отключить" }
-        val current = licenses(organizationId).firstOrNull { it.moduleId == moduleId }
-            ?: error("Модуль не найден")
+        val current = licenses(organizationId).firstOrNull { it.moduleId == moduleId } ?: error("Модуль не найден")
         require(current.licenseStatus == ModuleLicenseStatus.ACTIVE) { "Модуль нельзя включить без активной лицензии" }
         serviceDao.upsertModuleSetting(
             ModuleSettingEntity(
@@ -107,15 +85,10 @@ class ModuleLicenseRepository(
         )
     }
 
-    suspend fun applyLicenseStatus(
-        organizationId: String,
-        moduleId: LexoraModuleId,
-        status: ModuleLicenseStatus,
-    ) {
+    suspend fun applyLicenseStatus(organizationId: String, moduleId: LexoraModuleId, status: ModuleLicenseStatus) {
         require(moduleId != LexoraModuleId.CORE) { "Для базового ядра лицензия не требуется" }
         require(status != ModuleLicenseStatus.NOT_REQUIRED) { "NOT_REQUIRED допустим только для базового ядра" }
-        val current = licenses(organizationId).firstOrNull { it.moduleId == moduleId }
-            ?: error("Модуль не найден")
+        val current = licenses(organizationId).firstOrNull { it.moduleId == moduleId } ?: error("Модуль не найден")
         val enabled = current.enabled && status == ModuleLicenseStatus.ACTIVE
         serviceDao.upsertModuleSetting(
             ModuleSettingEntity(

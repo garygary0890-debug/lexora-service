@@ -50,17 +50,23 @@ class PersistentUserRepository(
     }
 
     /**
-     * Returns the cross-organization identity. Do not use this object for authorization.
-     * Authorization must use [userInOrganization] so roles from another organization
-     * never leak into the active tenant context.
+     * Returns the identity with roles scoped to the currently active organization.
+     * organizationIds still contains all active memberships so callers can validate switching.
+     * Authorization for an explicit tenant should prefer [userInOrganization].
      */
     suspend fun user(userId: String): ServiceUser? {
         val entity = userDao.user(userId) ?: return null
         val memberships = userDao.activeRolesForUser(userId)
+        val activeOrganizationId = serviceDao.activeOrganization()?.id
+        val scopedMemberships = if (activeOrganizationId == null) {
+            emptyList()
+        } else {
+            memberships.filter { it.organizationId == activeOrganizationId }
+        }
         return ServiceUser(
             id = entity.id,
             displayName = entity.displayName,
-            roles = memberships.mapNotNull { runCatching { UserRole.valueOf(it.role) }.getOrNull() }.toSet(),
+            roles = scopedMemberships.mapNotNull { runCatching { UserRole.valueOf(it.role) }.getOrNull() }.toSet(),
             organizationIds = memberships.map { it.organizationId }.toSet(),
             active = entity.active,
         )

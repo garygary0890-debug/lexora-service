@@ -5,6 +5,7 @@ import com.lexora.service.core.database.AuditEventEntity
 import com.lexora.service.core.database.LexoraServiceDatabase
 import com.lexora.service.core.database.WorkOrderItemEntity
 import com.lexora.service.core.model.AdditionalWorkApprovalStatus
+import com.lexora.service.core.model.ServiceDocumentStatus
 import com.lexora.service.core.model.ServiceDocumentType
 import com.lexora.service.core.model.SyncState
 import com.lexora.service.core.model.WorkOrderItem
@@ -27,9 +28,7 @@ class WorkOrderRepository private constructor(
         documentId: String,
         additional: Boolean,
     ) {
-        val document = serviceDao.serviceDocument(documentId) ?: return
-        if (document.type != ServiceDocumentType.WORK_ORDER.name || document.status != "DRAFT") return
-
+        val document = requireEditableWorkOrder(organizationId, documentId)
         val service = catalogDao.services(organizationId).firstOrNull { it.active } ?: return
         val now = System.currentTimeMillis()
         val priceList = catalogDao.priceLists(organizationId).firstOrNull {
@@ -40,16 +39,140 @@ class WorkOrderRepository private constructor(
             catalogDao.priceListItems(list.id).firstOrNull { it.serviceCatalogItemId == service.id }?.priceMinor
         } ?: 0L
 
-        val quantity = 1.0
+        addItem(
+            organizationId = organizationId,
+            userId = userId,
+            documentId = document.id,
+            serviceCatalogItemId = service.id,
+            title = service.name,
+            quantity = 1.0,
+            unit = service.unit,
+            unitPriceMinor = price,
+            additional = additional,
+        )
+    }
+
+    suspend fun addCustomItem(
+        organizationId: String,
+        userId: String,
+        documentId: String,
+        title: String,
+        quantity: Double,
+        unit: String,
+        unitPriceMinor: Long,
+        additional: Boolean = false,
+    ): WorkOrderItem {
+        require(title.isNotBlank()) { "Наименование работы обязательно" }
+        require(quantity > 0) { "Количество должно быть больше нуля" }
+        require(unit.isNotBlank()) { "Единица измерения обязательна" }
+        require(unitPriceMinor >= 0) { "Цена не может быть отрицательной" }
+        requireEditableWorkOrder(organizationId, documentId)
+        return addItem(
+            organizationId = organizationId,
+            userId = userId,
+            documentId = documentId,
+            serviceCatalogItemId = null,
+            title = title.trim(),
+            quantity = quantity,
+            unit = unit.trim(),
+            unitPriceMinor = unitPriceMinor,
+            additional = additional,
+        )
+    }
+
+    suspend fun updateItem(
+        organizationId: String,
+        userId: String,
+        itemId: String,
+        quantity: Double,
+        unitPriceMinor: Long,
+    ) {
+        require(quantity > 0) { "Количество должно быть больше нуля" }
+        require(unitPriceMinor >= 0) { "Цена не может быть отрицательной" }
+        val item = workOrderDao.item(itemId) ?: return
+        requireEditableWorkOrder(organizationId, item.documentId)
+        val now = System.currentTimeMillis()
+        val updated = item.copy(
+            quantity = quantity,
+            unitPriceMinor = unitPriceMinor,
+            totalMinor = (quantity * unitPriceMinor.toDouble()).roundToLong(),
+            approvalStatus = if (item.additional) AdditionalWorkApprovalStatus.PENDING.name else item.approvalStatus,
+            approvalComment = if (item.additional) null else item.approvalComment,
+            approvedAtEpochMs = if (item.additional) null else item.approvedAtEpochMs,
+            syncState = SyncState.PENDING_UPDATE.name,
+            updatedAtEpochMs = now,
+        )
+        workOrderDao.upsert(updated)
+        recalculateDocumentTotal(item.documentId)
+        audit(organizationId, userId, "WORK_ORDER_ITEM", itemId, "UPDATE", updated.title)
+    }
+
+    suspend fun removeItem(
+        organizationId: String,
+        userId: String,
+        itemId: String,
+    ) {
+        val item = workOrderDao.item(itemId) ?: return
+        requireEditableWorkOrder(organizationId, item.documentId)
+        workOrderDao.delete(itemId)
+        recalculateDocumentTotal(item.documentId)
+        audit(organizationId, userId, "WORK_ORDER_ITEM", itemId, "DELETE", item.title)
+    }
+
+    suspend fun resolveAdditionalWork(
+        organizationId: String,
+        userId: String,
+        itemId: String,
+        approve: Boolean,
+        comment: String? = null,
+    ) {
+        val item = workOrderDao.item(itemId) ?: return
+        requireEditableWorkOrder(organizationId, item.documentId)
+        if (!item.additional || item.approvalStatus != AdditionalWorkApprovalStatus.PENDING.name) return
+        val now = System.currentTimeMillis()
+        val status = if (approve) AdditionalWorkApprovalStatus.APPROVED else AdditionalWorkApprovalStatus.REJECTED
+        val approvalComment = comment?.trim()?.takeIf { it.isNotBlank() }
+            ?: if (approve) "Согласовано клиентом" else "Отклонено клиентом"
+        workOrderDao.updateApproval(
+            id = itemId,
+            status = status.name,
+            comment = approvalComment,
+            approvedAt = now,
+            syncState = SyncState.PENDING_UPDATE.name,
+            updatedAt = now,
+        )
+        recalculateDocumentTotal(item.documentId)
+        audit(
+            organizationId,
+            userId,
+            "WORK_ORDER_ITEM",
+            itemId,
+            if (approve) "APPROVE_ADDITIONAL_WORK" else "REJECT_ADDITIONAL_WORK",
+            "${item.title} · $approvalComment",
+        )
+    }
+
+    private suspend fun addItem(
+        organizationId: String,
+        userId: String,
+        documentId: String,
+        serviceCatalogItemId: String?,
+        title: String,
+        quantity: Double,
+        unit: String,
+        unitPriceMinor: Long,
+        additional: Boolean,
+    ): WorkOrderItem {
+        val now = System.currentTimeMillis()
         val item = WorkOrderItemEntity(
             id = UUID.randomUUID().toString(),
             documentId = documentId,
-            serviceCatalogItemId = service.id,
-            title = service.name,
+            serviceCatalogItemId = serviceCatalogItemId,
+            title = title,
             quantity = quantity,
-            unit = service.unit,
-            unitPriceMinor = price,
-            totalMinor = (price.toDouble() * quantity).roundToLong(),
+            unit = unit,
+            unitPriceMinor = unitPriceMinor,
+            totalMinor = (unitPriceMinor.toDouble() * quantity).roundToLong(),
             additional = additional,
             approvalStatus = if (additional) AdditionalWorkApprovalStatus.PENDING.name else AdditionalWorkApprovalStatus.NOT_REQUIRED.name,
             approvalComment = null,
@@ -59,52 +182,23 @@ class WorkOrderRepository private constructor(
         )
         workOrderDao.upsert(item)
         recalculateDocumentTotal(documentId)
-        serviceDao.insertAuditEvent(
-            AuditEventEntity(
-                id = UUID.randomUUID().toString(),
-                organizationId = organizationId,
-                userId = userId,
-                entityType = "WORK_ORDER_ITEM",
-                entityId = item.id,
-                action = if (additional) "ADD_ADDITIONAL_WORK" else "ADD_WORK",
-                summary = service.name,
-                occurredAtEpochMs = now,
-            )
+        audit(
+            organizationId,
+            userId,
+            "WORK_ORDER_ITEM",
+            item.id,
+            if (additional) "ADD_ADDITIONAL_WORK" else "ADD_WORK",
+            title,
         )
+        return item.toModel()
     }
 
-    suspend fun resolveAdditionalWork(
-        organizationId: String,
-        userId: String,
-        itemId: String,
-        approve: Boolean,
-    ) {
-        val item = workOrderDao.item(itemId) ?: return
-        if (!item.additional || item.approvalStatus != AdditionalWorkApprovalStatus.PENDING.name) return
-        val now = System.currentTimeMillis()
-        val status = if (approve) AdditionalWorkApprovalStatus.APPROVED else AdditionalWorkApprovalStatus.REJECTED
-        workOrderDao.updateApproval(
-            id = itemId,
-            status = status.name,
-            comment = if (approve) "Согласовано клиентом" else "Отклонено клиентом",
-            approvedAt = now,
-            syncState = SyncState.PENDING_UPDATE.name,
-            updatedAt = now,
-        )
-        recalculateDocumentTotal(item.documentId)
-        serviceDao.insertAuditEvent(
-            AuditEventEntity(
-                id = UUID.randomUUID().toString(),
-                organizationId = organizationId,
-                userId = userId,
-                entityType = "WORK_ORDER_ITEM",
-                entityId = itemId,
-                action = if (approve) "APPROVE_ADDITIONAL_WORK" else "REJECT_ADDITIONAL_WORK",
-                summary = item.title,
-                occurredAtEpochMs = now,
-            )
-        )
-    }
+    private suspend fun requireEditableWorkOrder(organizationId: String, documentId: String) =
+        requireNotNull(serviceDao.serviceDocument(documentId)) { "Заказ-наряд не найден" }.also { document ->
+            require(document.organizationId == organizationId) { "Заказ-наряд относится к другой организации" }
+            require(document.type == ServiceDocumentType.WORK_ORDER.name) { "Документ не является заказ-нарядом" }
+            require(document.status == ServiceDocumentStatus.DRAFT.name) { "Изменять можно только черновик заказ-наряда" }
+        }
 
     private suspend fun recalculateDocumentTotal(documentId: String) {
         val document = serviceDao.serviceDocument(documentId) ?: return
@@ -115,6 +209,28 @@ class WorkOrderRepository private constructor(
                 syncState = SyncState.PENDING_UPDATE.name,
                 updatedAtEpochMs = System.currentTimeMillis(),
             )
+        )
+    }
+
+    private suspend fun audit(
+        organizationId: String,
+        userId: String,
+        entityType: String,
+        entityId: String,
+        action: String,
+        summary: String,
+    ) {
+        serviceDao.insertAuditEvent(
+            AuditEventEntity(
+                id = UUID.randomUUID().toString(),
+                organizationId = organizationId,
+                userId = userId,
+                entityType = entityType,
+                entityId = entityId,
+                action = action,
+                summary = summary,
+                occurredAtEpochMs = System.currentTimeMillis(),
+            ),
         )
     }
 

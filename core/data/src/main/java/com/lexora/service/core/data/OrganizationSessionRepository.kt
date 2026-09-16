@@ -59,9 +59,12 @@ class OrganizationSessionRepository(
         )
     }
 
-    private suspend fun session(organization: Organization, user: ServiceUser) = OrganizationSession(
-        organization = organization,
-        user = user,
-        organizations = organizationRepository.organizations(),
-    )
+    private suspend fun session(organization: Organization, user: ServiceUser): OrganizationSession {
+        val memberships = userRepository.user(user.id)?.organizationIds.orEmpty()
+        return OrganizationSession(
+            organization = organization,
+            user = user,
+            organizations = organizationRepository.organizations().filter { it.id in memberships },
+        )
+    }
 }

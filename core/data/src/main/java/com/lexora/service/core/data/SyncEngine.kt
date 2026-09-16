@@ -29,10 +29,11 @@ class SyncEngine(
 
         val ready = queue.ready(organizationId, limit = limit)
         for (operation in ready) {
-            if (!queue.markInProgress(operation.id)) continue
+            if (operation.organizationId != organizationId) continue
+            if (!queue.markInProgress(operation)) continue
             when (val result = transport.push(operation.copy(attemptCount = operation.attemptCount + 1))) {
                 SyncPushResult.Success -> {
-                    queue.markSucceeded(operation.id)
+                    queue.markSucceeded(operation)
                     succeeded++
                 }
                 is SyncPushResult.RetryableError -> {
@@ -40,7 +41,7 @@ class SyncEngine(
                     retried++
                 }
                 is SyncPushResult.PermanentError -> {
-                    queue.markFailed(operation.id, result.message)
+                    queue.markFailed(operation, result.message)
                     failed++
                 }
                 is SyncPushResult.Conflict -> {

@@ -26,4 +26,5 @@ data class ServiceUser(
     val displayName: String,
     val roles: Set<UserRole>,
     val organizationIds: Set<String>,
+    val active: Boolean = true,
 )

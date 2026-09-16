@@ -59,6 +59,7 @@ class CatalogRepository private constructor(private val database: LexoraServiceD
 
     companion object {
         fun create(context: Context) = CatalogRepository(LexoraServiceDatabase.create(context.applicationContext))
+        fun create(database: LexoraServiceDatabase) = CatalogRepository(database)
     }
 }
 

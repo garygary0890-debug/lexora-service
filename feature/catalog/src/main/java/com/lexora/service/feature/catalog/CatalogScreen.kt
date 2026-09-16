@@ -34,6 +34,36 @@ import com.lexora.service.core.model.ServiceRecipeSummary
 import com.lexora.service.core.model.ServiceUser
 import kotlinx.coroutines.launch
 
+data class CatalogUiState(
+    val services: List<ServiceCatalogItem> = emptyList(),
+    val priceLists: List<PriceList> = emptyList(),
+    val selectedPriceListId: String? = null,
+    val priceItems: List<PriceListItem> = emptyList(),
+    val recipeSummaries: List<ServiceRecipeSummary> = emptyList(),
+)
+
+data class CatalogActions(
+    val onAddService: () -> Unit,
+    val onToggleService: (ServiceCatalogItem) -> Unit,
+    val onAddComponent: (String, ServiceComponentType, String, Double, String, Long) -> Unit,
+    val onSetComponentActive: (String, Boolean) -> Unit,
+    val onAddPriceList: () -> Unit,
+    val onSelectPriceList: (String) -> Unit,
+    val onAddPriceItem: (PriceList, ServiceCatalogItem) -> Unit,
+)
+
+@Composable
+fun CatalogScreen(
+    state: CatalogUiState,
+    actions: CatalogActions,
+) {
+    CatalogContent(state = state, actions = actions)
+}
+
+/**
+ * Transitional route kept for source compatibility while SRV-000037 moves orchestration to app-level.
+ * It will be removed after MainActivity switches to the pure state/actions contract above.
+ */
 @Composable
 fun CatalogScreen(
     organization: Organization,
@@ -83,79 +113,73 @@ private fun CatalogRoute(
 
     LaunchedEffect(organization.id, user.id) { reload() }
 
-    CatalogContent(
-        services = services,
-        priceLists = priceLists,
-        selectedPriceListId = selectedPriceListId,
-        priceItems = priceItems,
-        recipeSummaries = recipeSummaries,
-        onAddService = { scope.launch { repository.addService(organization.id, user.id); reload() } },
-        onToggleService = { service -> scope.launch { repository.toggleService(service, user.id); reload() } },
-        onAddComponent = { recipeId, type, name, quantity, unit, unitCostMinor ->
-            scope.launch {
-                constructorRepository.addComponent(
-                    organization.id,
-                    user.id,
-                    recipeId,
-                    type,
-                    name,
-                    quantity,
-                    unit,
-                    unitCostMinor,
-                )
-                reload()
-            }
-        },
-        onSetComponentActive = { componentId, active ->
-            scope.launch {
-                constructorRepository.setComponentActive(organization.id, user.id, componentId, active)
-                reload()
-            }
-        },
-        onAddPriceList = { scope.launch { repository.addPriceList(organization.id, user.id); reload() } },
-        onSelectPriceList = { priceListId ->
-            scope.launch {
-                selectedPriceListId = priceListId
-                priceItems = repository.priceItems(priceListId)
-            }
-        },
-        onAddPriceItem = { priceList, service ->
-            scope.launch {
-                repository.addPriceItem(priceList, service, user.id)
-                reload()
-            }
-        },
+    CatalogScreen(
+        state = CatalogUiState(
+            services = services,
+            priceLists = priceLists,
+            selectedPriceListId = selectedPriceListId,
+            priceItems = priceItems,
+            recipeSummaries = recipeSummaries,
+        ),
+        actions = CatalogActions(
+            onAddService = { scope.launch { repository.addService(organization.id, user.id); reload() } },
+            onToggleService = { service -> scope.launch { repository.toggleService(service, user.id); reload() } },
+            onAddComponent = { recipeId, type, name, quantity, unit, unitCostMinor ->
+                scope.launch {
+                    constructorRepository.addComponent(
+                        organization.id,
+                        user.id,
+                        recipeId,
+                        type,
+                        name,
+                        quantity,
+                        unit,
+                        unitCostMinor,
+                    )
+                    reload()
+                }
+            },
+            onSetComponentActive = { componentId, active ->
+                scope.launch {
+                    constructorRepository.setComponentActive(organization.id, user.id, componentId, active)
+                    reload()
+                }
+            },
+            onAddPriceList = { scope.launch { repository.addPriceList(organization.id, user.id); reload() } },
+            onSelectPriceList = { priceListId ->
+                scope.launch {
+                    selectedPriceListId = priceListId
+                    priceItems = repository.priceItems(priceListId)
+                }
+            },
+            onAddPriceItem = { priceList, service ->
+                scope.launch {
+                    repository.addPriceItem(priceList, service, user.id)
+                    reload()
+                }
+            },
+        ),
     )
 }
 
 @Composable
 private fun CatalogContent(
-    services: List<ServiceCatalogItem>,
-    priceLists: List<PriceList>,
-    selectedPriceListId: String?,
-    priceItems: List<PriceListItem>,
-    recipeSummaries: List<ServiceRecipeSummary>,
-    onAddService: () -> Unit,
-    onToggleService: (ServiceCatalogItem) -> Unit,
-    onAddComponent: (String, ServiceComponentType, String, Double, String, Long) -> Unit,
-    onSetComponentActive: (String, Boolean) -> Unit,
-    onAddPriceList: () -> Unit,
-    onSelectPriceList: (String) -> Unit,
-    onAddPriceItem: (PriceList, ServiceCatalogItem) -> Unit,
+    state: CatalogUiState,
+    actions: CatalogActions,
 ) {
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Text("Услуги и прайс-листы", style = MaterialTheme.typography.headlineMedium)
-        Button(onClick = onAddService) { Text("Добавить услугу") }
+        Button(onClick = actions.onAddService) { Text("Добавить услугу") }
 
-        services.forEach { service ->
+        state.services.forEach { service ->
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text("${service.code} · ${service.name}", style = MaterialTheme.typography.titleSmall)
                     Text("${service.category.orEmpty()} · ${service.unit} · ${service.durationMinutes ?: 0} мин")
-                    OutlinedButton(onClick = { onToggleService(service) }) {
+                    OutlinedButton(onClick = { actions.onToggleService(service) }) {
                         Text(if (service.active) "Отключить" else "Включить")
                     }
                 }
@@ -163,30 +187,30 @@ private fun CatalogContent(
         }
 
         ServiceConstructorSection(
-            summaries = recipeSummaries.filter { it.recipe.active },
-            onAddComponent = onAddComponent,
-            onSetComponentActive = onSetComponentActive,
+            summaries = state.recipeSummaries.filter { it.recipe.active },
+            onAddComponent = actions.onAddComponent,
+            onSetComponentActive = actions.onSetComponentActive,
         )
 
         Text("Прайс-листы", style = MaterialTheme.typography.titleMedium)
-        Button(onClick = onAddPriceList) { Text("Добавить прайс-лист") }
+        Button(onClick = actions.onAddPriceList) { Text("Добавить прайс-лист") }
 
-        priceLists.forEach { list ->
-            OutlinedButton(onClick = { onSelectPriceList(list.id) }) {
-                Text("${list.name} · ${list.currency}${if (list.id == selectedPriceListId) " · выбран" else ""}")
+        state.priceLists.forEach { list ->
+            OutlinedButton(onClick = { actions.onSelectPriceList(list.id) }) {
+                Text("${list.name} · ${list.currency}${if (list.id == state.selectedPriceListId) " · выбран" else ""}")
             }
         }
 
-        val selected = priceLists.firstOrNull { it.id == selectedPriceListId }
+        val selected = state.priceLists.firstOrNull { it.id == state.selectedPriceListId }
         if (selected != null) {
             Text("Позиции: ${selected.name}", style = MaterialTheme.typography.titleMedium)
-            services.filter { it.active }.forEach { service ->
-                val item = priceItems.firstOrNull { it.serviceCatalogItemId == service.id }
+            state.services.filter { it.active }.forEach { service ->
+                val item = state.priceItems.firstOrNull { it.serviceCatalogItemId == service.id }
                 Card(Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(16.dp)) {
                         Text("${service.code} · ${service.name}")
                         Text(if (item == null) "Цена не задана" else "${item.priceMinor / 100.0} ${selected.currency}")
-                        Button(onClick = { onAddPriceItem(selected, service) }) {
+                        Button(onClick = { actions.onAddPriceItem(selected, service) }) {
                             Text(if (item == null) "Добавить цену" else "Обновить цену")
                         }
                     }

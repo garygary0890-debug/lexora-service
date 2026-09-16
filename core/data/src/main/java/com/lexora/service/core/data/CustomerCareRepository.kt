@@ -33,7 +33,13 @@ class CustomerCareRepository(
     suspend fun clientNames(organizationId: String): Map<String, String> =
         serviceDao.clients(organizationId).associate { it.id to it.displayName }
 
-    suspend fun ensureAccount(organizationId: String, clientId: String): LoyaltyAccount {
+    suspend fun ensureAccount(
+        organizationId: String,
+        clientId: String,
+        actorUserId: String = SYSTEM_ACTOR,
+    ): LoyaltyAccount {
+        val client = serviceDao.client(clientId) ?: error("Клиент не найден")
+        require(client.organizationId == organizationId) { "Клиент относится к другой организации" }
         dao.loyaltyAccount(organizationId, clientId)?.let { return it.toModel() }
         val now = System.currentTimeMillis()
         val entity = LoyaltyAccountEntity(
@@ -46,7 +52,7 @@ class CustomerCareRepository(
             updatedAtEpochMs = now,
         )
         dao.upsertLoyaltyAccount(entity)
-        audit(organizationId, "LOYALTY_ACCOUNT", entity.id, "CREATE", "Создан бонусный счёт клиента")
+        audit(organizationId, actorUserId, "LOYALTY_ACCOUNT", entity.id, "CREATE", "Создан бонусный счёт клиента")
         return entity.toModel()
     }
 
@@ -57,9 +63,10 @@ class CustomerCareRepository(
         requestId: String? = null,
         paymentId: String? = null,
         comment: String? = null,
+        actorUserId: String = SYSTEM_ACTOR,
     ): Boolean {
         require(points > 0) { "Начисление должно быть больше нуля" }
-        return applyPoints(organizationId, clientId, points, LoyaltyTransactionType.ACCRUAL, requestId, paymentId, comment)
+        return applyPoints(organizationId, clientId, points, LoyaltyTransactionType.ACCRUAL, requestId, paymentId, comment, actorUserId)
     }
 
     suspend fun redeem(
@@ -69,9 +76,10 @@ class CustomerCareRepository(
         requestId: String? = null,
         paymentId: String? = null,
         comment: String? = null,
+        actorUserId: String = SYSTEM_ACTOR,
     ): Boolean {
         require(points > 0) { "Списание должно быть больше нуля" }
-        return applyPoints(organizationId, clientId, -points, LoyaltyTransactionType.REDEMPTION, requestId, paymentId, comment)
+        return applyPoints(organizationId, clientId, -points, LoyaltyTransactionType.REDEMPTION, requestId, paymentId, comment, actorUserId)
     }
 
     private suspend fun applyPoints(
@@ -82,8 +90,16 @@ class CustomerCareRepository(
         requestId: String?,
         paymentId: String?,
         comment: String?,
+        actorUserId: String,
     ): Boolean {
-        val account = ensureAccount(organizationId, clientId)
+        val account = ensureAccount(organizationId, clientId, actorUserId)
+        require(account.active) { "Бонусный счёт отключён" }
+        requestId?.let { request ->
+            require(serviceDao.serviceRequest(request)?.organizationId == organizationId) { "Заявка относится к другой организации" }
+        }
+        paymentId?.let { payment ->
+            require(serviceDao.payment(payment)?.organizationId == organizationId) { "Платёж относится к другой организации" }
+        }
         val now = System.currentTimeMillis()
         val transaction = LoyaltyTransactionEntity(
             id = UUID.randomUUID().toString(),
@@ -103,6 +119,7 @@ class CustomerCareRepository(
         if (applied) {
             audit(
                 organizationId,
+                actorUserId,
                 "LOYALTY_TRANSACTION",
                 transaction.id,
                 type.name,
@@ -112,8 +129,15 @@ class CustomerCareRepository(
         return applied
     }
 
-    suspend fun createQualityCheck(organizationId: String, requestId: String): QualityControlRecord {
-        dao.qualityRecordForRequest(requestId)?.let { return it.toModel() }
+    suspend fun createQualityCheck(
+        organizationId: String,
+        requestId: String,
+        actorUserId: String = SYSTEM_ACTOR,
+    ): QualityControlRecord {
+        dao.qualityRecordForRequest(requestId)?.let { existing ->
+            require(existing.organizationId == organizationId) { "Контроль качества относится к другой организации" }
+            return existing.toModel()
+        }
         val request = serviceDao.serviceRequest(requestId) ?: error("Заявка не найдена")
         require(request.organizationId == organizationId) { "Заявка относится к другой организации" }
         require(
@@ -138,7 +162,7 @@ class CustomerCareRepository(
             updatedAtEpochMs = now,
         )
         dao.upsertQualityRecord(entity)
-        audit(organizationId, "QUALITY_CONTROL", entity.id, "CREATE", "Создан контроль качества по заявке ${request.number}")
+        audit(organizationId, actorUserId, "QUALITY_CONTROL", entity.id, "CREATE", "Создан контроль качества по заявке ${request.number}")
         return entity.toModel()
     }
 
@@ -147,6 +171,7 @@ class CustomerCareRepository(
         rating: Int,
         checklistResult: String,
         issueDescription: String? = null,
+        actorUserId: String = SYSTEM_ACTOR,
     ) {
         require(record.status == QualityControlStatus.PENDING) { "Контроль качества уже завершён" }
         require(rating in 1..5) { "Оценка должна быть от 1 до 5" }
@@ -170,10 +195,14 @@ class CustomerCareRepository(
                 updatedAtEpochMs = now,
             ),
         )
-        audit(record.organizationId, "QUALITY_CONTROL", record.id, "COMPLETE", if (hasIssue) "Выявлено замечание по качеству" else "Контроль качества пройден")
+        audit(record.organizationId, actorUserId, "QUALITY_CONTROL", record.id, "COMPLETE", if (hasIssue) "Выявлено замечание по качеству" else "Контроль качества пройден")
     }
 
-    suspend fun resolveQualityIssue(record: QualityControlRecord, resolutionNote: String) {
+    suspend fun resolveQualityIssue(
+        record: QualityControlRecord,
+        resolutionNote: String,
+        actorUserId: String = SYSTEM_ACTOR,
+    ) {
         require(record.status == QualityControlStatus.ISSUE_FOUND) { "Нет открытого замечания" }
         require(resolutionNote.isNotBlank()) { "Необходимо указать результат устранения" }
         val now = System.currentTimeMillis()
@@ -188,21 +217,28 @@ class CustomerCareRepository(
                 rating = record.rating,
                 checklistResult = record.checklistResult,
                 issueDescription = record.issueDescription,
-                resolutionNote = resolutionNote,
+                resolutionNote = resolutionNote.trim(),
                 controlledAtEpochMs = record.controlledAtEpochMs ?: now,
                 syncState = SyncState.PENDING_UPDATE.name,
                 updatedAtEpochMs = now,
             ),
         )
-        audit(record.organizationId, "QUALITY_CONTROL", record.id, "RESOLVE", "Замечание по качеству устранено")
+        audit(record.organizationId, actorUserId, "QUALITY_CONTROL", record.id, "RESOLVE", "Замечание по качеству устранено")
     }
 
-    private suspend fun audit(organizationId: String, entityType: String, entityId: String, action: String, summary: String) {
+    private suspend fun audit(
+        organizationId: String,
+        userId: String,
+        entityType: String,
+        entityId: String,
+        action: String,
+        summary: String,
+    ) {
         serviceDao.insertAuditEvent(
             AuditEventEntity(
                 id = UUID.randomUUID().toString(),
                 organizationId = organizationId,
-                userId = "local-user",
+                userId = userId,
                 entityType = entityType,
                 entityId = entityId,
                 action = action,
@@ -213,6 +249,8 @@ class CustomerCareRepository(
     }
 
     companion object {
+        const val SYSTEM_ACTOR = "system"
+
         fun create(context: Context): CustomerCareRepository {
             val db = LexoraServiceDatabase.create(context)
             return CustomerCareRepository(db.customerCareDao(), db.serviceDao())

@@ -30,6 +30,8 @@ class PersistentUserRepository(
                     updatedAtEpochMs = now,
                 ),
             )
+        } else if (!existing.active) {
+            userDao.setUserActive(userId, true, SyncState.PENDING_UPDATE.name, now)
         }
         val roles = userDao.activeRolesForUserInOrganization(userId, organizationId)
         if (roles.none { it.role == UserRole.ADMIN.name }) {
@@ -44,24 +46,44 @@ class PersistentUserRepository(
                 ),
             )
         }
-        return requireNotNull(user(userId))
+        return requireNotNull(userInOrganization(userId, organizationId))
     }
 
+    /**
+     * Returns the cross-organization identity. Do not use this object for authorization.
+     * Authorization must use [userInOrganization] so roles from another organization
+     * never leak into the active tenant context.
+     */
     suspend fun user(userId: String): ServiceUser? {
         val entity = userDao.user(userId) ?: return null
-        if (!entity.active) return null
         val memberships = userDao.activeRolesForUser(userId)
         return ServiceUser(
             id = entity.id,
             displayName = entity.displayName,
             roles = memberships.mapNotNull { runCatching { UserRole.valueOf(it.role) }.getOrNull() }.toSet(),
             organizationIds = memberships.map { it.organizationId }.toSet(),
+            active = entity.active,
+        )
+    }
+
+    /** Authorization-safe representation scoped to exactly one organization. */
+    suspend fun userInOrganization(userId: String, organizationId: String): ServiceUser? {
+        val entity = userDao.user(userId) ?: return null
+        val memberships = userDao.activeRolesForUserInOrganization(userId, organizationId)
+        if (memberships.isEmpty()) return null
+        return ServiceUser(
+            id = entity.id,
+            displayName = entity.displayName,
+            roles = memberships.mapNotNull { runCatching { UserRole.valueOf(it.role) }.getOrNull() }.toSet(),
+            organizationIds = setOf(organizationId),
+            active = entity.active,
         )
     }
 
     suspend fun usersForOrganization(organizationId: String): List<ServiceUser> {
         val rolesByUser = userDao.activeRolesForOrganization(organizationId).groupBy { it.userId }
-        return userDao.activeUsers().mapNotNull { entity ->
+        val users = (userDao.activeUsers() + userDao.inactiveUsers()).distinctBy { it.id }
+        return users.mapNotNull { entity ->
             val memberships = rolesByUser[entity.id].orEmpty()
             if (memberships.isEmpty()) return@mapNotNull null
             ServiceUser(
@@ -69,8 +91,9 @@ class PersistentUserRepository(
                 displayName = entity.displayName,
                 roles = memberships.mapNotNull { runCatching { UserRole.valueOf(it.role) }.getOrNull() }.toSet(),
                 organizationIds = setOf(organizationId),
+                active = entity.active,
             )
-        }
+        }.sortedWith(compareByDescending<ServiceUser> { it.active }.thenBy { it.displayName.lowercase() })
     }
 
     suspend fun createLocalUser(
@@ -116,7 +139,7 @@ class PersistentUserRepository(
                 occurredAtEpochMs = now,
             ),
         )
-        return requireNotNull(user(userId))
+        return requireNotNull(userInOrganization(userId, organizationId))
     }
 
     suspend fun setRole(

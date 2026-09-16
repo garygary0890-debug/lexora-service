@@ -4,6 +4,14 @@ enum class LexoraModuleId {
     CORE,
     WASH,
     TIRES,
+    AUTO_SERVICE,
+    DETAILING,
+    BODY_REPAIR,
+    TOW,
+    STO,
+    AC_SERVICE,
+    CLEANING,
+    APPLIANCE_REPAIR,
 }
 
 enum class ModuleLicenseStatus {

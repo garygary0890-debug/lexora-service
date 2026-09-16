@@ -29,7 +29,6 @@ import com.lexora.service.core.model.*
 import com.lexora.service.core.navigation.Routes
 import com.lexora.service.feature.assets.AssetsScreen
 import com.lexora.service.feature.audit.AuditScreen
-import com.lexora.service.feature.catalog.CatalogScreen
 import com.lexora.service.feature.clients.ClientsScreen
 import com.lexora.service.feature.documents.DocumentsScreen
 import com.lexora.service.feature.fieldwork.FieldWorkScreen
@@ -287,7 +286,7 @@ private fun LexoraServiceApp() {
                     )
                 }
                 composable(Routes.Reports) { ReportsScreen(requests = requests, visits = visits, documents = serviceDocuments, payments = payments, integrations = integrations) }
-                composable(Routes.Catalog) { CatalogScreen(organization = organization, user = activeUser) }
+                composable(Routes.Catalog) { AppCatalogRoute(database = database, organization = organization, user = activeUser) }
                 composable(Routes.Notifications) { NotificationsScreen(organization = organization) }
                 composable(Routes.Audit) { AuditScreen(organization = organization) }
                 composable(Routes.Users) {

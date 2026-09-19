@@ -13,7 +13,6 @@ interface SyncCursorStore {
 }
 
 interface RemoteChangeApplier {
-    /** Apply one remote change atomically. Return false to stop without advancing the cursor. */
     suspend fun apply(organizationId: String, change: RemoteSyncChange): Boolean
 }
 
@@ -70,6 +69,8 @@ class BidirectionalSyncEngine(
         require(pullPageSize in 1..500)
         require(maxPullPages in 1..100)
 
+        queue.recoverStaleInProgress(organizationId)
+
         var pushed = 0
         var conflicts = 0
         var retried = 0
@@ -77,19 +78,16 @@ class BidirectionalSyncEngine(
         var skippedUnsupported = 0
         var pullApplied = 0
 
-        // Push first: expectedVersion remains the version observed when the offline edit was made.
         val ready = queue.ready(organizationId, limit = pushLimit)
         val operationsByMutationId = linkedMapOf<String, Pair<SyncOperation, SyncMutation>>()
         ready.forEach { operation ->
             if (operation.organizationId != organizationId) return@forEach
             val mutation = mutationMapper.map(operation)
             if (mutation == null) {
-                // Keep unsupported operations visible instead of silently discarding local data.
                 skippedUnsupported++
                 return@forEach
             }
-            if (!queue.markInProgress(operation)) return@forEach
-            operationsByMutationId[mutation.clientMutationId] = operation to mutation
+            if (queue.markInProgress(operation)) operationsByMutationId[mutation.clientMutationId] = operation to mutation
         }
 
         if (operationsByMutationId.isNotEmpty()) {
@@ -108,19 +106,25 @@ class BidirectionalSyncEngine(
                 val (operation, mutation) = pair
                 seen += result.clientMutationId
                 when (normalizeStatus(result)) {
-                    "APPLIED", "DUPLICATE" -> {
+                    "APPLIED", "DUPLICATE", "AUTO_RESOLVED" -> {
                         queue.markSucceeded(operation)
                         (result.resultingVersion ?: result.currentVersion)?.let { version ->
                             metadata?.setVersion(organizationId, mutation.entityType, mutation.entityId, version)
                         }
                         pushed++
                     }
-                    "CONFLICT" -> {
+                    "RESOLVED_SERVER_WINS" -> {
+                        queue.markSucceeded(operation)
+                        result.currentVersion?.let { version ->
+                            metadata?.setVersion(organizationId, mutation.entityType, mutation.entityId, version)
+                        }
+                    }
+                    "CONFLICT", "USER_RESOLUTION_REQUIRED" -> {
                         queue.recordConflict(
                             operation = operation,
                             localVersionJson = operation.payloadJson,
                             remoteVersionJson = result.currentVersion?.let { "{\"serverVersion\":$it}" },
-                            error = result.resultCode ?: "SYNC_VERSION_CONFLICT",
+                            error = result.resultCode ?: "USER_RESOLUTION_REQUIRED",
                         )
                         result.currentVersion?.let { version ->
                             metadata?.setVersion(organizationId, mutation.entityType, mutation.entityId, version)
@@ -145,7 +149,6 @@ class BidirectionalSyncEngine(
             }
         }
 
-        // Pull only after push. Cursor is advanced after each successfully applied change.
         var cursor = cursorStore.cursor(organizationId).coerceAtLeast(0L)
         var pageNo = 0
         while (pageNo < maxPullPages) {
@@ -159,11 +162,8 @@ class BidirectionalSyncEngine(
             }
             for (change in page.items.sortedBy { it.cursor }) {
                 if (change.cursor <= cursor) continue
-                val applied = remoteChangeApplier.apply(organizationId, change)
-                if (!applied) {
-                    return BidirectionalSyncSummary(
-                        pushed, pullApplied, conflicts + 1, retried, failed, skippedUnsupported, cursor,
-                    )
+                if (!remoteChangeApplier.apply(organizationId, change)) {
+                    return BidirectionalSyncSummary(pushed, pullApplied, conflicts + 1, retried, failed, skippedUnsupported, cursor)
                 }
                 metadata?.setVersion(organizationId, change.entityType, change.entityId, change.entityVersion)
                 cursor = change.cursor
@@ -179,15 +179,7 @@ class BidirectionalSyncEngine(
         }
 
         queue.cleanupSucceeded(organizationId)
-        return BidirectionalSyncSummary(
-            pushed = pushed,
-            pullApplied = pullApplied,
-            conflicts = conflicts,
-            retried = retried,
-            failed = failed,
-            skippedUnsupported = skippedUnsupported,
-            finalCursor = cursor,
-        )
+        return BidirectionalSyncSummary(pushed, pullApplied, conflicts, retried, failed, skippedUnsupported, cursor)
     }
 
     private fun normalizeStatus(result: SyncMutationResult): String = result.status.trim().uppercase()

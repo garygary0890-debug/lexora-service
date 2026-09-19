@@ -2,7 +2,8 @@ package com.lexora.service.core.model
 
 enum class ServiceContractStatus { DRAFT, ACTIVE, SUSPENDED, EXPIRED, TERMINATED }
 
-data class ServiceContract(
+/** Extended contract definition kept separate from the persisted ServiceContract core entity. */
+data class ExtendedServiceContract(
     val id: String,
     val organizationId: String,
     val counterpartyClientId: String,

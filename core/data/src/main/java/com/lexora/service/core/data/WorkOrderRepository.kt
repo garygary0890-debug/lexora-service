@@ -9,6 +9,8 @@ import com.lexora.service.core.model.ServiceCatalogItem
 import com.lexora.service.core.model.ServiceDocumentStatus
 import com.lexora.service.core.model.ServiceDocumentType
 import com.lexora.service.core.model.SyncState
+import com.lexora.service.core.model.SyncOperationType
+import org.json.JSONObject
 import com.lexora.service.core.model.WorkOrderItem
 import java.util.UUID
 import kotlin.math.roundToLong
@@ -19,6 +21,7 @@ class WorkOrderRepository private constructor(
     private val serviceDao = database.serviceDao()
     private val catalogDao = database.catalogDao()
     private val workOrderDao = database.workOrderDao()
+    private val syncQueue = SyncQueueRepository(serviceDao)
 
     suspend fun items(documentId: String): List<WorkOrderItem> =
         workOrderDao.items(documentId).map { it.toModel() }
@@ -249,6 +252,10 @@ class WorkOrderRepository private constructor(
                 updatedAtEpochMs = System.currentTimeMillis(),
             )
         )
+        document.clientId?.let { clientId ->
+            val assetId = document.requestId?.let { serviceDao.serviceRequest(it)?.vehicleId }
+            syncQueue.enqueue(document.organizationId, "ServiceWorkOrder", document.id, SyncOperationType.UPDATE, JSONObject().put("clientId", clientId).put("assetId", assetId ?: JSONObject.NULL).put("orderNumber", document.number).put("status", document.status).put("totalMinor", total).toString())
+        }
     }
 
     private suspend fun audit(

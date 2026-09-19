@@ -3,6 +3,9 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
+val lexoraBackendBaseUrl = providers.gradleProperty("LEXORA_BACKEND_BASE_URL")
+    .orElse("https://mtyryskina03.fvds.ru")
+
 android {
     namespace = "com.lexora.service"
     compileSdk = 37
@@ -13,9 +16,15 @@ android {
         targetSdk = 36
         versionCode = 28
         versionName = "0.28.0"
+        buildConfigField("String", "LEXORA_BACKEND_BASE_URL", "\"${lexoraBackendBaseUrl.get()}\"")
+        resValue("string", "lexora_backend_base_url", lexoraBackendBaseUrl.get())
     }
 
-    buildFeatures { compose = true }
+    buildFeatures {
+        compose = true
+        buildConfig = true
+        resValues = true
+    }
 
     buildTypes {
         getByName("release") {
@@ -54,6 +63,7 @@ dependencies {
     implementation(project(":core:navigation"))
     implementation(project(":core:data"))
     implementation(project(":core:domain"))
+    implementation(project(":core:network"))
     implementation(project(":feature:home"))
     implementation(project(":feature:settings"))
     implementation(project(":feature:wash"))

@@ -1,14 +1,14 @@
 package com.lexora.service.core.model
 
-enum class WashPostStatus { FREE, RESERVED, OCCUPIED, PREPARING, UNAVAILABLE }
+enum class WashTechnologyPostStatus { FREE, RESERVED, OCCUPIED, PREPARING, UNAVAILABLE }
 
-data class WashPost(
+data class WashTechnologyPost(
     val id: String,
     val organizationId: String,
     val branchId: String,
     val name: String,
     val supportedServiceCodes: Set<String> = emptySet(),
-    val status: WashPostStatus = WashPostStatus.FREE,
+    val status: WashTechnologyPostStatus = WashTechnologyPostStatus.FREE,
     val active: Boolean = true,
 )
 

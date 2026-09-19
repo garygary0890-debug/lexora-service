@@ -1,5 +1,9 @@
 package com.lexora.service.core.network
 
+import org.json.JSONArray
+import org.json.JSONObject
+import java.time.OffsetDateTime
+
 data class AuthTokens(
     val accessToken: String,
     val accessExpiresAtEpochMs: Long,
@@ -28,6 +32,99 @@ interface RefreshTokenApi {
 
 class AuthenticationExpiredException(message: String) : IllegalStateException(message)
 
+/** Exact client for the existing Lexora Backend /api/v1/auth contract. */
+class LexoraAuthApi(
+    private val configuration: ApiConfiguration,
+    private val transport: HttpTransport,
+    private val clock: () -> Long = System::currentTimeMillis,
+) : RefreshTokenApi {
+    suspend fun login(email: String, password: String, organizationId: String): AuthTokens {
+        require(email.isNotBlank() && password.isNotBlank() && organizationId.isNotBlank())
+        val response = executeAuth(
+            "login",
+            JSONObject()
+                .put("email", email.trim())
+                .put("password", password)
+                .put("organizationId", organizationId),
+        )
+        return parseTokens(response, "Login failed")
+    }
+
+    override suspend fun refresh(refreshToken: String): AuthTokens =
+        parseTokens(
+            executeAuth("refresh", JSONObject().put("refreshToken", refreshToken)),
+            "Token refresh failed",
+        )
+
+    suspend fun logout(refreshToken: String) {
+        val response = executeAuth("logout", JSONObject().put("refreshToken", refreshToken))
+        require(response.successful) { apiError("Logout failed", response) }
+    }
+
+    suspend fun touchSession(refreshToken: String): SessionActivity {
+        val response = executeAuth("session/activity", JSONObject().put("refreshToken", refreshToken))
+        require(response.successful) { apiError("Session activity update failed", response) }
+        val json = JSONObject(response.body.orEmpty())
+        return SessionActivity(
+            expiresAtEpochMs = OffsetDateTime.parse(json.getString("expiresAt")).toInstant().toEpochMilli(),
+            deviceTrusted = json.optBoolean("deviceTrusted", true),
+        )
+    }
+
+    private suspend fun executeAuth(path: String, body: JSONObject): ApiResponse = transport.execute(
+        ApiRequest(
+            method = HttpMethod.POST,
+            path = "/api/${configuration.apiVersion}/auth/$path",
+            body = body.toString(),
+            headers = mapOf("Accept" to "application/json"),
+        ),
+    )
+
+    private fun parseTokens(response: ApiResponse, prefix: String): AuthTokens {
+        require(response.successful) { apiError(prefix, response) }
+        val json = JSONObject(response.body.orEmpty())
+        val accessTtlSeconds = json.optLong("accessTokenExpiresInSeconds", 900L)
+        return AuthTokens(
+            accessToken = json.getString("accessToken"),
+            accessExpiresAtEpochMs = clock() + accessTtlSeconds * 1000L,
+            refreshToken = json.getString("refreshToken"),
+            refreshExpiresAtEpochMs = OffsetDateTime.parse(json.getString("refreshTokenExpiresAt")).toInstant().toEpochMilli(),
+            organizationId = json.optString("organizationId").takeIf(String::isNotBlank),
+            membershipId = json.optString("membershipId").takeIf(String::isNotBlank),
+            permissions = json.optJSONArray("permissions").toStringSet(),
+        )
+    }
+
+    private fun apiError(prefix: String, response: ApiResponse): String {
+        val serverMessage = runCatching { JSONObject(response.body.orEmpty()).optString("message") }.getOrNull().orEmpty()
+        return if (serverMessage.isBlank()) "$prefix (HTTP ${response.statusCode})" else "$prefix: $serverMessage"
+    }
+}
+
+data class SessionActivity(val expiresAtEpochMs: Long, val deviceTrusted: Boolean)
+
+class AuthSessionManager(
+    private val authApi: LexoraAuthApi,
+    private val tokenProvider: TokenProvider,
+) {
+    suspend fun login(email: String, password: String, organizationId: String): AuthTokens =
+        authApi.login(email, password, organizationId).also { tokenProvider.save(it) }
+
+    suspend fun restore(): AuthTokens? = tokenProvider.current()
+
+    suspend fun logout() {
+        val current = tokenProvider.current()
+        try {
+            current?.refreshToken?.let { authApi.logout(it) }
+        } finally {
+            // Local credentials are always removed, including when the server is unreachable.
+            tokenProvider.clear()
+        }
+    }
+
+    suspend fun clearLocalSession() = tokenProvider.clear()
+}
+
 class VersionedApiClient(
     private val configuration: ApiConfiguration,
     private val transport: HttpTransport,
@@ -43,8 +140,7 @@ class VersionedApiClient(
         val response = transport.execute(authorized(versioned, effective))
         if (response.statusCode != 401) return response
 
-        // A 401 can mean that the access token was revoked or expired server-side.
-        // Refresh exactly once, then retry exactly once to avoid loops.
+        // Refresh exactly once, then retry exactly once to avoid authentication loops.
         val refreshed = refresh(effective)
         val retried = transport.execute(authorized(versioned, refreshed))
         if (retried.statusCode == 401) {
@@ -53,6 +149,14 @@ class VersionedApiClient(
         }
         return retried
     }
+
+    suspend fun revokeSession(sessionId: String): ApiResponse = execute(
+        ApiRequest(HttpMethod.DELETE, "auth/sessions/$sessionId"),
+    )
+
+    suspend fun revokeAllSessions(): ApiResponse = execute(
+        ApiRequest(HttpMethod.DELETE, "auth/sessions"),
+    )
 
     private suspend fun refresh(tokens: AuthTokens): AuthTokens {
         if (tokens.refreshExpired(clock())) {
@@ -79,5 +183,12 @@ class VersionedApiClient(
     )
 
     private fun versionedPath(path: String): String =
-        "/api/${configuration.apiVersion}/${path.trim().trimStart('/')}"
+        if (path.startsWith("/api/")) path else "/api/${configuration.apiVersion}/${path.trim().trimStart('/')}"
+}
+
+private fun JSONArray?.toStringSet(): Set<String> {
+    if (this == null) return emptySet()
+    return buildSet {
+        for (index in 0 until length()) optString(index).takeIf(String::isNotBlank)?.let(::add)
+    }
 }

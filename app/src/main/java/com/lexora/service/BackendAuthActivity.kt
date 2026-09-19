@@ -36,6 +36,8 @@ import kotlinx.coroutines.launch
 class BackendAuthActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        ServiceSyncScheduler.ensurePeriodic(this)
+        ServiceSyncScheduler.enqueue(this)
         val database = LexoraServiceDatabase.create(this)
         val backend = LexoraBackendGraph(this, database)
         setContent {
@@ -99,7 +101,6 @@ private fun BackendSessionGate(
             backend.authSession.clearLocalSession()
             bootstrapping = false
         } catch (_: Exception) {
-            // A valid cached session may continue offline; queued mutations remain durable.
             onReady()
         }
     }
@@ -155,7 +156,7 @@ private fun BackendSessionGate(
                 scope.launch {
                     runCatching {
                         val tokens = backend.authSession.login(email, password, organizationId.trim())
-                        password = "" // password is never persisted and is removed from UI state immediately after use
+                        password = ""
                         bindAndSync(requireNotNull(tokens.organizationId))
                     }.onSuccess {
                         onReady()

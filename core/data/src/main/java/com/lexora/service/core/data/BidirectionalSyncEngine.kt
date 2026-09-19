@@ -24,9 +24,9 @@ interface SyncMutationMapper {
 class ServiceFoundationMutationMapper : SyncMutationMapper {
     override fun map(operation: SyncOperation): SyncMutation? {
         val mutationType = when (operation.entityType.trim().uppercase()) {
-            "CLIENT", "SERVICE_CLIENT" -> "service.client.upsert"
-            "VEHICLE", "SERVICE_ASSET", "ASSET" -> "service.asset.upsert"
-            "WORK_ORDER", "SERVICE_WORK_ORDER" -> "service.work-order.upsert"
+            "CLIENT", "SERVICECLIENT", "SERVICE_CLIENT" -> "service.client.upsert"
+            "VEHICLE", "SERVICEASSET", "SERVICE_ASSET", "ASSET" -> "service.asset.upsert"
+            "SERVICEDOCUMENT", "SERVICEWORKORDER", "SERVICE_WORK_ORDER", "WORK_ORDER" -> "service.work-order.upsert"
             else -> return null
         }
         if (operation.operationType == SyncOperationType.DELETE) return null
@@ -57,13 +57,16 @@ class BidirectionalSyncEngine(
     private val remoteChangeApplier: RemoteChangeApplier,
     private val mutationMapper: SyncMutationMapper = ServiceFoundationMutationMapper(),
 ) {
+    private val metadata: ServiceSyncMetadataStore? = cursorStore as? ServiceSyncMetadataStore
+
     suspend fun runOnce(
         organizationId: String,
         pushLimit: Int = 100,
         pullPageSize: Int = 200,
         maxPullPages: Int = 10,
     ): BidirectionalSyncSummary {
-        require(pushLimit in 1..500)
+        require(organizationId.isNotBlank())
+        require(pushLimit in 1..200)
         require(pullPageSize in 1..500)
         require(maxPullPages in 1..100)
 
@@ -74,38 +77,42 @@ class BidirectionalSyncEngine(
         var skippedUnsupported = 0
         var pullApplied = 0
 
+        // Push first: expectedVersion remains the version observed when the offline edit was made.
         val ready = queue.ready(organizationId, limit = pushLimit)
-        val operationsByMutationId = linkedMapOf<String, SyncOperation>()
-        val mutations = mutableListOf<SyncMutation>()
+        val operationsByMutationId = linkedMapOf<String, Pair<SyncOperation, SyncMutation>>()
         ready.forEach { operation ->
             if (operation.organizationId != organizationId) return@forEach
             val mutation = mutationMapper.map(operation)
             if (mutation == null) {
+                // Keep unsupported operations visible instead of silently discarding local data.
                 skippedUnsupported++
                 return@forEach
             }
             if (!queue.markInProgress(operation)) return@forEach
-            operationsByMutationId[mutation.clientMutationId] = operation
-            mutations += mutation
+            operationsByMutationId[mutation.clientMutationId] = operation to mutation
         }
 
-        if (mutations.isNotEmpty()) {
+        if (operationsByMutationId.isNotEmpty()) {
             val results = try {
-                api.push(organizationId, mutations)
+                api.push(organizationId, operationsByMutationId.values.map { it.second })
             } catch (error: Exception) {
-                operationsByMutationId.values.forEach {
-                    queue.markRetry(it, error.message ?: error.javaClass.simpleName)
+                operationsByMutationId.values.forEach { (operation, _) ->
+                    queue.markRetry(operation, error.message ?: error.javaClass.simpleName)
                     retried++
                 }
                 emptyList()
             }
             val seen = mutableSetOf<String>()
             results.forEach { result ->
-                val operation = operationsByMutationId[result.clientMutationId] ?: return@forEach
+                val pair = operationsByMutationId[result.clientMutationId] ?: return@forEach
+                val (operation, mutation) = pair
                 seen += result.clientMutationId
                 when (normalizeStatus(result)) {
                     "APPLIED", "DUPLICATE" -> {
                         queue.markSucceeded(operation)
+                        (result.resultingVersion ?: result.currentVersion)?.let { version ->
+                            metadata?.setVersion(organizationId, mutation.entityType, mutation.entityId, version)
+                        }
                         pushed++
                     }
                     "CONFLICT" -> {
@@ -115,6 +122,9 @@ class BidirectionalSyncEngine(
                             remoteVersionJson = result.currentVersion?.let { "{\"serverVersion\":$it}" },
                             error = result.resultCode ?: "SYNC_VERSION_CONFLICT",
                         )
+                        result.currentVersion?.let { version ->
+                            metadata?.setVersion(organizationId, mutation.entityType, mutation.entityId, version)
+                        }
                         conflicts++
                     }
                     "REJECTED", "FAILED" -> {
@@ -127,23 +137,25 @@ class BidirectionalSyncEngine(
                     }
                 }
             }
-            operationsByMutationId.forEach { (mutationId, operation) ->
-                if (mutationId !in seen && mutations.isNotEmpty()) {
-                    queue.markRetry(operation, "SYNC_RESULT_MISSING")
+            operationsByMutationId.forEach { (mutationId, pair) ->
+                if (mutationId !in seen && results.isNotEmpty()) {
+                    queue.markRetry(pair.first, "SYNC_RESULT_MISSING")
                     retried++
                 }
             }
         }
 
+        // Pull only after push. Cursor is advanced after each successfully applied change.
         var cursor = cursorStore.cursor(organizationId).coerceAtLeast(0L)
-        repeat(maxPullPages) {
+        var pageNo = 0
+        while (pageNo < maxPullPages) {
             val page = api.pull(organizationId, cursor, pullPageSize)
             if (page.items.isEmpty()) {
                 if (page.nextCursor > cursor) {
                     cursor = page.nextCursor
                     cursorStore.saveCursor(organizationId, cursor)
                 }
-                return@repeat
+                break
             }
             for (change in page.items.sortedBy { it.cursor }) {
                 if (change.cursor <= cursor) continue
@@ -153,6 +165,7 @@ class BidirectionalSyncEngine(
                         pushed, pullApplied, conflicts + 1, retried, failed, skippedUnsupported, cursor,
                     )
                 }
+                metadata?.setVersion(organizationId, change.entityType, change.entityId, change.entityVersion)
                 cursor = change.cursor
                 cursorStore.saveCursor(organizationId, cursor)
                 pullApplied++
@@ -161,7 +174,8 @@ class BidirectionalSyncEngine(
                 cursor = page.nextCursor
                 cursorStore.saveCursor(organizationId, cursor)
             }
-            if (page.items.size < pullPageSize) return@repeat
+            pageNo++
+            if (page.items.size < pullPageSize) break
         }
 
         queue.cleanupSucceeded(organizationId)

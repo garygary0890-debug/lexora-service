@@ -2,14 +2,15 @@ package com.lexora.service.core.data
 
 import android.content.Context
 
-class ServiceSyncMetadataStore(context: Context) {
+class ServiceSyncMetadataStore(context: Context) : SyncCursorStore {
     private val prefs = context.applicationContext.getSharedPreferences(FILE_NAME, Context.MODE_PRIVATE)
 
-    fun cursor(organizationId: String): Long = prefs.getLong(cursorKey(organizationId), 0L)
+    override suspend fun cursor(organizationId: String): Long =
+        prefs.getLong(cursorKey(organizationId), 0L)
 
-    fun setCursor(organizationId: String, value: Long) {
-        require(value >= 0L)
-        prefs.edit().putLong(cursorKey(organizationId), value).apply()
+    override suspend fun saveCursor(organizationId: String, cursor: Long) {
+        require(cursor >= 0L)
+        prefs.edit().putLong(cursorKey(organizationId), cursor).apply()
     }
 
     fun version(organizationId: String, entityType: String, entityId: String): Long? {

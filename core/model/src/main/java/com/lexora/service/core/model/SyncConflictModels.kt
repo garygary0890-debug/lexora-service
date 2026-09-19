@@ -1,8 +1,8 @@
 package com.lexora.service.core.model
 
-enum class SyncConflictResolution { AUTO_MERGED, KEEP_LOCAL, KEEP_REMOTE, MANUAL_REQUIRED, RESOLVED }
+enum class DetailedSyncConflictResolution { AUTO_MERGED, KEEP_LOCAL, KEEP_REMOTE, MANUAL_REQUIRED, RESOLVED }
 
-data class SyncConflict(
+data class DetailedSyncConflict(
     val id: String,
     val organizationId: String,
     val entityType: String,
@@ -11,7 +11,7 @@ data class SyncConflict(
     val remoteVersion: Long,
     val conflictingFields: Set<String>,
     val detectedAtEpochMs: Long,
-    val resolution: SyncConflictResolution = SyncConflictResolution.MANUAL_REQUIRED,
+    val resolution: DetailedSyncConflictResolution = DetailedSyncConflictResolution.MANUAL_REQUIRED,
     val resolvedByUserId: String? = null,
     val resolvedAtEpochMs: Long? = null,
 )

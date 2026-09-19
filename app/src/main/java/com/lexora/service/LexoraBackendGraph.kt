@@ -14,6 +14,7 @@ import com.lexora.service.core.network.AuthSessionManager
 import com.lexora.service.core.network.LexoraAuthApi
 import com.lexora.service.core.network.LexoraBackendSyncApi
 import com.lexora.service.core.network.UrlConnectionHttpTransport
+import com.lexora.service.core.network.TrustedAdminSsoApi
 import com.lexora.service.core.network.VersionedApiClient
 
 class LexoraBackendGraph(
@@ -30,6 +31,7 @@ class LexoraBackendGraph(
     val transport = UrlConnectionHttpTransport(configuration)
     val tokenProvider = AndroidKeystoreTokenProvider(appContext)
     val authApi = LexoraAuthApi(configuration, transport)
+    val trustedAdminSsoApi = TrustedAdminSsoApi(configuration, transport)
     val authSession = AuthSessionManager(authApi, tokenProvider)
     val apiClient = VersionedApiClient(configuration, transport, tokenProvider, authApi)
     val syncApi = LexoraBackendSyncApi(apiClient)

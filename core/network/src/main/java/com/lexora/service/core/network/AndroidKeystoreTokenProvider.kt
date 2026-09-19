@@ -28,6 +28,7 @@ class AndroidKeystoreTokenProvider(context: Context) : TokenProvider {
             organizationId = prefs.getString(KEY_ORGANIZATION_ID, null),
             membershipId = prefs.getString(KEY_MEMBERSHIP_ID, null),
             permissions = prefs.getStringSet(KEY_PERMISSIONS, emptySet())?.toSet().orEmpty(),
+            globalOwner = prefs.getBoolean(KEY_GLOBAL_OWNER, false),
         )
     }
 
@@ -40,6 +41,7 @@ class AndroidKeystoreTokenProvider(context: Context) : TokenProvider {
             .putString(KEY_ORGANIZATION_ID, tokens.organizationId)
             .putString(KEY_MEMBERSHIP_ID, tokens.membershipId)
             .putStringSet(KEY_PERMISSIONS, tokens.permissions)
+            .putBoolean(KEY_GLOBAL_OWNER, tokens.globalOwner)
             .apply()
     }
 
@@ -94,5 +96,6 @@ class AndroidKeystoreTokenProvider(context: Context) : TokenProvider {
         const val KEY_ORGANIZATION_ID = "organization_id"
         const val KEY_MEMBERSHIP_ID = "membership_id"
         const val KEY_PERMISSIONS = "permissions"
+        const val KEY_GLOBAL_OWNER = "global_owner"
     }
 }

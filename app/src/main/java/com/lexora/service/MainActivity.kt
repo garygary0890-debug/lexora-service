@@ -52,14 +52,16 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
+    companion object { const val EXTRA_GLOBAL_OWNER = "lexora.global_owner" }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent { LexoraServiceApp() }
+        setContent { LexoraServiceApp(intent.getBooleanExtra(EXTRA_GLOBAL_OWNER, false)) }
     }
 }
 
 @Composable
-private fun LexoraServiceApp() {
+private fun LexoraServiceApp(globalOwner: Boolean) {
     LexoraTheme {
         val context = LocalContext.current
         val database = remember { LexoraServiceDatabase.create(context) }
@@ -140,9 +142,17 @@ private fun LexoraServiceApp() {
             SystemStateHost(systemState.state(hasContent = false)) {}
             return@LexoraTheme
         }
-        val accessibleModules = modules.filter { moduleAccessPolicy.isAvailable(it, activeUser) }
-        val canManageUsers = accessPolicy.can(activeUser, Permission.MANAGE_USERS)
-        val canManageOrganization = accessPolicy.can(activeUser, Permission.MANAGE_ORGANIZATION)
+        val visibleModules = if (globalOwner) {
+            modules.map { module ->
+                module.copy(
+                    enabled = true,
+                    licenseStatus = if (module.id == LexoraModuleId.CORE) ModuleLicenseStatus.NOT_REQUIRED else ModuleLicenseStatus.ACTIVE,
+                )
+            }
+        } else modules
+        val accessibleModules = if (globalOwner) visibleModules else visibleModules.filter { moduleAccessPolicy.isAvailable(it, activeUser) }
+        val canManageUsers = globalOwner || accessPolicy.can(activeUser, Permission.MANAGE_USERS)
+        val canManageOrganization = globalOwner || accessPolicy.can(activeUser, Permission.MANAGE_ORGANIZATION)
 
         suspend fun reloadUsers() { managedUsers = userRepository.usersForOrganization(organization.id) }
         suspend fun reloadModules() { modules = moduleLicenseRepository.descriptors(organization.id) }
@@ -324,7 +334,7 @@ private fun LexoraServiceApp() {
                 composable(Routes.Reports) { ReportsScreen(requests = requests, visits = visits, documents = serviceDocuments, payments = payments, integrations = integrations) }
                 composable(Routes.Catalog) { AppCatalogRoute(database = database, organization = organization, user = activeUser) }
                 composable(Routes.Notifications) { NotificationsScreen(organization = organization) }
-                composable(Routes.Audit) { PermissionGuard(accessPolicy.can(activeUser, Permission.VIEW_AUDIT), "Недостаточно прав для просмотра журнала аудита") { AuditScreen(organization = organization) } }
+                composable(Routes.Audit) { PermissionGuard(globalOwner || accessPolicy.can(activeUser, Permission.VIEW_AUDIT), "Недостаточно прав для просмотра журнала аудита") { AuditScreen(organization = organization) } }
                 composable(Routes.Users) {
                     PermissionGuard(canManageUsers, "Недостаточно прав для управления пользователями") {
                     UsersScreen(
@@ -345,9 +355,9 @@ private fun LexoraServiceApp() {
                     )
                     }
                 }
-                composable(Routes.Settings) { SettingsScreen(organization = organization, user = activeUser, modules = modules, appVersion = "0.28.0", onModuleEnabledChange = { _, _ -> launchSafe { reloadModules() } }) }
-                composable(Routes.Wash) { PermissionGuard(accessPolicy.can(activeUser, Permission.VIEW_WASH) && accessibleModules.any { it.id == LexoraModuleId.WASH }, "Модуль автомойки недоступен по правам или лицензии") { WashScreen(organization = organization) } }
-                composable(Routes.Tires) { PermissionGuard(accessPolicy.can(activeUser, Permission.VIEW_TIRES) && accessibleModules.any { it.id == LexoraModuleId.TIRES }, "Модуль шиномонтажа недоступен по правам или лицензии") { TiresScreen(organization = organization) } }
+                composable(Routes.Settings) { SettingsScreen(organization = organization, user = activeUser, modules = visibleModules, appVersion = "0.28.0", onModuleEnabledChange = { _, _ -> launchSafe { reloadModules() } }) }
+                composable(Routes.Wash) { PermissionGuard(globalOwner || (accessPolicy.can(activeUser, Permission.VIEW_WASH) && accessibleModules.any { it.id == LexoraModuleId.WASH }), "Модуль автомойки недоступен по правам или лицензии") { WashScreen(organization = organization) } }
+                composable(Routes.Tires) { PermissionGuard(globalOwner || (accessPolicy.can(activeUser, Permission.VIEW_TIRES) && accessibleModules.any { it.id == LexoraModuleId.TIRES }), "Модуль шиномонтажа недоступен по правам или лицензии") { TiresScreen(organization = organization) } }
             }
         }
         }

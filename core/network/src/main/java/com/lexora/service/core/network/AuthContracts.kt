@@ -12,6 +12,7 @@ data class AuthTokens(
     val organizationId: String? = null,
     val membershipId: String? = null,
     val permissions: Set<String> = emptySet(),
+    val globalOwner: Boolean = false,
 ) {
     fun accessExpired(nowEpochMs: Long, clockSkewMs: Long = 30_000L): Boolean =
         nowEpochMs + clockSkewMs >= accessExpiresAtEpochMs
@@ -92,6 +93,7 @@ class LexoraAuthApi(
             organizationId = json.optString("organizationId").takeIf(String::isNotBlank),
             membershipId = json.optString("membershipId").takeIf(String::isNotBlank),
             permissions = json.optJSONArray("permissions").toStringSet(),
+            globalOwner = json.optBoolean("globalOwner", false),
         )
     }
 

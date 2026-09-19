@@ -56,7 +56,8 @@ private fun LexoraServiceApp() {
         val context = LocalContext.current
         val database = remember { LexoraServiceDatabase.create(context) }
         val dao = remember(database) { database.serviceDao() }
-        val coordinator = remember(dao) { ServiceAppCoordinator(dao) }
+        val backendGraph = remember(database) { LexoraBackendGraph(context, database) }
+        val coordinator = remember(dao, backendGraph) { ServiceAppCoordinator(dao, backendGraph.syncQueue) }
         val organizationRepository = remember(dao) { PersistentOrganizationRepository(dao) }
         val userRepository = remember(database, dao) { PersistentUserRepository(database.userDao(), dao) }
         val accessPolicy = remember { AccessPolicy() }

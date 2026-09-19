@@ -3,6 +3,8 @@ package com.lexora.service
 import com.lexora.service.core.database.*
 import com.lexora.service.core.domain.RequestWorkflow
 import com.lexora.service.core.model.*
+import com.lexora.service.core.data.SyncQueueRepository
+import org.json.JSONObject
 import com.lexora.service.feature.assets.EquipmentDraft
 import com.lexora.service.feature.assets.ServiceObjectDraft
 import com.lexora.service.feature.clients.ClientDraft
@@ -14,6 +16,7 @@ import java.util.UUID
 
 internal class ServiceAppCoordinator(
     private val dao: ServiceDao,
+    private val syncQueue: SyncQueueRepository,
 ) {
     data class ClientState(val active: List<Client>, val archived: List<Client>)
     data class VehicleState(val active: List<Vehicle>, val archived: List<Vehicle>)
@@ -83,6 +86,7 @@ internal class ServiceAppCoordinator(
                 existing?.createdAtEpochMs ?: now, now,
             ),
         )
+        syncQueue.enqueue(organizationId, "ServiceClient", id, if (existing == null) SyncOperationType.CREATE else SyncOperationType.UPDATE, JSONObject().put("displayName", draft.displayName).put("phone", draft.phone.ifBlank { JSONObject.NULL }).put("email", draft.email.ifBlank { JSONObject.NULL }).toString())
         audit(organizationId, userId, "CLIENT", id, if (existing == null) "CREATE" else "UPDATE", draft.displayName)
     }
 
@@ -111,6 +115,7 @@ internal class ServiceAppCoordinator(
                 existing?.createdAtEpochMs ?: now, now,
             ),
         )
+        syncQueue.enqueue(organizationId, "ServiceAsset", id, if (existing == null) SyncOperationType.CREATE else SyncOperationType.UPDATE, JSONObject().put("clientId", draft.clientId).put("registrationNumber", draft.registrationNumber.trim().uppercase()).put("make", draft.make.trim()).put("model", draft.model.trim()).toString())
         audit(organizationId, userId, "VEHICLE", id, if (existing == null) "CREATE" else "UPDATE", draft.registrationNumber.trim().uppercase())
     }
 

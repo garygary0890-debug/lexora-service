@@ -5,6 +5,9 @@ data class AuthTokens(
     val accessExpiresAtEpochMs: Long,
     val refreshToken: String,
     val refreshExpiresAtEpochMs: Long,
+    val organizationId: String? = null,
+    val membershipId: String? = null,
+    val permissions: Set<String> = emptySet(),
 ) {
     fun accessExpired(nowEpochMs: Long, clockSkewMs: Long = 30_000L): Boolean =
         nowEpochMs + clockSkewMs >= accessExpiresAtEpochMs
@@ -23,6 +26,8 @@ interface RefreshTokenApi {
     suspend fun refresh(refreshToken: String): AuthTokens?
 }
 
+class AuthenticationExpiredException(message: String) : IllegalStateException(message)
+
 class VersionedApiClient(
     private val configuration: ApiConfiguration,
     private val transport: HttpTransport,
@@ -33,18 +38,32 @@ class VersionedApiClient(
     suspend fun execute(request: ApiRequest, authenticated: Boolean = true): ApiResponse {
         val versioned = request.copy(path = versionedPath(request.path))
         if (!authenticated) return transport.execute(versioned)
-        val current = requireNotNull(tokenProvider.current()) { "Authentication required" }
+        val current = tokenProvider.current() ?: throw AuthenticationExpiredException("Authentication required")
         val effective = if (current.accessExpired(clock())) refresh(current) else current
-        val first = authorized(versioned, effective)
-        val response = transport.execute(first)
+        val response = transport.execute(authorized(versioned, effective))
         if (response.statusCode != 401) return response
+
+        // A 401 can mean that the access token was revoked or expired server-side.
+        // Refresh exactly once, then retry exactly once to avoid loops.
         val refreshed = refresh(effective)
-        return transport.execute(authorized(versioned, refreshed))
+        val retried = transport.execute(authorized(versioned, refreshed))
+        if (retried.statusCode == 401) {
+            tokenProvider.clear()
+            throw AuthenticationExpiredException("Server session is no longer valid")
+        }
+        return retried
     }
 
     private suspend fun refresh(tokens: AuthTokens): AuthTokens {
-        require(!tokens.refreshExpired(clock())) { "Refresh token expired" }
-        val refreshed = requireNotNull(refreshTokenApi.refresh(tokens.refreshToken)) { "Token refresh failed" }
+        if (tokens.refreshExpired(clock())) {
+            tokenProvider.clear()
+            throw AuthenticationExpiredException("Refresh token expired")
+        }
+        val refreshed = refreshTokenApi.refresh(tokens.refreshToken)
+        if (refreshed == null) {
+            tokenProvider.clear()
+            throw AuthenticationExpiredException("Token refresh failed")
+        }
         tokenProvider.save(refreshed)
         return refreshed
     }
@@ -53,7 +72,8 @@ class VersionedApiClient(
         headers = request.headers + mapOf(
             "Authorization" to "Bearer ${tokens.accessToken}",
             "Accept" to "application/json",
-        ) + request.organizationId?.takeIf { it.isNotBlank() }
+        ) + (request.organizationId ?: tokens.organizationId)
+            ?.takeIf { it.isNotBlank() }
             ?.let { mapOf("X-Lexora-Organization" to it) }
             .orEmpty(),
     )

@@ -1,11 +1,11 @@
 package com.lexora.service.core.model
 
-enum class ModuleLicenseStatus { ACTIVE, TRIAL, GRACE, EXPIRED, SUSPENDED, REVOKED }
+enum class ModuleEntitlementStatus { ACTIVE, TRIAL, GRACE, EXPIRED, SUSPENDED, REVOKED }
 
 data class ModuleEntitlement(
     val organizationId: String,
     val moduleCode: String,
-    val status: ModuleLicenseStatus,
+    val status: ModuleEntitlementStatus,
     val planCode: String? = null,
     val startsAtEpochMs: Long? = null,
     val expiresAtEpochMs: Long? = null,

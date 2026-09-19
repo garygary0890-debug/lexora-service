@@ -5,6 +5,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -20,10 +21,16 @@ import com.lexora.service.core.data.OrganizationSessionRepository
 import com.lexora.service.core.data.PersistentOrganizationRepository
 import com.lexora.service.core.data.PersistentUserRepository
 import com.lexora.service.core.data.defaultIntegrationRegistry
+import com.lexora.service.application.ServiceApplicationService
 import com.lexora.service.core.database.LexoraServiceDatabase
 import com.lexora.service.core.designsystem.LexoraTheme
+import com.lexora.service.core.designsystem.PermissionGuard
+import com.lexora.service.core.designsystem.SystemStateHost
 import com.lexora.service.core.domain.AccessPolicy
 import com.lexora.service.core.domain.ModuleAccessPolicy
+import com.lexora.service.core.domain.ServiceOperations
+import com.lexora.service.core.network.AndroidConnectivityMonitor
+import com.lexora.service.presentation.AppSystemStateController
 import com.lexora.service.core.model.*
 import com.lexora.service.core.navigation.Routes
 import com.lexora.service.feature.assets.AssetsScreen
@@ -41,6 +48,7 @@ import com.lexora.service.feature.tires.TiresScreen
 import com.lexora.service.feature.users.UsersScreen
 import com.lexora.service.feature.vehicles.VehiclesScreen
 import com.lexora.service.feature.wash.WashScreen
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
@@ -57,7 +65,7 @@ private fun LexoraServiceApp() {
         val database = remember { LexoraServiceDatabase.create(context) }
         val dao = remember(database) { database.serviceDao() }
         val backendGraph = remember(database) { LexoraBackendGraph(context, database) }
-        val coordinator = remember(dao, backendGraph) { ServiceAppCoordinator(dao, backendGraph.syncQueue) }
+        val operations: ServiceOperations = remember(dao, backendGraph) { ServiceApplicationService(dao, backendGraph.syncQueue) }
         val organizationRepository = remember(dao) { PersistentOrganizationRepository(dao) }
         val userRepository = remember(database, dao) { PersistentUserRepository(database.userDao(), dao) }
         val accessPolicy = remember { AccessPolicy() }
@@ -68,6 +76,13 @@ private fun LexoraServiceApp() {
         val moduleAccessPolicy = remember { ModuleAccessPolicy() }
         val integrations = remember { defaultIntegrationRegistry() }
         val scope = rememberCoroutineScope()
+        val systemState = remember(backendGraph) {
+            AppSystemStateController(AndroidConnectivityMonitor(context), backendGraph.syncQueue)
+        }
+        DisposableEffect(systemState) {
+            val registration = systemState.start()
+            onDispose { registration.close() }
+        }
 
         var activeOrganization by remember { mutableStateOf<Organization?>(null) }
         var user by remember { mutableStateOf<ServiceUser?>(null) }
@@ -93,15 +108,38 @@ private fun LexoraServiceApp() {
         var serviceDocuments by remember { mutableStateOf<List<ServiceDocument>>(emptyList()) }
         var payments by remember { mutableStateOf<List<Payment>>(emptyList()) }
 
-        LaunchedEffect(Unit) {
-            val session = organizationSessionRepository.bootstrap()
-            activeOrganization = session.organization
-            user = session.user
-            organizations = session.organizations
+        fun launchSafe(block: suspend () -> Unit) {
+            scope.launch {
+                try {
+                    block()
+                } catch (error: Throwable) {
+                    systemState.reportTechnicalError(error)
+                } finally {
+                    activeOrganization?.id?.let { runCatching { systemState.refreshSyncIssue(it) } }
+                }
+            }
         }
 
-        val organization = activeOrganization ?: return@LexoraTheme
-        val activeUser = user ?: return@LexoraTheme
+        LaunchedEffect(Unit) {
+            try {
+                val session = organizationSessionRepository.bootstrap()
+                activeOrganization = session.organization
+                user = session.user
+                organizations = session.organizations
+                systemState.refreshSyncIssue(session.organization.id)
+            } catch (error: Throwable) {
+                systemState.reportTechnicalError(error)
+            } finally {
+                systemState.updateLoading(false)
+            }
+        }
+
+        val organization = activeOrganization
+        val activeUser = user
+        if (organization == null || activeUser == null) {
+            SystemStateHost(systemState.state(hasContent = false)) {}
+            return@LexoraTheme
+        }
         val accessibleModules = modules.filter { moduleAccessPolicy.isAvailable(it, activeUser) }
         val canManageUsers = accessPolicy.can(activeUser, Permission.MANAGE_USERS)
         val canManageOrganization = accessPolicy.can(activeUser, Permission.MANAGE_ORGANIZATION)
@@ -109,43 +147,61 @@ private fun LexoraServiceApp() {
         suspend fun reloadUsers() { managedUsers = userRepository.usersForOrganization(organization.id) }
         suspend fun reloadModules() { modules = moduleLicenseRepository.descriptors(organization.id) }
         suspend fun reloadClients() {
-            coordinator.clients(organization.id).also { clients = it.active; archivedClients = it.archived }
+            operations.clients(organization.id).also { clients = it.active; archivedClients = it.archived }
         }
         suspend fun reloadVehicles() {
-            coordinator.vehicles(organization.id).also { vehicles = it.active; archivedVehicles = it.archived }
+            operations.vehicles(organization.id).also { vehicles = it.active; archivedVehicles = it.archived }
         }
         suspend fun reloadAssets() {
-            coordinator.assets(organization.id).also {
+            operations.assets(organization.id).also {
                 serviceObjects = it.objects; archivedServiceObjects = it.archivedObjects
                 equipment = it.equipment; archivedEquipment = it.archivedEquipment
             }
         }
         suspend fun reloadOrganization() {
-            coordinator.organization(organization.id).also {
+            operations.organization(organization.id).also {
                 branches = it.branches; inactiveBranches = it.inactiveBranches
                 employees = it.employees; inactiveEmployees = it.inactiveEmployees
             }
         }
-        suspend fun reloadRequests() { requests = coordinator.requests(organization.id) }
+        suspend fun reloadRequests() { requests = operations.requests(organization.id) }
         suspend fun reloadVisits() {
-            coordinator.visits(organization.id, selectedVisitId).also {
+            operations.visits(organization.id, selectedVisitId).also {
                 visits = it.visits; selectedVisitId = it.selectedVisitId; visitChecklist = it.checklist
             }
         }
         suspend fun reloadChecklist(visitId: String) {
             selectedVisitId = visitId
-            visitChecklist = coordinator.checklist(visitId)
+            visitChecklist = operations.checklist(visitId)
         }
         suspend fun reloadDocumentsAndPayments() {
-            coordinator.finance(organization.id).also { serviceDocuments = it.documents; payments = it.payments }
+            operations.finance(organization.id).also { serviceDocuments = it.documents; payments = it.payments }
         }
 
         LaunchedEffect(organization.id, activeUser.id) {
-            coordinator.ensureDemoClient(organization.id)
+            operations.ensureDemoClient(organization.id)
             reloadUsers(); reloadModules(); reloadClients(); reloadVehicles(); reloadAssets(); reloadOrganization(); reloadRequests(); reloadVisits(); reloadDocumentsAndPayments()
         }
 
         val navController = rememberNavController()
+        LaunchedEffect(organization.id) {
+            while (true) {
+                runCatching { systemState.refreshSyncIssue(organization.id) }
+                delay(5_000)
+            }
+        }
+
+        SystemStateHost(
+            state = systemState.state(hasContent = true),
+            onRetrySync = { ServiceSyncScheduler.enqueue(context, 0L) },
+            onRetryTechnicalError = {
+                systemState.clearTechnicalError()
+                launchSafe {
+                    reloadUsers(); reloadModules(); reloadClients(); reloadVehicles(); reloadAssets()
+                    reloadOrganization(); reloadRequests(); reloadVisits(); reloadDocumentsAndPayments()
+                }
+            },
+        ) {
         Scaffold { _ ->
             NavHost(navController = navController, startDestination = Routes.Home) {
                 composable(Routes.Home) {
@@ -173,9 +229,9 @@ private fun LexoraServiceApp() {
                     ClientsScreen(
                         clients = clients,
                         archivedClients = archivedClients,
-                        onSave = { draft, existingId -> scope.launch { coordinator.saveClient(organization.id, activeUser.id, draft, existingId); reloadClients() } },
-                        onArchive = { id -> scope.launch { coordinator.archiveClient(organization.id, activeUser.id, id, restore = false); reloadClients() } },
-                        onRestore = { id -> scope.launch { coordinator.archiveClient(organization.id, activeUser.id, id, restore = true); reloadClients() } },
+                        onSave = { draft, existingId -> launchSafe { operations.saveClient(organization.id, activeUser.id, SaveClientCommand(draft.type, draft.displayName, draft.phone, draft.email, draft.taxId, draft.kpp, draft.registrationAddress, draft.actualAddress, draft.note, draft.consentPersonalData), existingId); reloadClients() } },
+                        onArchive = { id -> launchSafe { operations.archiveClient(organization.id, activeUser.id, id, restore = false); reloadClients() } },
+                        onRestore = { id -> launchSafe { operations.archiveClient(organization.id, activeUser.id, id, restore = true); reloadClients() } },
                     )
                 }
                 composable(Routes.Vehicles) {
@@ -183,9 +239,9 @@ private fun LexoraServiceApp() {
                         vehicles = vehicles,
                         archivedVehicles = archivedVehicles,
                         clients = clients + archivedClients,
-                        onSave = { draft, existingId -> scope.launch { coordinator.saveVehicle(organization.id, activeUser.id, draft, existingId); reloadVehicles() } },
-                        onArchive = { id -> scope.launch { coordinator.archiveVehicle(organization.id, activeUser.id, id, restore = false); reloadVehicles() } },
-                        onRestore = { id -> scope.launch { coordinator.archiveVehicle(organization.id, activeUser.id, id, restore = true); reloadVehicles() } },
+                        onSave = { draft, existingId -> launchSafe { operations.saveVehicle(organization.id, activeUser.id, SaveVehicleCommand(draft.clientId, draft.registrationNumber, draft.vin, draft.make, draft.model, draft.year, draft.bodyType, draft.color, draft.mileageKm), existingId); reloadVehicles() } },
+                        onArchive = { id -> launchSafe { operations.archiveVehicle(organization.id, activeUser.id, id, restore = false); reloadVehicles() } },
+                        onRestore = { id -> launchSafe { operations.archiveVehicle(organization.id, activeUser.id, id, restore = true); reloadVehicles() } },
                     )
                 }
                 composable(Routes.Assets) {
@@ -195,12 +251,12 @@ private fun LexoraServiceApp() {
                         equipment = equipment,
                         archivedEquipment = archivedEquipment,
                         clients = clients + archivedClients,
-                        onSaveObject = { draft, existingId -> scope.launch { coordinator.saveServiceObject(organization.id, activeUser.id, draft, existingId); reloadAssets() } },
-                        onArchiveObject = { id -> scope.launch { coordinator.archiveServiceObject(organization.id, activeUser.id, id, restore = false); reloadAssets() } },
-                        onRestoreObject = { id -> scope.launch { coordinator.archiveServiceObject(organization.id, activeUser.id, id, restore = true); reloadAssets() } },
-                        onSaveEquipment = { draft, existingId -> scope.launch { coordinator.saveEquipment(organization.id, activeUser.id, draft, existingId); reloadAssets() } },
-                        onArchiveEquipment = { id -> scope.launch { coordinator.archiveEquipment(organization.id, activeUser.id, id, restore = false); reloadAssets() } },
-                        onRestoreEquipment = { id -> scope.launch { coordinator.archiveEquipment(organization.id, activeUser.id, id, restore = true); reloadAssets() } },
+                        onSaveObject = { draft, existingId -> launchSafe { operations.saveServiceObject(organization.id, activeUser.id, SaveServiceObjectCommand(draft.clientId, draft.name, draft.address, draft.accessMode, draft.responsibleContact), existingId); reloadAssets() } },
+                        onArchiveObject = { id -> launchSafe { operations.archiveServiceObject(organization.id, activeUser.id, id, restore = false); reloadAssets() } },
+                        onRestoreObject = { id -> launchSafe { operations.archiveServiceObject(organization.id, activeUser.id, id, restore = true); reloadAssets() } },
+                        onSaveEquipment = { draft, existingId -> launchSafe { operations.saveEquipment(organization.id, activeUser.id, SaveEquipmentCommand(draft.serviceObjectId, draft.type, draft.make, draft.model, draft.serialNumber, draft.inventoryNumber, draft.barcode, draft.commissionedNote, draft.warrantyNote), existingId); reloadAssets() } },
+                        onArchiveEquipment = { id -> launchSafe { operations.archiveEquipment(organization.id, activeUser.id, id, restore = false); reloadAssets() } },
+                        onRestoreEquipment = { id -> launchSafe { operations.archiveEquipment(organization.id, activeUser.id, id, restore = true); reloadAssets() } },
                     )
                 }
                 composable(Routes.Organization) {
@@ -210,32 +266,32 @@ private fun LexoraServiceApp() {
                         allowedOrganizationIds = activeUser.organizationIds,
                         canManageOrganization = canManageOrganization,
                         onCreateOrganization = { name ->
-                            if (canManageOrganization) scope.launch {
-                                val session = runCatching { organizationSessionRepository.createAndSwitch(activeUser, name) }.getOrNull() ?: return@launch
+                            if (canManageOrganization) launchSafe {
+                                val session = runCatching { organizationSessionRepository.createAndSwitch(activeUser, name) }.getOrNull() ?: return@launchSafe
                                 activeOrganization = session.organization; user = session.user; organizations = session.organizations
                             }
                         },
-                        onSwitchOrganization = { organizationId -> scope.launch {
-                            val session = runCatching { organizationSessionRepository.switch(activeUser, organizationId) }.getOrNull() ?: return@launch
+                        onSwitchOrganization = { organizationId -> launchSafe {
+                            val session = runCatching { organizationSessionRepository.switch(activeUser, organizationId) }.getOrNull() ?: return@launchSafe
                             activeOrganization = session.organization; user = session.user; organizations = session.organizations
                         } },
                         branches = branches,
                         inactiveBranches = inactiveBranches,
                         employees = employees,
                         inactiveEmployees = inactiveEmployees,
-                        onSaveBranch = { draft, existingId -> scope.launch { coordinator.saveBranch(organization.id, activeUser.id, draft, existingId); reloadOrganization() } },
-                        onDeactivateBranch = { id -> scope.launch { coordinator.setBranchActive(organization.id, activeUser.id, id, active = false); reloadOrganization() } },
-                        onActivateBranch = { id -> scope.launch { coordinator.setBranchActive(organization.id, activeUser.id, id, active = true); reloadOrganization() } },
-                        onSaveEmployee = { draft, existingId -> scope.launch { coordinator.saveEmployee(organization.id, activeUser.id, draft, existingId); reloadOrganization() } },
-                        onDeactivateEmployee = { id -> scope.launch { coordinator.setEmployeeActive(organization.id, activeUser.id, id, active = false); reloadOrganization() } },
-                        onActivateEmployee = { id -> scope.launch { coordinator.setEmployeeActive(organization.id, activeUser.id, id, active = true); reloadOrganization() } },
+                        onSaveBranch = { draft, existingId -> launchSafe { operations.saveBranch(organization.id, activeUser.id, SaveBranchCommand(draft.name, draft.address, draft.phone, draft.email, draft.workSchedule, draft.timeZoneId), existingId); reloadOrganization() } },
+                        onDeactivateBranch = { id -> launchSafe { operations.setBranchActive(organization.id, activeUser.id, id, active = false); reloadOrganization() } },
+                        onActivateBranch = { id -> launchSafe { operations.setBranchActive(organization.id, activeUser.id, id, active = true); reloadOrganization() } },
+                        onSaveEmployee = { draft, existingId -> launchSafe { operations.saveEmployee(organization.id, activeUser.id, SaveEmployeeCommand(draft.displayName, draft.position, draft.phone, draft.email, draft.branchId), existingId); reloadOrganization() } },
+                        onDeactivateEmployee = { id -> launchSafe { operations.setEmployeeActive(organization.id, activeUser.id, id, active = false); reloadOrganization() } },
+                        onActivateEmployee = { id -> launchSafe { operations.setEmployeeActive(organization.id, activeUser.id, id, active = true); reloadOrganization() } },
                     )
                 }
                 composable(Routes.Requests) {
                     RequestsScreen(
                         requests = requests,
-                        onSave = { draft, existingId -> scope.launch { coordinator.saveRequest(organization.id, activeUser.id, draft, existingId); reloadRequests() } },
-                        onChangeStatus = { id, target -> scope.launch { coordinator.changeRequestStatus(organization.id, activeUser.id, id, target); reloadRequests() } },
+                        onSave = { draft, existingId -> launchSafe { operations.saveRequest(organization.id, activeUser.id, SaveRequestCommand(draft.title, draft.description, draft.priority), existingId); reloadRequests() } },
+                        onChangeStatus = { id, target -> launchSafe { operations.changeRequestStatus(organization.id, activeUser.id, id, target); reloadRequests() } },
                     )
                 }
                 composable(Routes.FieldWork) {
@@ -244,13 +300,13 @@ private fun LexoraServiceApp() {
                         requests = requests,
                         employees = employees,
                         checklist = visitChecklist,
-                        onCreateVisit = { requestId, employeeId -> scope.launch { coordinator.createVisit(organization.id, activeUser.id, requestId, employeeId); reloadVisits() } },
-                        onSelectVisit = { id -> scope.launch { reloadChecklist(id) } },
-                        onChangeVisitStatus = { id, target -> scope.launch { coordinator.changeVisitStatus(organization.id, activeUser.id, id, target); reloadVisits() } },
-                        onAddChecklistItem = { visitId -> scope.launch { coordinator.addChecklistItem(organization.id, activeUser.id, visitId); reloadChecklist(visitId) } },
-                        onToggleChecklistItem = { itemId -> scope.launch {
-                            val current = visitChecklist.firstOrNull { it.id == itemId } ?: return@launch
-                            coordinator.toggleChecklistItem(organization.id, activeUser.id, current); reloadChecklist(current.visitId)
+                        onCreateVisit = { requestId, employeeId -> launchSafe { operations.createVisit(organization.id, activeUser.id, requestId, employeeId); reloadVisits() } },
+                        onSelectVisit = { id -> launchSafe { reloadChecklist(id) } },
+                        onChangeVisitStatus = { id, target -> launchSafe { operations.changeVisitStatus(organization.id, activeUser.id, id, target); reloadVisits() } },
+                        onAddChecklistItem = { visitId -> launchSafe { operations.addChecklistItem(organization.id, activeUser.id, visitId); reloadChecklist(visitId) } },
+                        onToggleChecklistItem = { itemId -> launchSafe {
+                            val current = visitChecklist.firstOrNull { it.id == itemId } ?: return@launchSafe
+                            operations.toggleChecklistItem(organization.id, activeUser.id, current); reloadChecklist(current.visitId)
                         } },
                     )
                 }
@@ -259,38 +315,41 @@ private fun LexoraServiceApp() {
                         documents = serviceDocuments,
                         payments = payments,
                         requests = requests,
-                        onCreateDocument = { type, requestId -> scope.launch { coordinator.createDocument(organization.id, activeUser.id, type, requestId); reloadDocumentsAndPayments() } },
-                        onChangeDocumentStatus = { id, target -> scope.launch { coordinator.changeDocumentStatus(organization.id, activeUser.id, id, target); reloadDocumentsAndPayments() } },
-                        onCreatePayment = { requestId -> scope.launch { coordinator.createPayment(organization.id, activeUser.id, requestId, serviceDocuments); reloadDocumentsAndPayments() } },
-                        onMarkPaymentPaid = { id -> scope.launch { coordinator.markPaymentPaid(organization.id, activeUser.id, id); reloadDocumentsAndPayments() } },
+                        onCreateDocument = { type, requestId -> launchSafe { operations.createDocument(organization.id, activeUser.id, type, requestId); reloadDocumentsAndPayments() } },
+                        onChangeDocumentStatus = { id, target -> launchSafe { operations.changeDocumentStatus(organization.id, activeUser.id, id, target); reloadDocumentsAndPayments() } },
+                        onCreatePayment = { requestId -> launchSafe { operations.createPayment(organization.id, activeUser.id, requestId, serviceDocuments); reloadDocumentsAndPayments() } },
+                        onMarkPaymentPaid = { id -> launchSafe { operations.markPaymentPaid(organization.id, activeUser.id, id); reloadDocumentsAndPayments() } },
                     )
                 }
                 composable(Routes.Reports) { ReportsScreen(requests = requests, visits = visits, documents = serviceDocuments, payments = payments, integrations = integrations) }
                 composable(Routes.Catalog) { AppCatalogRoute(database = database, organization = organization, user = activeUser) }
                 composable(Routes.Notifications) { NotificationsScreen(organization = organization) }
-                composable(Routes.Audit) { AuditScreen(organization = organization) }
+                composable(Routes.Audit) { PermissionGuard(accessPolicy.can(activeUser, Permission.VIEW_AUDIT), "Недостаточно прав для просмотра журнала аудита") { AuditScreen(organization = organization) } }
                 composable(Routes.Users) {
+                    PermissionGuard(canManageUsers, "Недостаточно прав для управления пользователями") {
                     UsersScreen(
                         organization = organization,
                         currentUser = activeUser,
                         users = managedUsers,
                         canManageUsers = canManageUsers,
-                        onCreateUser = { displayName, role -> if (canManageUsers) scope.launch { userRepository.createLocalUser(activeUser.id, organization.id, displayName, role); reloadUsers() } },
-                        onSetRole = { userId, role, enabled -> if (canManageUsers) scope.launch {
-                            runCatching { userRepository.setRole(activeUser.id, userId, organization.id, role, enabled) }
+                        onCreateUser = { displayName, role -> if (canManageUsers) launchSafe { userRepository.createLocalUser(activeUser.id, organization.id, displayName, role); reloadUsers() } },
+                        onSetRole = { userId, role, enabled -> if (canManageUsers) launchSafe {
+                            userRepository.setRole(activeUser.id, userId, organization.id, role, enabled)
                             reloadUsers()
                             if (userId == activeUser.id) user = userRepository.userInOrganization(activeUser.id, organization.id)
                         } },
-                        onSetUserActive = { userId, enabled -> if (canManageUsers) scope.launch {
-                            runCatching { userRepository.setUserActive(activeUser.id, userId, organization.id, enabled) }
+                        onSetUserActive = { userId, enabled -> if (canManageUsers) launchSafe {
+                            userRepository.setUserActive(activeUser.id, userId, organization.id, enabled)
                             reloadUsers()
                         } },
                     )
+                    }
                 }
-                composable(Routes.Settings) { SettingsScreen(organization = organization, user = activeUser, modules = modules, appVersion = "0.28.0", onModuleEnabledChange = { _, _ -> scope.launch { reloadModules() } }) }
-                composable(Routes.Wash) { WashScreen(organization = organization) }
-                composable(Routes.Tires) { TiresScreen(organization = organization) }
+                composable(Routes.Settings) { SettingsScreen(organization = organization, user = activeUser, modules = modules, appVersion = "0.28.0", onModuleEnabledChange = { _, _ -> launchSafe { reloadModules() } }) }
+                composable(Routes.Wash) { PermissionGuard(accessPolicy.can(activeUser, Permission.VIEW_WASH) && accessibleModules.any { it.id == LexoraModuleId.WASH }, "Модуль автомойки недоступен по правам или лицензии") { WashScreen(organization = organization) } }
+                composable(Routes.Tires) { PermissionGuard(accessPolicy.can(activeUser, Permission.VIEW_TIRES) && accessibleModules.any { it.id == LexoraModuleId.TIRES }, "Модуль шиномонтажа недоступен по правам или лицензии") { TiresScreen(organization = organization) } }
             }
+        }
         }
     }
 }

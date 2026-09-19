@@ -8,6 +8,7 @@ import com.lexora.service.core.model.SyncConflictResolution
 import com.lexora.service.core.model.SyncOperation
 import com.lexora.service.core.model.SyncOperationStatus
 import com.lexora.service.core.model.SyncOperationType
+import com.lexora.service.core.model.SyncIssue
 import java.util.UUID
 import kotlin.math.min
 
@@ -112,6 +113,16 @@ class SyncQueueRepository(
             ),
         )
         return conflictId
+    }
+
+    suspend fun syncIssue(organizationId: String): SyncIssue {
+        val operations = dao.syncOperations(organizationId)
+        val pending = operations.count { it.status == SyncOperationStatus.PENDING.name || it.status == SyncOperationStatus.IN_PROGRESS.name }
+        val retry = operations.count { it.status == SyncOperationStatus.RETRY_WAIT.name }
+        val failed = operations.count { it.status == SyncOperationStatus.FAILED.name }
+        val conflicts = operations.count { it.status == SyncOperationStatus.CONFLICT.name }
+        val lastError = operations.asReversed().firstOrNull { !it.lastError.isNullOrBlank() }?.lastError
+        return SyncIssue(pending, retry, failed, conflicts, lastError)
     }
 
     suspend fun unresolvedConflicts(organizationId: String): List<SyncConflict> =

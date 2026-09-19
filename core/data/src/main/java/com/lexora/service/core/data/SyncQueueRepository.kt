@@ -11,7 +11,10 @@ import com.lexora.service.core.model.SyncOperationType
 import java.util.UUID
 import kotlin.math.min
 
-class SyncQueueRepository(private val dao: ServiceDao) {
+class SyncQueueRepository(
+    private val dao: ServiceDao,
+    private val onWorkQueued: (Long) -> Unit = {},
+) {
     suspend fun enqueue(
         organizationId: String,
         entityType: String,
@@ -36,8 +39,9 @@ class SyncQueueRepository(private val dao: ServiceDao) {
                 lastError = null,
                 createdAtEpochMs = now,
                 updatedAtEpochMs = now,
-            )
+            ),
         )
+        if (inserted != -1L) onWorkQueued(0L)
         return inserted != -1L
     }
 
@@ -51,18 +55,39 @@ class SyncQueueRepository(private val dao: ServiceDao) {
         dao.markSyncOperationSucceeded(operation.id, operation.organizationId, now)
     }
 
-    suspend fun markRetry(
-        operation: SyncOperation,
-        error: String?,
-        now: Long = System.currentTimeMillis(),
-    ) {
-        val nextAttempt = now + retryDelayMs(operation.attemptCount + 1)
-        dao.markSyncOperationRetry(operation.id, operation.organizationId, error?.take(MAX_ERROR_LENGTH), nextAttempt, now)
+    suspend fun markRetry(operation: SyncOperation, error: String?, now: Long = System.currentTimeMillis()) {
+        val delay = retryDelayMs(operation.attemptCount + 1)
+        dao.markSyncOperationRetry(
+            operation.id,
+            operation.organizationId,
+            error?.take(MAX_ERROR_LENGTH),
+            now + delay,
+            now,
+        )
+        onWorkQueued(delay)
     }
 
     suspend fun markFailed(operation: SyncOperation, error: String?, now: Long = System.currentTimeMillis()) {
         dao.markSyncOperationFailed(operation.id, operation.organizationId, error?.take(MAX_ERROR_LENGTH), now)
     }
+
+    suspend fun recoverStaleInProgress(
+        organizationId: String,
+        now: Long = System.currentTimeMillis(),
+        staleAfterMs: Long = STALE_IN_PROGRESS_MS,
+    ): Int {
+        val stale = dao.syncOperations(organizationId)
+            .map { it.toModel() }
+            .filter { it.status == SyncOperationStatus.IN_PROGRESS && now - it.updatedAtEpochMs >= staleAfterMs }
+        stale.forEach { markRetry(it, "Recovered after interrupted sync", now) }
+        return stale.size
+    }
+
+    suspend fun nextRetryDelayMs(organizationId: String, now: Long = System.currentTimeMillis()): Long? =
+        dao.syncOperations(organizationId)
+            .filter { it.status == SyncOperationStatus.PENDING.name || it.status == SyncOperationStatus.RETRY_WAIT.name }
+            .map { ((it.nextAttemptAtEpochMs ?: now) - now).coerceAtLeast(0L) }
+            .minOrNull()
 
     suspend fun recordConflict(
         operation: SyncOperation,
@@ -84,7 +109,7 @@ class SyncQueueRepository(private val dao: ServiceDao) {
                 resolution = SyncConflictResolution.UNRESOLVED.name,
                 detectedAtEpochMs = now,
                 resolvedAtEpochMs = null,
-            )
+            ),
         )
         return conflictId
     }
@@ -96,9 +121,45 @@ class SyncQueueRepository(private val dao: ServiceDao) {
         organizationId: String,
         id: String,
         resolution: SyncConflictResolution,
+        mergedPayloadJson: String? = null,
         now: Long = System.currentTimeMillis(),
     ) {
         require(resolution != SyncConflictResolution.UNRESOLVED)
+        val conflict = dao.unresolvedSyncConflicts(organizationId).firstOrNull { it.id == id }
+            ?: return
+        val original = dao.syncOperations(organizationId)
+            .filter {
+                it.entityType == conflict.entityType &&
+                    it.entityId == conflict.entityId &&
+                    it.status == SyncOperationStatus.CONFLICT.name
+            }
+            .maxByOrNull { it.updatedAtEpochMs }
+            ?.toModel()
+
+        when (resolution) {
+            SyncConflictResolution.KEEP_REMOTE -> {
+                original?.let { markFailed(it, "Conflict resolved: server version kept", now) }
+            }
+            SyncConflictResolution.KEEP_LOCAL,
+            SyncConflictResolution.MERGED -> {
+                val source = requireNotNull(original) { "Conflicting operation not found" }
+                val payload = if (resolution == SyncConflictResolution.MERGED) {
+                    requireNotNull(mergedPayloadJson) { "Merged payload is required" }
+                } else {
+                    source.payloadJson
+                }
+                markFailed(source, "Conflict superseded by resolved mutation", now)
+                enqueue(
+                    organizationId = source.organizationId,
+                    entityType = source.entityType,
+                    entityId = source.entityId,
+                    operationType = source.operationType,
+                    payloadJson = payload,
+                    now = now,
+                )
+            }
+            SyncConflictResolution.UNRESOLVED -> error("Unreachable")
+        }
         dao.resolveSyncConflict(id, organizationId, resolution.name, now)
     }
 
@@ -115,6 +176,7 @@ class SyncQueueRepository(private val dao: ServiceDao) {
     private companion object {
         const val BASE_RETRY_MS = 30_000L
         const val MAX_RETRY_MS = 6L * 60L * 60L * 1000L
+        const val STALE_IN_PROGRESS_MS = 5L * 60L * 1000L
         const val MAX_ERROR_LENGTH = 2_000
     }
 }

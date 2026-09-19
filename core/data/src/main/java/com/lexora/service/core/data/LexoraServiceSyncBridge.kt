@@ -13,12 +13,12 @@ import org.json.JSONObject
 import java.math.BigDecimal
 import java.math.RoundingMode
 
-class LexoraServiceMutationMapper(private val metadata: ServiceSyncMetadataStore) {
-    fun map(operation: SyncOperation): SyncMutation? {
+class LexoraServiceMutationMapper(private val metadata: ServiceSyncMetadataStore) : SyncMutationMapper {
+    override fun map(operation: SyncOperation): SyncMutation? {
         if (operation.operationType == SyncOperationType.DELETE) return null
         val source = operation.payloadJson?.let(::JSONObject) ?: JSONObject()
         return when (operation.entityType.lowercase()) {
-            "client", "serviceclient" -> SyncMutation(
+            "client", "serviceclient", "service_client" -> SyncMutation(
                 clientMutationId = operation.idempotencyKey,
                 mutationType = "service.client.upsert",
                 entityType = "ServiceClient",
@@ -31,7 +31,7 @@ class LexoraServiceMutationMapper(private val metadata: ServiceSyncMetadataStore
                     .toString(),
             )
 
-            "vehicle", "serviceasset" -> {
+            "vehicle", "serviceasset", "service_asset", "asset" -> {
                 val clientId = source.optNullableString("clientId") ?: return null
                 val registration = source.optNullableString("registrationNumber")
                     ?: source.optNullableString("externalIdentifier")
@@ -56,7 +56,7 @@ class LexoraServiceMutationMapper(private val metadata: ServiceSyncMetadataStore
                 )
             }
 
-            "servicedocument", "serviceworkorder" -> {
+            "servicedocument", "serviceworkorder", "service_work_order", "work_order" -> {
                 val type = source.optString("type", "WORK_ORDER")
                 if (!type.equals("WORK_ORDER", ignoreCase = true)) return null
                 val clientId = source.optNullableString("clientId") ?: return null
@@ -85,16 +85,16 @@ class LexoraServiceMutationMapper(private val metadata: ServiceSyncMetadataStore
 class LexoraServiceRemoteChangeApplier(
     private val dao: ServiceDao,
     private val now: () -> Long = System::currentTimeMillis,
-) {
-    suspend fun apply(organizationId: String, change: RemoteSyncChange) {
+) : RemoteChangeApplier {
+    override suspend fun apply(organizationId: String, change: RemoteSyncChange): Boolean {
         require(change.entityVersion >= 0L)
         when (change.entityType) {
             "ServiceClient" -> applyClient(organizationId, change)
             "ServiceAsset" -> applyAsset(organizationId, change)
             "ServiceWorkOrder" -> applyWorkOrder(organizationId, change)
-            // Other Lexora products share the same feed. Service ignores foreign entity types safely.
-            else -> Unit
+            else -> Unit // Foreign Lexora products share the feed and are intentionally ignored by Service.
         }
+        return true
     }
 
     private suspend fun applyClient(organizationId: String, change: RemoteSyncChange) {

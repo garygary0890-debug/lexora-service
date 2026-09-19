@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -64,6 +63,11 @@ class BackendAuthActivity : ComponentActivity() {
     }
 }
 
+private enum class AuthMethod {
+    CREDENTIALS,
+    LEXORA_ADMIN,
+}
+
 @Composable
 private fun BackendSessionGate(
     backend: LexoraBackendGraph,
@@ -79,6 +83,7 @@ private fun BackendSessionGate(
     var error by remember { mutableStateOf<String?>(null) }
     var submitting by remember { mutableStateOf(false) }
     var pendingSso by remember { mutableStateOf<PreparedTrustedAdminSso?>(null) }
+    var authMethod by remember { mutableStateOf<AuthMethod?>(null) }
     val adminSsoAvailable = remember { TrustedAdminSsoBridge.isAvailable(context) }
 
     suspend fun bindAndSync(orgId: String) {
@@ -170,9 +175,47 @@ private fun BackendSessionGate(
         verticalArrangement = Arrangement.Center,
     ) {
         Text("Lexora Service", style = MaterialTheme.typography.headlineMedium)
-        Text("Вход через общий Lexora Backend", modifier = Modifier.padding(top = 8.dp, bottom = 20.dp))
+        Text("Выберите способ входа", modifier = Modifier.padding(top = 8.dp, bottom = 20.dp))
 
-        if (adminSsoAvailable) {
+        if (authMethod == null) {
+            Button(
+                enabled = !submitting,
+                onClick = {
+                    authMethod = AuthMethod.CREDENTIALS
+                    error = null
+                },
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text("Войти по логину и паролю")
+            }
+
+            if (adminSsoAvailable) {
+                OutlinedButton(
+                    enabled = !submitting,
+                    onClick = {
+                        authMethod = AuthMethod.LEXORA_ADMIN
+                        error = null
+                    },
+                    modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+                ) {
+                    Text("Войти через Lexora Admin")
+                }
+                Text(
+                    "Lexora Admin уже должен быть авторизован, а устройство — подтверждено сервером как доверенное.",
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(top = 8.dp),
+                )
+            }
+            return@Column
+        }
+
+        if (authMethod == AuthMethod.LEXORA_ADMIN) {
+            Text("Вход через Lexora Admin", style = MaterialTheme.typography.titleMedium)
+            Text(
+                "Подтвердите вход в Lexora Admin. Пароль и токены Admin в Lexora Service не передаются.",
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.padding(top = 8.dp, bottom = 16.dp),
+            )
             Button(
                 enabled = !submitting,
                 onClick = {
@@ -187,23 +230,32 @@ private fun BackendSessionGate(
                 },
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                Text(if (submitting && pendingSso != null) "Ожидание Lexora Admin…" else "Войти через Lexora Admin")
+                Text(if (submitting) "Ожидание Lexora Admin…" else "Продолжить через Lexora Admin")
             }
-            Text(
-                "Доступно, если в Lexora Admin уже выполнен вход и сервер подтверждает это устройство как доверенное.",
-                style = MaterialTheme.typography.bodySmall,
-                modifier = Modifier.padding(top = 8.dp, bottom = 16.dp),
-            )
-            HorizontalDivider(modifier = Modifier.padding(bottom = 16.dp))
+            error?.let {
+                Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(top = 12.dp))
+            }
+            OutlinedButton(
+                enabled = !submitting,
+                onClick = {
+                    authMethod = null
+                    error = null
+                },
+                modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+            ) {
+                Text("Другой способ входа")
+            }
+            return@Column
         }
 
+        Text("Вход по логину и паролю", style = MaterialTheme.typography.titleMedium)
         OutlinedTextField(
             value = email,
             onValueChange = { email = it },
             label = { Text("E-mail") },
             singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
         )
         OutlinedTextField(
             value = password,
@@ -221,8 +273,10 @@ private fun BackendSessionGate(
             singleLine = true,
             modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
         )
-        error?.let { Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(top = 12.dp)) }
-        OutlinedButton(
+        error?.let {
+            Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(top = 12.dp))
+        }
+        Button(
             enabled = !submitting && email.isNotBlank() && password.isNotBlank() && organizationId.isNotBlank(),
             onClick = {
                 submitting = true
@@ -244,7 +298,18 @@ private fun BackendSessionGate(
             },
             modifier = Modifier.fillMaxWidth().padding(top = 20.dp),
         ) {
-            if (submitting && pendingSso == null) CircularProgressIndicator() else Text("Войти по e-mail и паролю")
+            if (submitting) CircularProgressIndicator() else Text("Войти")
+        }
+        OutlinedButton(
+            enabled = !submitting,
+            onClick = {
+                authMethod = null
+                error = null
+                password = ""
+            },
+            modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+        ) {
+            Text("Другой способ входа")
         }
     }
 }

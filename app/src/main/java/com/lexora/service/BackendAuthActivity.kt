@@ -85,14 +85,15 @@ private fun BackendSessionGate(
 
     LaunchedEffect(Unit) {
         val restored = backend.authSession.restore()
-        if (restored == null || restored.refreshExpired(System.currentTimeMillis()) || restored.organizationId.isNullOrBlank()) {
+        val restoredOrganizationId = restored?.organizationId?.takeIf { it.isNotBlank() }
+        if (restored == null || restored.refreshExpired(System.currentTimeMillis()) || restoredOrganizationId == null) {
             if (restored != null) backend.authSession.clearLocalSession()
             bootstrapping = false
             return@LaunchedEffect
         }
-        organizationId = restored.organizationId
+        organizationId = restoredOrganizationId
         try {
-            bindAndSync(restored.organizationId)
+            bindAndSync(restoredOrganizationId)
             onReady()
         } catch (_: AuthenticationExpiredException) {
             backend.authSession.clearLocalSession()

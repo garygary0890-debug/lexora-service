@@ -11,6 +11,8 @@ android {
 }
 
 dependencies {
+    implementation(project(":core:presentation"))
+    implementation(project(":core:domain"))
     implementation(project(":core:model"))
     implementation(platform("androidx.compose:compose-bom:2026.06.00"))
     implementation("androidx.compose.material3:material3")

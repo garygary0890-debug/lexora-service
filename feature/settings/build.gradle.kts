@@ -9,6 +9,8 @@ android {
     buildFeatures { compose = true }
 }
 dependencies {
+    implementation(project(":core:presentation"))
+    implementation(project(":core:domain"))
     implementation(project(":core:data"))
     implementation(project(":core:database"))
     implementation(project(":core:model"))

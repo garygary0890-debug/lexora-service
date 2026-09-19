@@ -14,53 +14,32 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import com.lexora.service.core.data.TireRepository
-import com.lexora.service.core.model.Organization
 import com.lexora.service.core.model.TireDiagnostic
 import com.lexora.service.core.model.TireQueueItem
 import com.lexora.service.core.model.TireQueueStatus
 import com.lexora.service.core.model.TireStorageItem
 import com.lexora.service.core.model.TireStorageStatus
 import com.lexora.service.core.model.TireWorkEntry
-import kotlinx.coroutines.launch
 
 @Composable
-fun TiresScreen(organization: Organization) {
-    val context = LocalContext.current
-    val repository = remember { TireRepository.create(context) }
-    val scope = rememberCoroutineScope()
-
-    var queue by remember { mutableStateOf<List<TireQueueItem>>(emptyList()) }
-    var diagnostics by remember { mutableStateOf<List<TireDiagnostic>>(emptyList()) }
-    var workEntries by remember { mutableStateOf<List<TireWorkEntry>>(emptyList()) }
-    var storage by remember { mutableStateOf<List<TireStorageItem>>(emptyList()) }
-
-    suspend fun reload() {
-        queue = repository.queue(organization.id)
-        diagnostics = repository.diagnostics(organization.id)
-        workEntries = repository.workEntries(organization.id)
-        storage = repository.storage(organization.id)
-    }
-
-    LaunchedEffect(organization.id) { reload() }
-
-    Column(
+fun TiresScreen(
+    state: TiresUiState,
+    onAddQueueItem: () -> Unit,
+    onAdvanceQueue: (String) -> Unit,
+    onAddDiagnostic: () -> Unit,
+    onAddWorkEntry: () -> Unit,
+    onAddStorageItem: () -> Unit,
+    onIssueStorage: (String) -> Unit,
+) {    Column(
         modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Text("Шиномонтаж", style = MaterialTheme.typography.headlineMedium)
         Text("Очередь", style = MaterialTheme.typography.titleMedium)
-        Button(onClick = { scope.launch { repository.addQueueItem(organization.id); reload() } }) { Text("Добавить в очередь") }
-        queue.sortedBy { it.position }.forEach { item ->
+        Button(onClick = onAddQueueItem) { Text("Добавить в очередь") }
+        state.queue.sortedBy { it.position }.forEach { item ->
             Card(Modifier.fillMaxWidth()) {
                 Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween) {
                     Column {
@@ -70,15 +49,15 @@ fun TiresScreen(organization: Organization) {
                         Text("Статус: ${item.status.name}")
                     }
                     if (item.status != TireQueueStatus.COMPLETED && item.status != TireQueueStatus.CANCELLED) {
-                        OutlinedButton(onClick = { scope.launch { repository.advanceQueueItem(item); reload() } }) { Text("Далее") }
+                        OutlinedButton(onClick = { onAdvanceQueue(item.id) }) { Text("Далее") }
                     }
                 }
             }
         }
 
         Text("Диагностика", style = MaterialTheme.typography.titleMedium)
-        Button(onClick = { scope.launch { repository.addDiagnostic(organization.id); reload() } }) { Text("Добавить диагностику") }
-        diagnostics.take(20).forEach { diagnostic ->
+        Button(onClick = onAddDiagnostic) { Text("Добавить диагностику") }
+        state.diagnostics.take(20).forEach { diagnostic ->
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp)) {
                     Text("Протектор: ${diagnostic.treadDepthMm ?: "—"} мм")
@@ -90,12 +69,12 @@ fun TiresScreen(organization: Organization) {
         }
 
         Text("Работы", style = MaterialTheme.typography.titleMedium)
-        Button(onClick = { scope.launch { repository.addWorkEntry(organization.id); reload() } }) { Text("Добавить работу") }
-        workEntries.take(20).forEach { work -> Text("${work.title} × ${work.quantity}") }
+        Button(onClick = onAddWorkEntry) { Text("Добавить работу") }
+        state.workEntries.take(20).forEach { work -> Text("${work.title} × ${work.quantity}") }
 
         Text("Хранение шин", style = MaterialTheme.typography.titleMedium)
-        Button(onClick = { scope.launch { repository.addStorageItem(organization.id); reload() } }) { Text("Принять на хранение") }
-        storage.forEach { item ->
+        Button(onClick = onAddStorageItem) { Text("Принять на хранение") }
+        state.storage.forEach { item ->
             Card(Modifier.fillMaxWidth()) {
                 Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween) {
                     Column {
@@ -105,7 +84,7 @@ fun TiresScreen(organization: Organization) {
                         Text("Статус: ${item.status.name}")
                     }
                     if (item.status == TireStorageStatus.STORED) {
-                        OutlinedButton(onClick = { scope.launch { repository.issueStorageItem(item); reload() } }) { Text("Выдать") }
+                        OutlinedButton(onClick = { onIssueStorage(item.id) }) { Text("Выдать") }
                     }
                 }
             }

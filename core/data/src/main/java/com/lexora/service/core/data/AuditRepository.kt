@@ -1,4 +1,6 @@
-package com.lexora.service.core.data
+﻿package com.lexora.service.core.data
+
+import com.lexora.service.core.domain.AuditOperations
 
 import android.content.Context
 import com.lexora.service.core.database.AuditEventEntity
@@ -7,11 +9,11 @@ import com.lexora.service.core.database.ServiceDao
 import com.lexora.service.core.model.AuditFilter
 import com.lexora.service.core.model.AuditRecord
 
-class AuditRepository(private val serviceDao: ServiceDao) {
-    suspend fun records(
+class AuditRepository(private val serviceDao: ServiceDao) : AuditOperations {
+    override suspend fun records(
         organizationId: String,
-        filter: AuditFilter = AuditFilter(),
-        limit: Int = 250,
+        filter: AuditFilter,
+        limit: Int,
     ): List<AuditRecord> {
         val query = filter.query.trim()
         return serviceDao.recentAuditEvents(organizationId, limit)
@@ -52,3 +54,4 @@ private fun AuditEventEntity.toModel() = AuditRecord(
     summary = summary,
     occurredAtEpochMs = occurredAtEpochMs,
 )
+

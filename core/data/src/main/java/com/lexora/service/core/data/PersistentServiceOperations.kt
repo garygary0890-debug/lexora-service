@@ -1,13 +1,12 @@
-package com.lexora.service.application
+package com.lexora.service.core.data
 
 import com.lexora.service.core.database.*
 import com.lexora.service.core.domain.*
 import com.lexora.service.core.model.*
-import com.lexora.service.core.data.SyncQueueRepository
 import org.json.JSONObject
 import java.util.UUID
 
-class ServiceApplicationService(
+class PersistentServiceOperations(
     private val dao: ServiceDao,
     private val syncQueue: SyncQueueRepository,
 ) : ServiceOperations {
@@ -165,7 +164,7 @@ class ServiceApplicationService(
             val max = dao.serviceRequests(organizationId).mapNotNull { it.number.removePrefix("REQ-").toIntOrNull() }.maxOrNull() ?: 0
             "REQ-%06d".format(max + 1)
         }
-        dao.upsertServiceRequest(ServiceRequestEntity(id, organizationId, number, existing?.clientId, existing?.vehicleId, existing?.serviceObjectId, existing?.equipmentId, existing?.branchId, existing?.assigneeEmployeeId, draft.title, draft.description.ifBlank { null }, existing?.status ?: RequestStatus.NEW.name, draft.priority.name, existing?.plannedAtEpochMs, existing?.dueAtEpochMs, existing?.slaDeadlineEpochMs, existing?.closedAtEpochMs, existing?.archived ?: false, if (existing == null) SyncState.PENDING_CREATE.name else SyncState.PENDING_UPDATE.name, existing?.createdAtEpochMs ?: now, now))
+        dao.upsertServiceRequest(ServiceRequestEntity(id, organizationId, number, draft.clientId, existing?.vehicleId, draft.serviceObjectId, draft.equipmentId, draft.contractId, draft.branchId, draft.assigneeEmployeeId, draft.assigneeTeamName?.trim()?.ifBlank { null }, draft.title, draft.description.ifBlank { null }, existing?.status ?: RequestStatus.NEW.name, draft.priority.name, draft.plannedAtEpochMs, draft.dueAtEpochMs, draft.slaDeadlineEpochMs, existing?.closedAtEpochMs, existing?.archived ?: false, if (existing == null) SyncState.PENDING_CREATE.name else SyncState.PENDING_UPDATE.name, existing?.createdAtEpochMs ?: now, now))
         if (existing == null) dao.insertRequestStatusHistory(RequestStatusHistoryEntity(UUID.randomUUID().toString(), id, null, RequestStatus.NEW.name, userId, now, "Создание заявки"))
         audit(organizationId, userId, "SERVICE_REQUEST", id, if (existing == null) "CREATE" else "UPDATE", "$number · ${draft.title}")
     }
@@ -177,6 +176,24 @@ class ServiceApplicationService(
         dao.updateRequestStatus(id, target.name, SyncState.PENDING_UPDATE.name, now, if (target == RequestStatus.CLOSED) now else null)
         dao.insertRequestStatusHistory(RequestStatusHistoryEntity(UUID.randomUUID().toString(), id, from.name, target.name, userId, now, null))
         audit(organizationId, userId, "SERVICE_REQUEST", id, "STATUS_CHANGE", "${current.number}: ${from.name} → ${target.name}")
+    }
+
+    override suspend fun assignRequest(organizationId: String, userId: String, id: String, employeeId: String?, teamName: String?) {
+        val current = dao.serviceRequest(id) ?: return
+        val normalizedTeam = teamName?.trim()?.ifBlank { null }
+        val now = System.currentTimeMillis()
+        dao.assignServiceRequest(id, organizationId, employeeId, normalizedTeam, SyncState.PENDING_UPDATE.name, now)
+        val label = employeeId ?: normalizedTeam ?: "без назначения"
+        audit(organizationId, userId, "SERVICE_REQUEST", id, "ASSIGN", "${current.number}: $label")
+    }
+
+    override suspend fun requestOperationalDetails(organizationId: String, requestId: String): RequestOperationalDetails {
+        val visits = dao.visitsForRequest(requestId).map(ServiceVisitEntity::toModel)
+        val work = visits.flatMap { dao.visitWorkEntries(it.id).map(VisitWorkEntryEntity::toModel) }
+        val materials = visits.flatMap { dao.visitMaterialUsage(it.id).map(VisitMaterialUsageEntity::toModel) }
+        val documents = dao.serviceDocuments(organizationId).filter { it.requestId == requestId }.map(ServiceDocumentEntity::toModel)
+        val payments = dao.payments(organizationId).filter { it.requestId == requestId }.map(PaymentEntity::toModel)
+        return RequestOperationalDetails(visits, work, materials, documents, payments)
     }
 
     override suspend fun visits(organizationId: String, selectedVisitId: String?): VisitCollection {
@@ -272,8 +289,11 @@ private fun ServiceObjectEntity.toModel() = ServiceObject(id, organizationId, cl
 private fun EquipmentEntity.toModel() = Equipment(id, organizationId, serviceObjectId, type, make, model, serialNumber, inventoryNumber, barcode, commissionedNote, warrantyNote, archived, SyncState.valueOf(syncState))
 private fun BranchEntity.toModel() = Branch(id, organizationId, name, address, phone, email, workSchedule, timeZoneId, active, SyncState.valueOf(syncState))
 private fun EmployeeEntity.toModel() = Employee(id, organizationId, branchId, displayName, position, phone, email, active, SyncState.valueOf(syncState))
-private fun ServiceRequestEntity.toModel() = ServiceRequest(id, organizationId, number, clientId, vehicleId, serviceObjectId, equipmentId, branchId, assigneeEmployeeId, title, description, RequestStatus.valueOf(status), RequestPriority.valueOf(priority), plannedAtEpochMs, dueAtEpochMs, slaDeadlineEpochMs, closedAtEpochMs, archived, SyncState.valueOf(syncState))
+private fun ServiceRequestEntity.toModel() = ServiceRequest(id, organizationId, number, clientId, vehicleId, serviceObjectId, equipmentId, contractId, branchId, assigneeEmployeeId, assigneeTeamName, title, description, RequestStatus.valueOf(status), RequestPriority.valueOf(priority), plannedAtEpochMs, dueAtEpochMs, slaDeadlineEpochMs, closedAtEpochMs, archived, SyncState.valueOf(syncState))
 private fun ServiceVisitEntity.toModel() = ServiceVisit(id, organizationId, requestId, branchId, employeeId, VisitStatus.valueOf(status), plannedStartEpochMs, plannedEndEpochMs, actualStartEpochMs, actualEndEpochMs, resultNote, customerName, customerSignatureRef, SyncState.valueOf(syncState))
 private fun VisitChecklistItemEntity.toModel() = VisitChecklistItem(id, visitId, title, ChecklistItemState.valueOf(state), comment, sortOrder, SyncState.valueOf(syncState))
 private fun ServiceDocumentEntity.toModel() = ServiceDocument(id, organizationId, requestId, visitId, clientId, ServiceDocumentType.valueOf(type), number, ServiceDocumentStatus.valueOf(status), issuedAtEpochMs, totalMinor, currency, externalFileRef, note, archived, SyncState.valueOf(syncState))
 private fun PaymentEntity.toModel() = Payment(id, organizationId, requestId, documentId, clientId, amountMinor, currency, PaymentStatus.valueOf(status), PaymentMethod.valueOf(method), paidAtEpochMs, externalReference, note, archived, SyncState.valueOf(syncState))
+
+private fun VisitWorkEntryEntity.toModel() = VisitWorkEntry(id, visitId, serviceCode, title, quantity, unit, note, SyncState.valueOf(syncState))
+private fun VisitMaterialUsageEntity.toModel() = VisitMaterialUsage(id, visitId, materialCode, title, quantity, unit, note, SyncState.valueOf(syncState))

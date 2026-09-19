@@ -1,5 +1,7 @@
 package com.lexora.service.core.data
 
+import com.lexora.service.core.domain.ServiceHistoryOperations
+
 import android.content.Context
 import com.lexora.service.core.database.LexoraServiceDatabase
 import com.lexora.service.core.database.ServiceDao
@@ -13,8 +15,8 @@ import com.lexora.service.core.model.VisitStatus
 
 class ServiceHistoryRepository(
     private val dao: ServiceDao,
-) {
-    suspend fun history(vehicleId: String): List<ServiceHistoryRecord> {
+) : ServiceHistoryOperations {
+    override suspend fun history(vehicleId: String): List<ServiceHistoryRecord> {
         materialize(vehicleId)
         return dao.serviceHistory(vehicleId).map(ServiceHistoryEntity::toModel)
     }

@@ -18,21 +18,14 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import com.lexora.service.core.data.ContractRepository
-import com.lexora.service.core.data.DocumentTransferRepository
-import com.lexora.service.core.data.InMemoryOrganizationRepository
-import com.lexora.service.core.data.InMemoryUserRepository
-import com.lexora.service.core.data.WorkOrderRepository
 import com.lexora.service.core.model.AdditionalWorkApprovalStatus
 import com.lexora.service.core.model.ContractStatus
 import com.lexora.service.core.model.Payment
@@ -43,92 +36,32 @@ import com.lexora.service.core.model.ServiceDocumentStatus
 import com.lexora.service.core.model.ServiceDocumentType
 import com.lexora.service.core.model.ServiceRequest
 import com.lexora.service.core.model.WorkOrderItem
-import kotlinx.coroutines.launch
 
 private enum class Tab { DOCUMENTS, PAYMENTS, CONTRACTS }
 
 @Composable
-fun DocumentsScreen(
-    documents: List<ServiceDocument>,
-    payments: List<Payment>,
-    requests: List<ServiceRequest>,
-    onCreateDocument: (ServiceDocumentType, String?) -> Unit,
-    onChangeDocumentStatus: (String, ServiceDocumentStatus) -> Unit,
-    onCreatePayment: (String?) -> Unit,
-    onMarkPaymentPaid: (String) -> Unit,
-    onDocumentsChanged: () -> Unit = {},
-) {
-    val context = LocalContext.current
-    val workOrderRepository = remember { WorkOrderRepository.create(context) }
-    val contractRepository = remember { ContractRepository.create(context) }
-    val documentTransferRepository = remember { DocumentTransferRepository.create(context) }
-    val organization = remember { InMemoryOrganizationRepository().activeOrganization() }
-    val user = remember { InMemoryUserRepository().currentUser() }
-    val scope = rememberCoroutineScope()
-
+fun DocumentsScreen(viewModel: DocumentsViewModel) {
+    val state by viewModel.state.collectAsState()
+    val documents = state.documents
+    val payments = state.payments
+    val requests = state.requests
+    val selectedWorkOrderId = state.selectedWorkOrderId
+    val workOrderItems = state.workOrderItems
+    val contracts = state.contracts
+    val archivedContracts = state.archivedContracts
     var tab by remember { mutableStateOf(Tab.DOCUMENTS) }
-    var selectedWorkOrderId by remember { mutableStateOf<String?>(null) }
-    var workOrderItems by remember { mutableStateOf<List<WorkOrderItem>>(emptyList()) }
-    var contracts by remember { mutableStateOf<List<ServiceContract>>(emptyList()) }
-    var archivedContracts by remember { mutableStateOf<List<ServiceContract>>(emptyList()) }
     var pendingImportDocumentId by remember { mutableStateOf<String?>(null) }
     var pendingExportDocumentId by remember { mutableStateOf<String?>(null) }
-    var transferMessage by remember { mutableStateOf<String?>(null) }
 
     val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         val documentId = pendingImportDocumentId
         pendingImportDocumentId = null
-        if (uri != null && documentId != null) {
-            val organizationId = organization?.id
-            if (organizationId != null) {
-                scope.launch {
-                    documentTransferRepository.importAttachment(organizationId, user.id, documentId, uri)
-                        .onSuccess { name ->
-                            transferMessage = "Файл импортирован: $name"
-                            onDocumentsChanged()
-                        }
-                        .onFailure { error -> transferMessage = "Ошибка импорта: ${error.message ?: "неизвестная ошибка"}" }
-                }
-            }
-        }
+        if (uri != null && documentId != null) viewModel.importAttachment(documentId, uri.toString())
     }
-
-    val exportLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.CreateDocument("application/octet-stream"),
-    ) { uri ->
+    val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream")) { uri ->
         val documentId = pendingExportDocumentId
         pendingExportDocumentId = null
-        if (uri != null && documentId != null) {
-            val organizationId = organization?.id
-            if (organizationId != null) {
-                scope.launch {
-                    documentTransferRepository.exportDocument(organizationId, user.id, documentId, uri)
-                        .onSuccess { name -> transferMessage = "Документ экспортирован: $name" }
-                        .onFailure { error -> transferMessage = "Ошибка экспорта: ${error.message ?: "неизвестная ошибка"}" }
-                }
-            }
-        }
-    }
-
-    suspend fun reloadWorkOrderItems(documentId: String?) {
-        selectedWorkOrderId = documentId
-        workOrderItems = documentId?.let { workOrderRepository.items(it) }.orEmpty()
-    }
-
-    suspend fun reloadContracts() {
-        val organizationId = organization?.id ?: return
-        contracts = contractRepository.contracts(organizationId)
-        archivedContracts = contractRepository.archivedContracts(organizationId)
-    }
-
-    LaunchedEffect(documents) {
-        val available = documents.firstOrNull { it.type == ServiceDocumentType.WORK_ORDER }?.id
-        val selected = selectedWorkOrderId?.takeIf { id -> documents.any { it.id == id } } ?: available
-        reloadWorkOrderItems(selected)
-    }
-
-    LaunchedEffect(organization?.id) {
-        reloadContracts()
+        if (uri != null && documentId != null) viewModel.exportDocument(documentId, uri.toString())
     }
 
     Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -138,14 +71,14 @@ fun DocumentsScreen(
             FilterChip(selected = tab == Tab.PAYMENTS, onClick = { tab = Tab.PAYMENTS }, label = { Text(stringResource(R.string.payments_tab)) })
             FilterChip(selected = tab == Tab.CONTRACTS, onClick = { tab = Tab.CONTRACTS }, label = { Text("Договоры") })
         }
-        transferMessage?.let { Text(it) }
+        state.message?.let { Text(it) }
         val firstRequest = requests.firstOrNull()
         val firstRequestId = firstRequest?.id
         when (tab) {
             Tab.DOCUMENTS -> {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(onClick = { onCreateDocument(ServiceDocumentType.WORK_ORDER, firstRequestId) }) { Text(stringResource(R.string.create_work_order)) }
-                    OutlinedButton(onClick = { onCreateDocument(ServiceDocumentType.ACT, firstRequestId) }) { Text(stringResource(R.string.create_act)) }
+                    Button(onClick = { viewModel.createDocument(ServiceDocumentType.WORK_ORDER, firstRequestId) }) { Text(stringResource(R.string.create_work_order)) }
+                    OutlinedButton(onClick = { viewModel.createDocument(ServiceDocumentType.ACT, firstRequestId) }) { Text(stringResource(R.string.create_act)) }
                 }
                 if (documents.isEmpty()) {
                     Text(stringResource(R.string.documents_empty))
@@ -164,18 +97,16 @@ fun DocumentsScreen(
                                         Text("Файл: ${ref.substringAfterLast('/').substringAfterLast("\\")}")
                                     }
                                     if (document.type == ServiceDocumentType.WORK_ORDER && document.status == ServiceDocumentStatus.DRAFT) {
-                                        OutlinedButton(onClick = { scope.launch { reloadWorkOrderItems(document.id) } }) { Text("Открыть состав работ") }
+                                        OutlinedButton(onClick = { viewModel.selectWorkOrder(document.id) }) { Text("Открыть состав работ") }
                                     }
                                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                         OutlinedButton(onClick = {
                                             pendingImportDocumentId = document.id
-                                            transferMessage = null
-                                            importLauncher.launch(arrayOf("*/*"))
+                                                            importLauncher.launch(arrayOf("*/*"))
                                         }) { Text("Импорт файла") }
                                         OutlinedButton(onClick = {
                                             pendingExportDocumentId = document.id
-                                            transferMessage = null
-                                            val suggestedName = document.externalFileRef
+                                                            val suggestedName = document.externalFileRef
                                                 ?.substringAfterLast('/')
                                                 ?.substringAfterLast("\\")
                                                 ?.takeIf { it.isNotBlank() }
@@ -184,8 +115,8 @@ fun DocumentsScreen(
                                         }) { Text("Экспорт") }
                                     }
                                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                        if (document.status == ServiceDocumentStatus.DRAFT) Button(onClick = { onChangeDocumentStatus(document.id, ServiceDocumentStatus.ISSUED) }) { Text(stringResource(R.string.issue)) }
-                                        if (document.status == ServiceDocumentStatus.ISSUED) OutlinedButton(onClick = { onChangeDocumentStatus(document.id, ServiceDocumentStatus.SIGNED) }) { Text(stringResource(R.string.sign)) }
+                                        if (document.status == ServiceDocumentStatus.DRAFT) Button(onClick = { viewModel.changeDocumentStatus(document.id, ServiceDocumentStatus.ISSUED) }) { Text(stringResource(R.string.issue)) }
+                                        if (document.status == ServiceDocumentStatus.ISSUED) OutlinedButton(onClick = { viewModel.changeDocumentStatus(document.id, ServiceDocumentStatus.SIGNED) }) { Text(stringResource(R.string.sign)) }
                                     }
                                 }
                             }
@@ -194,36 +125,9 @@ fun DocumentsScreen(
                             item(key = "work-order-editor") {
                                 WorkOrderEditor(
                                     items = workOrderItems,
-                                    onAddBaseWork = {
-                                        val organizationId = organization?.id ?: return@WorkOrderEditor
-                                        val documentId = selectedWorkOrderId ?: return@WorkOrderEditor
-                                        scope.launch {
-                                            workOrderRepository.addCatalogItem(organizationId, user.id, documentId, additional = false)
-                                            reloadWorkOrderItems(documentId)
-                                        }
-                                    },
-                                    onAddAdditionalWork = {
-                                        val organizationId = organization?.id ?: return@WorkOrderEditor
-                                        val documentId = selectedWorkOrderId ?: return@WorkOrderEditor
-                                        scope.launch {
-                                            workOrderRepository.addCatalogItem(organizationId, user.id, documentId, additional = true)
-                                            reloadWorkOrderItems(documentId)
-                                        }
-                                    },
-                                    onResolve = { itemId, approve, comment ->
-                                        val organizationId = organization?.id ?: return@WorkOrderEditor
-                                        val documentId = selectedWorkOrderId ?: return@WorkOrderEditor
-                                        scope.launch {
-                                            workOrderRepository.resolveAdditionalWork(
-                                                organizationId = organizationId,
-                                                userId = user.id,
-                                                itemId = itemId,
-                                                approve = approve,
-                                                comment = comment,
-                                            )
-                                            reloadWorkOrderItems(documentId)
-                                        }
-                                    },
+                                    onAddBaseWork = { viewModel.addWork(additional = false) },
+                                    onAddAdditionalWork = { viewModel.addWork(additional = true) },
+                                    onResolve = { itemId, approve, comment -> viewModel.resolveWork(itemId, approve, comment) },
                                 )
                             }
                         }
@@ -231,7 +135,7 @@ fun DocumentsScreen(
                 }
             }
             Tab.PAYMENTS -> {
-                Button(onClick = { onCreatePayment(firstRequestId) }) { Text(stringResource(R.string.create_payment)) }
+                Button(onClick = { viewModel.createPayment(firstRequestId) }) { Text(stringResource(R.string.create_payment)) }
                 if (payments.isEmpty()) Text(stringResource(R.string.payments_empty)) else LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     items(payments, key = { it.id }) { payment ->
                         Card(Modifier.fillMaxWidth()) {
@@ -239,7 +143,7 @@ fun DocumentsScreen(
                                 Text("${payment.amountMinor / 100.0} ${payment.currency}", style = MaterialTheme.typography.titleMedium)
                                 Text(payment.status.name)
                                 Text(payment.method.name)
-                                if (payment.status == PaymentStatus.PLANNED) Button(onClick = { onMarkPaymentPaid(payment.id) }) { Text(stringResource(R.string.mark_paid)) }
+                                if (payment.status == PaymentStatus.PLANNED) Button(onClick = { viewModel.markPaymentPaid(payment.id) }) { Text(stringResource(R.string.mark_paid)) }
                             }
                         }
                     }
@@ -249,42 +153,10 @@ fun DocumentsScreen(
                 ContractsSection(
                     contracts = contracts,
                     archivedContracts = archivedContracts,
-                    onCreate = {
-                        val organizationId = organization?.id ?: return@ContractsSection
-                        val request = firstRequest ?: return@ContractsSection
-                        val clientId = request.clientId ?: return@ContractsSection
-                        scope.launch {
-                            contractRepository.create(
-                                organizationId = organizationId,
-                                userId = user.id,
-                                clientId = clientId,
-                                branchId = request.branchId,
-                                subject = "Договор на сервисное обслуживание",
-                            )
-                            reloadContracts()
-                        }
-                    },
-                    onChangeStatus = { contractId, status ->
-                        val organizationId = organization?.id ?: return@ContractsSection
-                        scope.launch {
-                            contractRepository.changeStatus(organizationId, user.id, contractId, status)
-                            reloadContracts()
-                        }
-                    },
-                    onArchive = { contractId ->
-                        val organizationId = organization?.id ?: return@ContractsSection
-                        scope.launch {
-                            contractRepository.archive(organizationId, user.id, contractId)
-                            reloadContracts()
-                        }
-                    },
-                    onRestore = { contractId ->
-                        val organizationId = organization?.id ?: return@ContractsSection
-                        scope.launch {
-                            contractRepository.restore(organizationId, user.id, contractId)
-                            reloadContracts()
-                        }
-                    },
+                    onCreate = { viewModel.createContract() },
+                    onChangeStatus = { contractId, status -> viewModel.changeContractStatus(contractId, status) },
+                    onArchive = { contractId -> viewModel.archiveContract(contractId, restore = false) },
+                    onRestore = { contractId -> viewModel.archiveContract(contractId, restore = true) },
                 )
             }
         }

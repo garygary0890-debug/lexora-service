@@ -9,6 +9,7 @@ android {
     buildFeatures { compose = true }
 }
 dependencies {
+    implementation(project(":core:presentation"))
     implementation(project(":core:model"))
     implementation(project(":core:domain"))
     implementation(platform("androidx.compose:compose-bom:2026.06.00"))

@@ -1,0 +1,19 @@
+<resources>
+    <string name="home_title">Lexora Service</string>
+    <string name="home_operational_summary">Оперативная сводка</string>
+    <string name="home_active_organization">Активная организация</string>
+    <string name="home_open_requests">Открытые заявки</string>
+    <string name="home_urgent_requests">Срочные</string>
+    <string name="home_overdue_requests">Просрочено</string>
+    <string name="home_today_visits">Выезды сегодня</string>
+    <string name="home_active_employees">Активные сотрудники</string>
+    <string name="home_unsynced">Не синхронизировано</string>
+    <string name="home_planned_payments">Ожидаемые платежи</string>
+    <string name="home_next_visits">Ближайшие выезды</string>
+    <string name="home_no_next_visits">Ближайших выездов нет</string>
+    <string name="home_global_search">Глобальный поиск</string>
+    <string name="home_planning">Планирование</string>
+    <string name="home_refresh">Обновить</string>
+    <string name="home_load_error">Не удалось загрузить оперативную сводку</string>
+    <string name="home_sections">Разделы</string>
+</resources>

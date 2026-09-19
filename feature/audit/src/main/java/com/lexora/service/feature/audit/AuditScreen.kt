@@ -9,40 +9,20 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Card
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import com.lexora.service.core.data.AuditRepository
-import com.lexora.service.core.model.AuditFilter
 import com.lexora.service.core.model.AuditRecord
-import com.lexora.service.core.model.Organization
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
 @Composable
-fun AuditScreen(organization: Organization) {
-    val context = LocalContext.current
-    val repository = remember { AuditRepository.create(context) }
-    var query by remember { mutableStateOf("") }
-    var records by remember { mutableStateOf<List<AuditRecord>>(emptyList()) }
-
-    LaunchedEffect(organization.id, query) {
-        records = repository.records(
-            organizationId = organization.id,
-            filter = AuditFilter(query = query),
-        )
-    }
-
+fun AuditScreen(state: AuditUiState, onQueryChange: (String) -> Unit) {
     Column(
         modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -50,15 +30,17 @@ fun AuditScreen(organization: Organization) {
         Text("Журнал аудита", style = MaterialTheme.typography.headlineMedium)
         Text("История действий доступна только для просмотра. Записи нельзя редактировать или удалять.")
         OutlinedTextField(
-            value = query,
-            onValueChange = { query = it },
+            value = state.query,
+            onValueChange = onQueryChange,
             modifier = Modifier.fillMaxWidth(),
             label = { Text("Поиск по действию, объекту, пользователю или описанию") },
             singleLine = true,
         )
-        Text("Показано записей: ${records.size}", style = MaterialTheme.typography.labelMedium)
-        if (records.isEmpty()) Text("Записи аудита не найдены.")
-        records.forEach { record -> AuditRecordCard(record) }
+        if (state.loading) CircularProgressIndicator()
+        state.error?.let { Text("Не удалось загрузить журнал аудита", color = MaterialTheme.colorScheme.error) }
+        Text("Показано записей: ${state.records.size}", style = MaterialTheme.typography.labelMedium)
+        if (!state.loading && state.records.isEmpty()) Text("Записи аудита не найдены.")
+        state.records.forEach { record -> AuditRecordCard(record) }
     }
 }
 

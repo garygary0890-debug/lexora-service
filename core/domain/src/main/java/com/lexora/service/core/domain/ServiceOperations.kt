@@ -22,6 +22,13 @@ data class VisitCollection(
     val checklist: List<VisitChecklistItem>,
 )
 data class FinanceCollection(val documents: List<ServiceDocument>, val payments: List<Payment>)
+data class RequestOperationalDetails(
+    val visits: List<ServiceVisit>,
+    val works: List<VisitWorkEntry>,
+    val materials: List<VisitMaterialUsage>,
+    val documents: List<ServiceDocument>,
+    val payments: List<Payment>,
+)
 
 interface ServiceOperations {
     suspend fun ensureDemoClient(organizationId: String)
@@ -44,6 +51,8 @@ interface ServiceOperations {
     suspend fun requests(organizationId: String): List<ServiceRequest>
     suspend fun saveRequest(organizationId: String, userId: String, draft: SaveRequestCommand, existingId: String?)
     suspend fun changeRequestStatus(organizationId: String, userId: String, id: String, target: RequestStatus)
+    suspend fun assignRequest(organizationId: String, userId: String, id: String, employeeId: String?, teamName: String?)
+    suspend fun requestOperationalDetails(organizationId: String, requestId: String): RequestOperationalDetails
     suspend fun visits(organizationId: String, selectedVisitId: String?): VisitCollection
     suspend fun checklist(visitId: String): List<VisitChecklistItem>
     suspend fun createVisit(organizationId: String, userId: String, requestId: String, employeeId: String?)

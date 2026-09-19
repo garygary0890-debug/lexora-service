@@ -45,6 +45,12 @@ java {
 }
 
 dependencies {
+    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.9.3")
+    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.9.3")
+    implementation(project(":feature:planning"))
+    implementation(project(":feature:search"))
+    implementation(project(":core:di"))
+    implementation(project(":core:presentation"))
     implementation(project(":feature:users"))
     implementation(project(":feature:audit"))
     implementation(project(":feature:notifications"))

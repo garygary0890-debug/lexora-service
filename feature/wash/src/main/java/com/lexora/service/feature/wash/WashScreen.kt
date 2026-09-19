@@ -14,59 +14,38 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import com.lexora.service.core.data.WashRepository
-import com.lexora.service.core.model.Organization
 import com.lexora.service.core.model.WashChemicalUsage
 import com.lexora.service.core.model.WashPost
 import com.lexora.service.core.model.WashPostStatus
 import com.lexora.service.core.model.WashQueueItem
 import com.lexora.service.core.model.WashQueueStatus
 import com.lexora.service.core.model.WashTechCard
-import kotlinx.coroutines.launch
 
 @Composable
-fun WashScreen(organization: Organization) {
-    val context = LocalContext.current
-    val repository = remember { WashRepository.create(context) }
-    val scope = rememberCoroutineScope()
-
-    var posts by remember { mutableStateOf<List<WashPost>>(emptyList()) }
-    var queue by remember { mutableStateOf<List<WashQueueItem>>(emptyList()) }
-    var techCards by remember { mutableStateOf<List<WashTechCard>>(emptyList()) }
-    var chemicalUsage by remember { mutableStateOf<List<WashChemicalUsage>>(emptyList()) }
-
-    suspend fun reload() {
-        posts = repository.posts(organization.id)
-        queue = repository.queue(organization.id)
-        techCards = repository.techCards(organization.id)
-        chemicalUsage = repository.chemicalUsage(organization.id)
-    }
-
-    LaunchedEffect(organization.id) { reload() }
-
+fun WashScreen(
+    state: WashUiState,
+    onAddPost: () -> Unit,
+    onTogglePostStatus: (String) -> Unit,
+    onAddQueueItem: () -> Unit,
+    onAdvanceQueueItem: (String) -> Unit,
+    onAddTechCard: () -> Unit,
+    onAddChemicalUsage: () -> Unit,
+) {
     WashContent(
-        posts = posts,
-        queue = queue,
-        techCards = techCards,
-        chemicalUsage = chemicalUsage,
-        onAddPost = { scope.launch { repository.addPost(organization.id, null, "Пост ${posts.size + 1}"); reload() } },
-        onTogglePostStatus = { id -> scope.launch { posts.firstOrNull { it.id == id }?.let { repository.togglePostStatus(it); reload() } } },
-        onAddQueueItem = { scope.launch { repository.addQueueItem(organization.id); reload() } },
-        onAdvanceQueueItem = { id -> scope.launch { queue.firstOrNull { it.id == id }?.let { repository.advanceQueueItem(organization.id, it); reload() } } },
-        onAddTechCard = { scope.launch { repository.addTechCard(organization.id); reload() } },
-        onAddChemicalUsage = { scope.launch { repository.addChemicalUsage(organization.id); reload() } },
+        posts = state.posts,
+        queue = state.queue,
+        techCards = state.techCards,
+        chemicalUsage = state.chemicalUsage,
+        onAddPost = onAddPost,
+        onTogglePostStatus = onTogglePostStatus,
+        onAddQueueItem = onAddQueueItem,
+        onAdvanceQueueItem = onAdvanceQueueItem,
+        onAddTechCard = onAddTechCard,
+        onAddChemicalUsage = onAddChemicalUsage,
     )
 }
-
 @Composable
 private fun WashContent(
     posts: List<WashPost>,

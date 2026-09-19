@@ -1,5 +1,7 @@
 package com.lexora.service.core.data
 
+import com.lexora.service.core.domain.WashOperations
+
 import android.content.Context
 import com.lexora.service.core.database.AuditEventEntity
 import com.lexora.service.core.database.LexoraServiceDatabase
@@ -18,30 +20,30 @@ import java.util.UUID
 
 class WashRepository private constructor(
     private val database: LexoraServiceDatabase,
-) {
+) : WashOperations {
     private val washDao = database.washDao()
     private val serviceDao = database.serviceDao()
 
-    suspend fun posts(organizationId: String): List<WashPost> = washDao.posts(organizationId).map { it.toModel() }
-    suspend fun queue(organizationId: String): List<WashQueueItem> = washDao.activeQueue(organizationId).map { it.toModel() }
-    suspend fun techCards(organizationId: String): List<WashTechCard> = washDao.techCards(organizationId).map { it.toModel() }
-    suspend fun chemicalUsage(organizationId: String): List<WashChemicalUsage> = washDao.recentChemicalUsage(organizationId).map { it.toModel() }
+    override suspend fun posts(organizationId: String): List<WashPost> = washDao.posts(organizationId).map { it.toModel() }
+    override suspend fun queue(organizationId: String): List<WashQueueItem> = washDao.activeQueue(organizationId).map { it.toModel() }
+    override suspend fun techCards(organizationId: String): List<WashTechCard> = washDao.techCards(organizationId).map { it.toModel() }
+    override suspend fun chemicalUsage(organizationId: String): List<WashChemicalUsage> = washDao.recentChemicalUsage(organizationId).map { it.toModel() }
 
-    suspend fun addPost(organizationId: String, branchId: String?, name: String) {
+    override suspend fun addPost(organizationId: String, branchId: String?, name: String) {
         val now = System.currentTimeMillis()
         val id = UUID.randomUUID().toString()
         washDao.upsertPost(WashPostEntity(id, organizationId, branchId, name, WashPostStatus.AVAILABLE.name, true, SyncState.PENDING_CREATE.name, now))
         audit(organizationId, "WASH_POST", id, "CREATE", name, now)
     }
 
-    suspend fun togglePostStatus(post: WashPost) {
+    override suspend fun togglePostStatus(post: WashPost) {
         val next = if (post.status == WashPostStatus.AVAILABLE) WashPostStatus.OCCUPIED else WashPostStatus.AVAILABLE
         val now = System.currentTimeMillis()
         washDao.updatePostStatus(post.id, next.name, SyncState.PENDING_UPDATE.name, now)
         audit(post.organizationId, "WASH_POST", post.id, "STATUS_CHANGE", "${post.status.name} → ${next.name}", now)
     }
 
-    suspend fun addQueueItem(organizationId: String) {
+    override suspend fun addQueueItem(organizationId: String) {
         val now = System.currentTimeMillis()
         val request = serviceDao.serviceRequests(organizationId).firstOrNull { it.status != "CLOSED" && it.status != "CANCELLED" }
         val position = (washDao.activeQueue(organizationId).maxOfOrNull { it.position } ?: 0) + 1
@@ -50,7 +52,7 @@ class WashRepository private constructor(
         audit(organizationId, "WASH_QUEUE", id, "CREATE", "Очередь №$position${request?.number?.let { " · $it" }.orEmpty()}", now)
     }
 
-    suspend fun advanceQueueItem(organizationId: String, item: WashQueueItem) {
+    override suspend fun advanceQueueItem(organizationId: String, item: WashQueueItem) {
         val posts = washDao.posts(organizationId).map { it.toModel() }
         val now = System.currentTimeMillis()
         val next = when (item.status) {
@@ -76,7 +78,7 @@ class WashRepository private constructor(
         if (next != item.status) audit(organizationId, "WASH_QUEUE", item.id, "STATUS_CHANGE", "${item.status.name} → ${next.name}", now)
     }
 
-    suspend fun addTechCard(organizationId: String) {
+    override suspend fun addTechCard(organizationId: String) {
         val now = System.currentTimeMillis()
         val nextNumber = washDao.techCards(organizationId).size + 1
         val id = UUID.randomUUID().toString()
@@ -85,7 +87,7 @@ class WashRepository private constructor(
         audit(organizationId, "WASH_TECH_CARD", id, "CREATE", name, now)
     }
 
-    suspend fun addChemicalUsage(organizationId: String) {
+    override suspend fun addChemicalUsage(organizationId: String) {
         val now = System.currentTimeMillis()
         val activeItem = washDao.activeQueue(organizationId).firstOrNull { it.status == WashQueueStatus.IN_SERVICE.name }
         val id = UUID.randomUUID().toString()

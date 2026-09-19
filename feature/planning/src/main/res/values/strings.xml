@@ -1,0 +1,16 @@
+<resources>
+    <string name="planning_title">Планирование</string>
+    <string name="planning_day">День</string>
+    <string name="planning_week">Неделя</string>
+    <string name="planning_month">Месяц</string>
+    <string name="planning_previous">Назад</string>
+    <string name="planning_today">Сегодня</string>
+    <string name="planning_next">Вперёд</string>
+    <string name="planning_calendar">Календарь выездов</string>
+    <string name="planning_no_events">В выбранном периоде выездов нет</string>
+    <string name="planning_employee_load">Загрузка сотрудников</string>
+    <string name="planning_team_load">Загрузка бригад</string>
+    <string name="planning_no_resources">Нет активных исполнителей</string>
+    <string name="planning_error">Не удалось загрузить планирование</string>
+    <string name="planning_refresh">Повторить</string>
+</resources>

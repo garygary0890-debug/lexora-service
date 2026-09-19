@@ -19,7 +19,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.lexora.service.core.data.IntegrationDescriptor
+import com.lexora.service.core.model.IntegrationDescriptor
 import com.lexora.service.core.model.Payment
 import com.lexora.service.core.model.PaymentStatus
 import com.lexora.service.core.model.RequestStatus
@@ -38,6 +38,7 @@ fun ReportsScreen(
     documents: List<ServiceDocument>,
     payments: List<Payment>,
     integrations: List<IntegrationDescriptor>,
+    customerCareViewModel: CustomerCareViewModel,
 ) {
     var section by remember { mutableStateOf(ReportsSection.OPERATIONS) }
 
@@ -60,7 +61,7 @@ fun ReportsScreen(
         }
 
         if (section == ReportsSection.CUSTOMER_CARE) {
-            CustomerCareScreen(requests = requests)
+            CustomerCareScreen(requests = requests, viewModel = customerCareViewModel)
         } else {
             OperationsContent(requests, visits, documents, payments, integrations)
         }

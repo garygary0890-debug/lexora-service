@@ -1,5 +1,7 @@
 package com.lexora.service.core.data
 
+import com.lexora.service.core.domain.NotificationOperations
+
 import android.content.Context
 import com.lexora.service.core.database.LexoraServiceDatabase
 import com.lexora.service.core.database.NotificationDao
@@ -15,31 +17,31 @@ class NotificationRepository(
     private val notificationDao: NotificationDao,
     private val serviceDao: ServiceDao,
     private val workOrderDao: WorkOrderDao,
-) {
-    suspend fun notifications(organizationId: String): List<ServiceNotification> =
+) : NotificationOperations {
+    override suspend fun notifications(organizationId: String): List<ServiceNotification> =
         notificationDao.notifications(organizationId).map(ServiceNotificationEntity::toModel)
 
-    suspend fun archivedNotifications(organizationId: String): List<ServiceNotification> =
+    override suspend fun archivedNotifications(organizationId: String): List<ServiceNotification> =
         notificationDao.archivedNotifications(organizationId).map(ServiceNotificationEntity::toModel)
 
     suspend fun unreadCount(organizationId: String): Int = notificationDao.unreadNotifications(organizationId).size
 
-    suspend fun markRead(id: String, read: Boolean) {
+    override suspend fun markRead(id: String, read: Boolean) {
         val now = System.currentTimeMillis()
         notificationDao.markRead(id, if (read) now else null, SyncState.PENDING_UPDATE.name, now)
     }
 
-    suspend fun markAllRead(organizationId: String) {
+    override suspend fun markAllRead(organizationId: String) {
         val now = System.currentTimeMillis()
         notificationDao.markAllRead(organizationId, now, SyncState.PENDING_UPDATE.name, now)
     }
 
-    suspend fun setArchived(id: String, archived: Boolean) {
+    override suspend fun setArchived(id: String, archived: Boolean) {
         val now = System.currentTimeMillis()
         notificationDao.setArchived(id, archived, SyncState.PENDING_UPDATE.name, now)
     }
 
-    suspend fun refreshGenerated(organizationId: String, now: Long = System.currentTimeMillis()) {
+    override suspend fun refreshGenerated(organizationId: String, now: Long) {
         serviceDao.serviceRequests(organizationId)
             .filter { it.status != "CLOSED" }
             .forEach { request ->
@@ -50,7 +52,7 @@ class NotificationRepository(
                             organizationId = organizationId,
                             type = ServiceNotificationType.REQUEST_DUE,
                             priority = if (due < now) ServiceNotificationPriority.CRITICAL else ServiceNotificationPriority.WARNING,
-                            title = if (due < now) "Просрочена заявка ${request.number}" else "Срок заявки ${request.number}",
+                            title = if (due < now) "РџСЂРѕСЃСЂРѕС‡РµРЅР° Р·Р°СЏРІРєР° ${request.number}" else "РЎСЂРѕРє Р·Р°СЏРІРєРё ${request.number}",
                             message = request.title,
                             entityType = "SERVICE_REQUEST",
                             entityId = request.id,
@@ -66,7 +68,7 @@ class NotificationRepository(
                             organizationId = organizationId,
                             type = ServiceNotificationType.SLA_WARNING,
                             priority = if (sla < now) ServiceNotificationPriority.CRITICAL else ServiceNotificationPriority.WARNING,
-                            title = if (sla < now) "SLA нарушен: ${request.number}" else "Приближается SLA: ${request.number}",
+                            title = if (sla < now) "SLA РЅР°СЂСѓС€РµРЅ: ${request.number}" else "РџСЂРёР±Р»РёР¶Р°РµС‚СЃСЏ SLA: ${request.number}",
                             message = request.title,
                             entityType = "SERVICE_REQUEST",
                             entityId = request.id,
@@ -86,7 +88,7 @@ class NotificationRepository(
                         organizationId = organizationId,
                         type = ServiceNotificationType.ADDITIONAL_WORK_APPROVAL,
                         priority = ServiceNotificationPriority.WARNING,
-                        title = "Требуется согласование допработ",
+                        title = "РўСЂРµР±СѓРµС‚СЃСЏ СЃРѕРіР»Р°СЃРѕРІР°РЅРёРµ РґРѕРїСЂР°Р±РѕС‚",
                         message = item.title,
                         entityType = "WORK_ORDER_ITEM",
                         entityId = item.id,

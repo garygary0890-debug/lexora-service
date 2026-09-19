@@ -22,13 +22,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import com.lexora.service.core.data.ServiceHistoryRepository
 import com.lexora.service.core.model.Client
 import com.lexora.service.core.model.ServiceHistoryRecord
 import com.lexora.service.core.model.ServiceHistorySourceType
@@ -36,7 +33,6 @@ import com.lexora.service.core.model.Vehicle
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-import kotlinx.coroutines.launch
 
 
 data class VehicleDraft(
@@ -59,32 +55,21 @@ fun VehiclesScreen(
     onSave: (VehicleDraft, String?) -> Unit,
     onArchive: (String) -> Unit,
     onRestore: (String) -> Unit,
+    historyVehicle: Vehicle? = null,
+    historyRecords: List<ServiceHistoryRecord> = emptyList(),
+    historyLoading: Boolean = false,
+    onOpenHistory: (String) -> Unit = {},
+    onCloseHistory: () -> Unit = {},
 ) {
-    val context = LocalContext.current
-    val historyRepository = remember { ServiceHistoryRepository.create(context.applicationContext) }
-    val scope = rememberCoroutineScope()
     var query by remember { mutableStateOf("") }
     var showArchived by remember { mutableStateOf(false) }
     var editing by remember { mutableStateOf<Vehicle?>(null) }
     var creating by remember { mutableStateOf(false) }
-    var historyVehicle by remember { mutableStateOf<Vehicle?>(null) }
-    var historyRecords by remember { mutableStateOf<List<ServiceHistoryRecord>>(emptyList()) }
-    var historyLoading by remember { mutableStateOf(false) }
     val source = if (showArchived) archivedVehicles else vehicles
     val filtered = source.filter { vehicle ->
         val q = query.trim().lowercase()
         q.isBlank() || listOfNotNull(vehicle.registrationNumber, vehicle.vin, vehicle.make, vehicle.model)
             .any { it.lowercase().contains(q) }
-    }
-
-    fun openHistory(vehicle: Vehicle) {
-        historyVehicle = vehicle
-        historyRecords = emptyList()
-        historyLoading = true
-        scope.launch {
-            historyRecords = historyRepository.history(vehicle.id)
-            historyLoading = false
-        }
     }
 
     Column(
@@ -133,7 +118,7 @@ fun VehiclesScreen(
                             Text("${stringResource(R.string.vehicles_owner)}: ${owner ?: stringResource(R.string.vehicles_no_owner)}")
                             vehicle.mileageKm?.let { Text("${stringResource(R.string.vehicles_mileage)}: $it") }
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                TextButton(onClick = { openHistory(vehicle) }) { Text("История") }
+                                TextButton(onClick = { onOpenHistory(vehicle.id) }) { Text("История") }
                                 if (showArchived) {
                                     TextButton(onClick = { onRestore(vehicle.id) }) { Text(stringResource(R.string.vehicles_restore)) }
                                 } else {
@@ -167,11 +152,7 @@ fun VehiclesScreen(
             vehicle = vehicle,
             records = historyRecords,
             loading = historyLoading,
-            onDismiss = {
-                historyVehicle = null
-                historyRecords = emptyList()
-                historyLoading = false
-            },
+            onDismiss = onCloseHistory,
         )
     }
 }

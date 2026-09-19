@@ -1,20 +1,22 @@
 package com.lexora.service.core.data
 
+import com.lexora.service.core.domain.TireOperations
+
 import android.content.Context
 import com.lexora.service.core.database.*
 import com.lexora.service.core.model.*
 import java.util.UUID
 
-class TireRepository private constructor(private val database: LexoraServiceDatabase) {
+class TireRepository private constructor(private val database: LexoraServiceDatabase) : TireOperations {
     private val tireDao = database.tireDao()
     private val serviceDao = database.serviceDao()
 
-    suspend fun queue(organizationId: String) = tireDao.activeQueue(organizationId).map { it.toModel() }
-    suspend fun diagnostics(organizationId: String) = tireDao.diagnostics(organizationId).map { it.toModel() }
-    suspend fun workEntries(organizationId: String) = tireDao.workEntries(organizationId).map { it.toModel() }
-    suspend fun storage(organizationId: String) = tireDao.storage(organizationId).map { it.toModel() }
+    override suspend fun queue(organizationId: String) = tireDao.activeQueue(organizationId).map { it.toModel() }
+    override suspend fun diagnostics(organizationId: String) = tireDao.diagnostics(organizationId).map { it.toModel() }
+    override suspend fun workEntries(organizationId: String) = tireDao.workEntries(organizationId).map { it.toModel() }
+    override suspend fun storage(organizationId: String) = tireDao.storage(organizationId).map { it.toModel() }
 
-    suspend fun addQueueItem(organizationId: String) {
+    override suspend fun addQueueItem(organizationId: String) {
         val now = System.currentTimeMillis()
         val request = serviceDao.serviceRequests(organizationId).firstOrNull { it.status != "CLOSED" && it.status != "CANCELLED" }
         val position = (tireDao.activeQueue(organizationId).maxOfOrNull { it.position } ?: 0) + 1
@@ -23,7 +25,7 @@ class TireRepository private constructor(private val database: LexoraServiceData
         audit(organizationId, "TIRE_QUEUE", id, "CREATE", "Добавлено в очередь шиномонтажа: позиция $position")
     }
 
-    suspend fun advanceQueueItem(item: TireQueueItem) {
+    override suspend fun advanceQueueItem(item: TireQueueItem) {
         val next = when (item.status) {
             TireQueueStatus.WAITING -> TireQueueStatus.CALLED
             TireQueueStatus.CALLED -> TireQueueStatus.IN_SERVICE
@@ -35,7 +37,7 @@ class TireRepository private constructor(private val database: LexoraServiceData
         audit(item.organizationId, "TIRE_QUEUE", item.id, "STATUS_CHANGE", "${item.status.name} → ${next.name}")
     }
 
-    suspend fun addDiagnostic(organizationId: String) {
+    override suspend fun addDiagnostic(organizationId: String) {
         val now = System.currentTimeMillis()
         val active = tireDao.activeQueue(organizationId).firstOrNull { it.status == TireQueueStatus.IN_SERVICE.name }
             ?: tireDao.activeQueue(organizationId).firstOrNull()
@@ -44,7 +46,7 @@ class TireRepository private constructor(private val database: LexoraServiceData
         audit(organizationId, "TIRE_DIAGNOSTIC", id, "CREATE", "Выполнена диагностика шин")
     }
 
-    suspend fun addWorkEntry(organizationId: String) {
+    override suspend fun addWorkEntry(organizationId: String) {
         val now = System.currentTimeMillis()
         val active = tireDao.activeQueue(organizationId).firstOrNull { it.status == TireQueueStatus.IN_SERVICE.name }
             ?: tireDao.activeQueue(organizationId).firstOrNull()
@@ -53,7 +55,7 @@ class TireRepository private constructor(private val database: LexoraServiceData
         audit(organizationId, "TIRE_WORK", id, "CREATE", "Добавлена шиномонтажная работа")
     }
 
-    suspend fun addStorageItem(organizationId: String) {
+    override suspend fun addStorageItem(organizationId: String) {
         val now = System.currentTimeMillis()
         val request = serviceDao.serviceRequests(organizationId).firstOrNull { it.vehicleId != null }
         val vehicle = request?.vehicleId?.let { serviceDao.vehicle(it) }
@@ -64,7 +66,7 @@ class TireRepository private constructor(private val database: LexoraServiceData
         audit(organizationId, "TIRE_STORAGE", id, "CREATE", "Принят комплект шин на хранение: $code")
     }
 
-    suspend fun issueStorageItem(item: TireStorageItem) {
+    override suspend fun issueStorageItem(item: TireStorageItem) {
         if (item.status != TireStorageStatus.STORED) return
         val now = System.currentTimeMillis()
         tireDao.issueStorageItem(item.id, now, SyncState.PENDING_UPDATE.name, now)

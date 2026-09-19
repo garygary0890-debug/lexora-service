@@ -1,0 +1,9 @@
+<resources>
+    <string name="search_title">Глобальный поиск</string>
+    <string name="search_hint">Клиент, автомобиль, заявка, объект, оборудование, документ…</string>
+    <string name="search_action">Найти</string>
+    <string name="search_empty">Совпадений не найдено</string>
+    <string name="search_min_chars">Введите минимум 2 символа</string>
+    <string name="search_filters">Типы данных</string>
+    <string name="search_error">Не удалось выполнить поиск</string>
+</resources>

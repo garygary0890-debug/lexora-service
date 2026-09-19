@@ -1,6 +1,7 @@
 package com.lexora.service.core.model
 
-data class PriceList(
+/** Extended pricing definition; persisted operational prices use PriceList from CoreEntities. */
+data class ExtendedPriceList(
     val id: String,
     val organizationId: String,
     val branchId: String? = null,
@@ -12,7 +13,7 @@ data class PriceList(
     val active: Boolean = true,
 )
 
-data class PriceListItem(
+data class ExtendedPriceListItem(
     val id: String,
     val priceListId: String,
     val code: String,

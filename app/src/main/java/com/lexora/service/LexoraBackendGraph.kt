@@ -20,19 +20,23 @@ class LexoraBackendGraph(
     context: Context,
     database: LexoraServiceDatabase,
 ) {
+    private val appContext = context.applicationContext
+
     val configuration = ApiConfiguration(
         baseUrl = BuildConfig.LEXORA_BACKEND_BASE_URL,
         apiVersion = "v1",
         environment = DeploymentEnvironment.PRODUCTION,
     )
     val transport = UrlConnectionHttpTransport(configuration)
-    val tokenProvider = AndroidKeystoreTokenProvider(context)
+    val tokenProvider = AndroidKeystoreTokenProvider(appContext)
     val authApi = LexoraAuthApi(configuration, transport)
     val authSession = AuthSessionManager(authApi, tokenProvider)
     val apiClient = VersionedApiClient(configuration, transport, tokenProvider, authApi)
     val syncApi = LexoraBackendSyncApi(apiClient)
-    val syncMetadata = ServiceSyncMetadataStore(context)
-    val syncQueue = SyncQueueRepository(database.serviceDao())
+    val syncMetadata = ServiceSyncMetadataStore(appContext)
+    val syncQueue = SyncQueueRepository(database.serviceDao()) { delayMs ->
+        ServiceSyncScheduler.enqueue(appContext, delayMs)
+    }
     val syncEngine = BidirectionalSyncEngine(
         queue = syncQueue,
         api = syncApi,

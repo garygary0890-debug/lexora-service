@@ -1,5 +1,6 @@
 package com.lexora.service.feature.fieldwork
 
+import com.lexora.service.core.data.FieldWorkRuntimeDependencies
 import com.lexora.service.core.data.InventoryRepository
 import com.lexora.service.core.data.VisitExecutionReport
 import com.lexora.service.core.data.VisitExecutionRepository
@@ -38,7 +39,19 @@ class FieldWorkViewModel(
     private val dispatchPolicy: AutoDispatchPolicy = AutoDispatchPolicy(),
     private val routePlanner: RoutePlanner = RoutePlanner(),
 ) : LexoraViewModel<FieldWorkUiState>(FieldWorkUiState()) {
-    init { reload() }
+    constructor(organizationId: String, userId: String, operations: ServiceOperations) : this(
+        organizationId,
+        userId,
+        operations,
+        FieldWorkRuntimeDependencies.execution(),
+        FieldWorkRuntimeDependencies.inventory(),
+    )
+
+    init {
+        FieldWorkActionDispatcher.bind(this)
+        reload()
+    }
+
     fun reload() = launchSafely(::fail) { refresh(null) }
     fun selectVisit(id: String) = launchSafely(::fail) { refresh(id) }
 

@@ -48,7 +48,7 @@ class LexoraServiceContainer(context: Context) {
         registry.registerSingleton(GlobalSearchUseCase::class) { GlobalSearchUseCase(operations) }
         registry.registerSingleton(LoadPlanningUseCase::class) { LoadPlanningUseCase(operations) }
         FieldWorkRuntimeDependencies.install(visitExecutionRepository, inventoryRepository)
-        BusinessOperationsRuntimeDependencies.install(businessOperations) { userRepository.currentUser().id }
+        BusinessOperationsRuntimeDependencies.install(businessOperations)
     }
 
     val database: LexoraServiceDatabase get() = registry.get()

@@ -53,3 +53,21 @@ data class NotificationDeliveryEntity(
     val createdAtEpochMs: Long,
     val updatedAtEpochMs: Long,
 )
+
+@Entity(
+    tableName = "push_device_tokens",
+    indices = [
+        Index("organizationId"), Index("userId"), Index("deviceId"), Index("active"),
+        Index(value = ["organizationId", "userId", "deviceId", "provider"], unique = true),
+    ],
+)
+data class PushDeviceTokenEntity(
+    @androidx.room.PrimaryKey val id: String,
+    val organizationId: String,
+    val userId: String,
+    val deviceId: String,
+    val provider: String,
+    val token: String,
+    val active: Boolean,
+    val updatedAtEpochMs: Long,
+)

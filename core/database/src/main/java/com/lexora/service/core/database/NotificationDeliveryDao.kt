@@ -27,4 +27,13 @@ interface NotificationDeliveryDao {
 
     @Query("UPDATE notification_deliveries SET status = :status, nextAttemptAtEpochMs = :nextAttemptAt, deliveredAtEpochMs = :deliveredAt, attemptCount = :attemptCount, lastError = :lastError, updatedAtEpochMs = :updatedAt WHERE id = :id")
     suspend fun updateState(id: String, status: String, nextAttemptAt: Long?, deliveredAt: Long?, attemptCount: Int, lastError: String?, updatedAt: Long)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertPushToken(value: PushDeviceTokenEntity)
+
+    @Query("SELECT * FROM push_device_tokens WHERE organizationId = :organizationId AND userId = :userId ORDER BY updatedAtEpochMs DESC")
+    suspend fun pushTokens(organizationId: String, userId: String): List<PushDeviceTokenEntity>
+
+    @Query("UPDATE push_device_tokens SET active = 0, updatedAtEpochMs = :updatedAt WHERE id = :id")
+    suspend fun deactivatePushToken(id: String, updatedAt: Long)
 }

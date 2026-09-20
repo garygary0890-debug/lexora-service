@@ -1,5 +1,6 @@
 package com.lexora.service.presentation
 
+import com.lexora.service.core.data.BusinessOperationsRuntimeDependencies
 import com.lexora.service.core.domain.WorkspaceOperations
 import com.lexora.service.core.domain.WorkspaceSnapshot
 import com.lexora.service.core.model.UserRole
@@ -18,17 +19,17 @@ class WorkspaceViewModel(
 
     fun bootstrap() = launchSafely(::fail) {
         updateState { it.copy(loading = true, error = null) }
-        setState(WorkspaceUiState(false, workspace.bootstrap()))
+        applySnapshot(workspace.bootstrap())
     }
 
     fun switchOrganization(organizationId: String) = launchSafely(::fail) {
         val userId = state.value.snapshot?.user?.id ?: return@launchSafely
-        setState(WorkspaceUiState(false, workspace.switchOrganization(userId, organizationId)))
+        applySnapshot(workspace.switchOrganization(userId, organizationId))
     }
 
     fun createOrganization(name: String) = launchSafely(::fail) {
         val userId = state.value.snapshot?.user?.id ?: return@launchSafely
-        setState(WorkspaceUiState(false, workspace.createOrganization(userId, name)))
+        applySnapshot(workspace.createOrganization(userId, name))
     }
 
     fun createUser(displayName: String, role: UserRole) = launchSafely(::fail) {
@@ -51,7 +52,12 @@ class WorkspaceViewModel(
 
     fun refreshCurrent() = launchSafely(::fail) {
         val current = state.value.snapshot ?: return@launchSafely
-        setState(WorkspaceUiState(false, workspace.refresh(current.organization.id, current.user.id)))
+        applySnapshot(workspace.refresh(current.organization.id, current.user.id))
+    }
+
+    private fun applySnapshot(snapshot: WorkspaceSnapshot) {
+        BusinessOperationsRuntimeDependencies.setActorUserId(snapshot.user.id)
+        setState(WorkspaceUiState(false, snapshot))
     }
 
     private fun fail(error: Throwable) = updateState { it.copy(loading = false, error = error.message ?: "workspace_failed") }

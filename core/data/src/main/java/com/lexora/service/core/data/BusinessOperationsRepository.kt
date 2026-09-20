@@ -49,14 +49,15 @@ class PersistentBusinessOperationsRepository(
     }
 
     override suspend fun purchaseOrders(organizationId: String, status: PurchaseOrderStatus?): List<PurchaseOrder> =
-        dao.purchaseOrders(organizationId, status?.name).map { entity ->
-            entity.toModel(dao.purchaseOrderLines(entity.id))
-        }
+        dao.purchaseOrders(organizationId, status?.name).map { entity -> entity.toModel(dao.purchaseOrderLines(entity.id)) }
 
     override suspend fun savePurchaseOrder(order: PurchaseOrder, actorUserId: String): PurchaseOrder {
         require(order.id.isNotBlank() && order.organizationId.isNotBlank()) { "Некорректный заказ поставщику" }
         require(order.lines.isNotEmpty()) { "В заказе должна быть хотя бы одна позиция" }
-        require(order.lines.all { it.itemId.isNotBlank() && it.quantity > 0.0 && (it.unitPriceMinor == null || it.unitPriceMinor >= 0) }) { "Проверьте позиции заказа" }
+        require(order.lines.all { line ->
+            val price = line.unitPriceMinor
+            line.itemId.isNotBlank() && line.quantity > 0.0 && (price == null || price >= 0L)
+        }) { "Проверьте позиции заказа" }
         val supplier = dao.supplier(order.organizationId, order.supplierId) ?: error("Поставщик не найден")
         require(supplier.active) { "Поставщик неактивен" }
         require(inventory.locations(order.organizationId).any { it.id == order.destinationLocationId && it.active }) { "Склад назначения не найден или неактивен" }
@@ -110,7 +111,6 @@ class PersistentBusinessOperationsRepository(
         val now = System.currentTimeMillis()
         val pending = BusinessPurchaseReceiptEntity(receiptId, organizationId, purchaseOrderId, orderEntity.destinationLocationId, PurchaseReceiptStatus.PENDING_POSTING.name, now, actorUserId, note?.trim()?.ifBlank { null })
         dao.insertReceiptWithLines(pending, lines.map { BusinessPurchaseReceiptLineEntity(receiptId, it.itemId, it.quantity) })
-
         try {
             lines.forEach { line ->
                 inventory.recordMovement(
@@ -165,7 +165,8 @@ class PersistentBusinessOperationsRepository(
         val now = System.currentTimeMillis()
         val paid = current.paidMinor + amountMinor
         val status = if (paid - current.refundedMinor >= current.amountDueMinor) ManagedPaymentStatus.PAID else ManagedPaymentStatus.PARTIALLY_PAID
-        val updated = current.copy(paidMinor = paid, status = status, externalReference = externalReference?.trim()?.ifBlank { current.externalReference } ?: current.externalReference, updatedAtEpochMs = now)
+        val normalizedReference = externalReference?.trim()?.takeIf { it.isNotBlank() } ?: current.externalReference
+        val updated = current.copy(paidMinor = paid, status = status, externalReference = normalizedReference, updatedAtEpochMs = now)
         dao.upsertPayment(updated.toEntity())
         dao.insertPaymentOperation(PaymentOperationEntity(UUID.randomUUID().toString(), organizationId, paymentId, PaymentOperationType.PAYMENT.name, amountMinor, null, actorUserId, now))
         audit(organizationId, actorUserId, "PAYMENT", paymentId, "PAY", paymentSummary(current), paymentSummary(updated), null)
@@ -238,9 +239,7 @@ class PersistentBusinessOperationsRepository(
         dao.insertAudit(BusinessAuditEntity(UUID.randomUUID().toString(), organizationId, actorUserId, entityType, entityId, action, before, after, reason, System.currentTimeMillis()))
     }
 
-    companion object {
-        private const val EPS = 0.000001
-    }
+    companion object { private const val EPS = 0.000001 }
 }
 
 private fun canTransitionPurchaseOrder(from: PurchaseOrderStatus, to: PurchaseOrderStatus): Boolean = when (from) {

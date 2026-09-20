@@ -22,6 +22,7 @@ class LexoraServiceContainer(context: Context) {
         registry.registerSingleton(NotificationRuntimeDatabase::class) { NotificationRuntimeDatabase.create(appContext) }
         registry.registerSingleton(LexoraBackendGraph::class) { LexoraBackendGraph(appContext, database) }
         registry.registerSingleton(ServiceOperations::class) { PersistentServiceOperations(database.serviceDao(), backend.syncQueue) }
+        registry.registerSingleton(ReportHubOperations::class) { PersistentReportHubOperations(operations) }
         registry.registerSingleton(VisitExecutionRepository::class) { VisitExecutionRepository(database.serviceDao()) }
         registry.registerSingleton(InventoryRepository::class) { PersistentInventoryRepository(inventoryDatabase.inventoryDao()) }
         registry.registerSingleton(BusinessOperationsRepository::class) {
@@ -63,6 +64,7 @@ class LexoraServiceContainer(context: Context) {
     val notificationRuntimeDatabase: NotificationRuntimeDatabase get() = registry.get()
     val backend: LexoraBackendGraph get() = registry.get()
     val operations: ServiceOperations get() = registry.get()
+    val reportHubOperations: ReportHubOperations get() = registry.get()
     val visitExecutionRepository: VisitExecutionRepository get() = registry.get()
     val inventoryRepository: InventoryRepository get() = registry.get()
     val businessOperations: BusinessOperationsRepository get() = registry.get()

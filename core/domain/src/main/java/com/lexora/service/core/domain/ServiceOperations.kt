@@ -21,6 +21,15 @@ data class VisitCollection(
     val selectedVisitId: String?,
     val checklist: List<VisitChecklistItem>,
 )
+data class VisitExecutionDetails(
+    val visit: ServiceVisit,
+    val works: List<VisitWorkEntry>,
+    val materials: List<VisitMaterialUsage>,
+) {
+    val hasTechnicalConclusion: Boolean get() = !visit.resultNote.isNullOrBlank()
+    val hasClientSignature: Boolean get() = !visit.customerName.isNullOrBlank() && !visit.customerSignatureRef.isNullOrBlank()
+    val canComplete: Boolean get() = works.isNotEmpty() && hasTechnicalConclusion && hasClientSignature
+}
 data class FinanceCollection(val documents: List<ServiceDocument>, val payments: List<Payment>)
 data class RequestOperationalDetails(
     val visits: List<ServiceVisit>,
@@ -58,6 +67,11 @@ interface ServiceOperations {
     suspend fun requestOperationalDetails(organizationId: String, requestId: String): RequestOperationalDetails
     suspend fun visits(organizationId: String, selectedVisitId: String?): VisitCollection
     suspend fun checklist(visitId: String): List<VisitChecklistItem>
+    suspend fun visitExecutionDetails(visitId: String): VisitExecutionDetails
+    suspend fun saveVisitTechnicalConclusion(organizationId: String, userId: String, visitId: String, conclusion: String)
+    suspend fun saveVisitClientSignature(organizationId: String, userId: String, visitId: String, customerName: String, signatureRef: String)
+    suspend fun saveVisitWork(organizationId: String, userId: String, visitId: String, title: String, quantity: Double, unit: String?, note: String?, existingId: String? = null)
+    suspend fun saveVisitMaterial(organizationId: String, userId: String, visitId: String, materialCode: String?, title: String, quantity: Double, unit: String?, note: String?, existingId: String? = null)
     suspend fun createVisit(organizationId: String, userId: String, requestId: String, employeeId: String?)
     suspend fun changeVisitStatus(organizationId: String, userId: String, id: String, target: VisitStatus)
     suspend fun addChecklistItem(organizationId: String, userId: String, visitId: String)

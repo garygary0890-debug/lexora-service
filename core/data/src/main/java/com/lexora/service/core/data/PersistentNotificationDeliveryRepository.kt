@@ -26,9 +26,10 @@ class PersistentNotificationDeliveryRepository(
     override suspend fun deliveries(organizationId: String, userId: String, limit: Int): List<NotificationDelivery> =
         dao.deliveries(organizationId, userId, limit).map(NotificationDeliveryEntity::toModel)
 
-    override suspend fun enqueueLocal(
+    override suspend fun enqueue(
         organizationId: String,
         userId: String,
+        channel: NotificationChannel,
         idempotencyKey: String,
         eventCode: String,
         title: String,
@@ -43,7 +44,7 @@ class PersistentNotificationDeliveryRepository(
             id = UUID.randomUUID().toString(),
             organizationId = organizationId,
             userId = userId,
-            channel = NotificationChannel.LOCAL.name,
+            channel = channel.name,
             idempotencyKey = idempotencyKey,
             eventCode = eventCode,
             title = title,
@@ -63,7 +64,7 @@ class PersistentNotificationDeliveryRepository(
         val inserted = dao.enqueue(entity)
         if (inserted != -1L) return entity.toModel()
         return dao.deliveries(organizationId, userId, 500)
-            .firstOrNull { it.idempotencyKey == idempotencyKey && it.channel == NotificationChannel.LOCAL.name }
+            .firstOrNull { it.idempotencyKey == idempotencyKey && it.channel == channel.name }
             ?.toModel() ?: error("Notification delivery idempotency lookup failed")
     }
 
@@ -71,15 +72,23 @@ class PersistentNotificationDeliveryRepository(
         dao.due(nowEpochMs, limit).map(NotificationDeliveryEntity::toModel)
 
     override suspend fun defer(id: String, nextAttemptAtEpochMs: Long) = update(
-        id, NotificationDeliveryStatus.DEFERRED, nextAttemptAtEpochMs, null, null,
+        id, NotificationDeliveryStatus.DEFERRED, nextAttemptAtEpochMs, null, null, incrementAttempt = false,
+    )
+
+    override suspend fun markSent(id: String, sentAtEpochMs: Long) = update(
+        id, NotificationDeliveryStatus.SENT, null, sentAtEpochMs, null, incrementAttempt = false,
     )
 
     override suspend fun markDelivered(id: String, deliveredAtEpochMs: Long) = update(
-        id, NotificationDeliveryStatus.DELIVERED, null, deliveredAtEpochMs, null,
+        id, NotificationDeliveryStatus.DELIVERED, null, deliveredAtEpochMs, null, incrementAttempt = false,
+    )
+
+    override suspend fun markSuppressed(id: String, reason: String) = update(
+        id, NotificationDeliveryStatus.SUPPRESSED, null, null, reason, incrementAttempt = false,
     )
 
     override suspend fun markFailed(id: String, error: String, nextAttemptAtEpochMs: Long?) = update(
-        id, NotificationDeliveryStatus.FAILED, nextAttemptAtEpochMs, null, error,
+        id, NotificationDeliveryStatus.FAILED, nextAttemptAtEpochMs, null, error, incrementAttempt = true,
     )
 
     private suspend fun update(
@@ -88,6 +97,7 @@ class PersistentNotificationDeliveryRepository(
         nextAttemptAt: Long?,
         deliveredAt: Long?,
         error: String?,
+        incrementAttempt: Boolean,
     ) {
         val current = dao.delivery(id) ?: return
         dao.updateState(
@@ -95,7 +105,7 @@ class PersistentNotificationDeliveryRepository(
             status = status.name,
             nextAttemptAt = nextAttemptAt,
             deliveredAt = deliveredAt,
-            attemptCount = current.attemptCount + if (status == NotificationDeliveryStatus.FAILED) 1 else 0,
+            attemptCount = current.attemptCount + if (incrementAttempt) 1 else 0,
             lastError = error,
             updatedAt = System.currentTimeMillis(),
         )
@@ -122,37 +132,19 @@ private fun NotificationPreferenceEntity.toModel() = NotificationPreferences(
 )
 
 private fun NotificationPreferences.toEntity(now: Long) = NotificationPreferenceEntity(
-    organizationId = organizationId,
-    userId = userId,
-    dndEnabled = doNotDisturb.enabled,
-    dndStartMinuteOfDay = doNotDisturb.startMinuteOfDay,
-    dndEndMinuteOfDay = doNotDisturb.endMinuteOfDay,
-    timeZoneId = doNotDisturb.timeZoneId,
-    allowCritical = doNotDisturb.allowCritical,
-    localEnabled = localEnabled,
-    pushEnabled = pushEnabled,
-    taskRemindersEnabled = taskRemindersEnabled,
-    slaEnabled = slaEnabled,
-    contractsEnabled = contractsEnabled,
-    tireStorageEnabled = tireStorageEnabled,
-    updatedAtEpochMs = now,
+    organizationId = organizationId, userId = userId,
+    dndEnabled = doNotDisturb.enabled, dndStartMinuteOfDay = doNotDisturb.startMinuteOfDay,
+    dndEndMinuteOfDay = doNotDisturb.endMinuteOfDay, timeZoneId = doNotDisturb.timeZoneId,
+    allowCritical = doNotDisturb.allowCritical, localEnabled = localEnabled, pushEnabled = pushEnabled,
+    taskRemindersEnabled = taskRemindersEnabled, slaEnabled = slaEnabled,
+    contractsEnabled = contractsEnabled, tireStorageEnabled = tireStorageEnabled, updatedAtEpochMs = now,
 )
 
 private fun NotificationDeliveryEntity.toModel() = NotificationDelivery(
-    id = id,
-    organizationId = organizationId,
-    userId = userId,
-    channel = NotificationChannel.valueOf(channel),
-    eventCode = eventCode,
-    title = title,
-    body = body,
-    priority = ServiceNotificationPriority.valueOf(priority),
-    entityType = entityType,
-    entityId = entityId,
-    scheduledAtEpochMs = scheduledAtEpochMs,
-    nextAttemptAtEpochMs = nextAttemptAtEpochMs,
-    deliveredAtEpochMs = deliveredAtEpochMs,
-    status = NotificationDeliveryStatus.valueOf(status),
-    attemptCount = attemptCount,
-    lastError = lastError,
+    id = id, organizationId = organizationId, userId = userId,
+    channel = NotificationChannel.valueOf(channel), eventCode = eventCode,
+    title = title, body = body, priority = ServiceNotificationPriority.valueOf(priority),
+    entityType = entityType, entityId = entityId, scheduledAtEpochMs = scheduledAtEpochMs,
+    nextAttemptAtEpochMs = nextAttemptAtEpochMs, deliveredAtEpochMs = deliveredAtEpochMs,
+    status = NotificationDeliveryStatus.valueOf(status), attemptCount = attemptCount, lastError = lastError,
 )

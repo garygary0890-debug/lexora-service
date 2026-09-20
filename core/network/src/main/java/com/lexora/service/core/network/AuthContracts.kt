@@ -4,6 +4,8 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.time.OffsetDateTime
 
+private const val SERVICE_PRODUCT_CODE = "LEXORA_SERVICE"
+
 data class AuthTokens(
     val accessToken: String,
     val accessExpiresAtEpochMs: Long,
@@ -11,9 +13,12 @@ data class AuthTokens(
     val refreshExpiresAtEpochMs: Long,
     val organizationId: String? = null,
     val membershipId: String? = null,
+    val productCode: String,
     val permissions: Set<String> = emptySet(),
     val globalOwner: Boolean = false,
 ) {
+    init { require(productCode == SERVICE_PRODUCT_CODE) { "Server session belongs to another Lexora product" } }
+
     fun accessExpired(nowEpochMs: Long, clockSkewMs: Long = 30_000L): Boolean =
         nowEpochMs + clockSkewMs >= accessExpiresAtEpochMs
 
@@ -27,13 +32,10 @@ interface TokenProvider {
     suspend fun clear()
 }
 
-interface RefreshTokenApi {
-    suspend fun refresh(refreshToken: String): AuthTokens?
-}
-
+interface RefreshTokenApi { suspend fun refresh(refreshToken: String): AuthTokens? }
 class AuthenticationExpiredException(message: String) : IllegalStateException(message)
 
-/** Exact client for the existing Lexora Backend /api/v1/auth contract. */
+/** Lexora Backend is the authority for authentication, license, roles and effective access. */
 class LexoraAuthApi(
     private val configuration: ApiConfiguration,
     private val transport: HttpTransport,
@@ -41,21 +43,20 @@ class LexoraAuthApi(
 ) : RefreshTokenApi {
     suspend fun login(email: String, password: String, organizationId: String): AuthTokens {
         require(email.isNotBlank() && password.isNotBlank() && organizationId.isNotBlank())
-        val response = executeAuth(
-            "login",
-            JSONObject()
-                .put("email", email.trim())
-                .put("password", password)
-                .put("organizationId", organizationId),
+        return parseTokens(
+            executeAuth(
+                "login",
+                JSONObject().put("email", email.trim()).put("password", password)
+                    .put("organizationId", organizationId).put("productCode", SERVICE_PRODUCT_CODE),
+            ),
+            "Login failed",
         )
-        return parseTokens(response, "Login failed")
     }
 
-    override suspend fun refresh(refreshToken: String): AuthTokens =
-        parseTokens(
-            executeAuth("refresh", JSONObject().put("refreshToken", refreshToken)),
-            "Token refresh failed",
-        )
+    override suspend fun refresh(refreshToken: String): AuthTokens = parseTokens(
+        executeAuth("refresh", JSONObject().put("refreshToken", refreshToken)),
+        "Token refresh failed",
+    )
 
     suspend fun logout(refreshToken: String) {
         val response = executeAuth("logout", JSONObject().put("refreshToken", refreshToken))
@@ -73,17 +74,13 @@ class LexoraAuthApi(
     }
 
     private suspend fun executeAuth(path: String, body: JSONObject): ApiResponse = transport.execute(
-        ApiRequest(
-            method = HttpMethod.POST,
-            path = "/api/${configuration.apiVersion}/auth/$path",
-            body = body.toString(),
-            headers = mapOf("Accept" to "application/json"),
-        ),
+        ApiRequest(HttpMethod.POST, "/api/${configuration.apiVersion}/auth/$path", body = body.toString(), headers = mapOf("Accept" to "application/json")),
     )
 
     private fun parseTokens(response: ApiResponse, prefix: String): AuthTokens {
         require(response.successful) { apiError(prefix, response) }
         val json = JSONObject(response.body.orEmpty())
+        require(json.getString("productCode") == SERVICE_PRODUCT_CODE) { "Backend returned a session for another product" }
         val accessTtlSeconds = json.optLong("accessTokenExpiresInSeconds", 900L)
         return AuthTokens(
             accessToken = json.getString("accessToken"),
@@ -92,6 +89,7 @@ class LexoraAuthApi(
             refreshExpiresAtEpochMs = OffsetDateTime.parse(json.getString("refreshTokenExpiresAt")).toInstant().toEpochMilli(),
             organizationId = json.optString("organizationId").takeIf(String::isNotBlank),
             membershipId = json.optString("membershipId").takeIf(String::isNotBlank),
+            productCode = json.getString("productCode"),
             permissions = json.optJSONArray("permissions").toStringSet(),
             globalOwner = json.optBoolean("globalOwner", false),
         )
@@ -105,25 +103,14 @@ class LexoraAuthApi(
 
 data class SessionActivity(val expiresAtEpochMs: Long, val deviceTrusted: Boolean)
 
-class AuthSessionManager(
-    private val authApi: LexoraAuthApi,
-    private val tokenProvider: TokenProvider,
-) {
+class AuthSessionManager(private val authApi: LexoraAuthApi, private val tokenProvider: TokenProvider) {
     suspend fun login(email: String, password: String, organizationId: String): AuthTokens =
         authApi.login(email, password, organizationId).also { tokenProvider.save(it) }
-
-    suspend fun restore(): AuthTokens? = tokenProvider.current()
-
+    suspend fun restore(): AuthTokens? = tokenProvider.current()?.takeIf { it.productCode == SERVICE_PRODUCT_CODE }
     suspend fun logout() {
         val current = tokenProvider.current()
-        try {
-            current?.refreshToken?.let { authApi.logout(it) }
-        } finally {
-            // Local credentials are always removed, including when the server is unreachable.
-            tokenProvider.clear()
-        }
+        try { current?.refreshToken?.let { authApi.logout(it) } } finally { tokenProvider.clear() }
     }
-
     suspend fun clearLocalSession() = tokenProvider.clear()
 }
 
@@ -137,60 +124,35 @@ class VersionedApiClient(
     suspend fun execute(request: ApiRequest, authenticated: Boolean = true): ApiResponse {
         val versioned = request.copy(path = versionedPath(request.path))
         if (!authenticated) return transport.execute(versioned)
-        val current = tokenProvider.current() ?: throw AuthenticationExpiredException("Authentication required")
+        val current = tokenProvider.current()?.takeIf { it.productCode == SERVICE_PRODUCT_CODE }
+            ?: throw AuthenticationExpiredException("Authentication required")
         val effective = if (current.accessExpired(clock())) refresh(current) else current
         val response = transport.execute(authorized(versioned, effective))
         if (response.statusCode != 401) return response
-
-        // Refresh exactly once, then retry exactly once to avoid authentication loops.
         val refreshed = refresh(effective)
         val retried = transport.execute(authorized(versioned, refreshed))
-        if (retried.statusCode == 401) {
-            tokenProvider.clear()
-            throw AuthenticationExpiredException("Server session is no longer valid")
-        }
+        if (retried.statusCode == 401) { tokenProvider.clear(); throw AuthenticationExpiredException("Server session is no longer valid") }
         return retried
     }
 
-    suspend fun revokeSession(sessionId: String): ApiResponse = execute(
-        ApiRequest(HttpMethod.DELETE, "auth/sessions/$sessionId"),
-    )
-
-    suspend fun revokeAllSessions(): ApiResponse = execute(
-        ApiRequest(HttpMethod.DELETE, "auth/sessions"),
-    )
+    suspend fun revokeSession(sessionId: String): ApiResponse = execute(ApiRequest(HttpMethod.DELETE, "auth/sessions/$sessionId"))
+    suspend fun revokeAllSessions(): ApiResponse = execute(ApiRequest(HttpMethod.DELETE, "auth/sessions"))
 
     private suspend fun refresh(tokens: AuthTokens): AuthTokens {
-        if (tokens.refreshExpired(clock())) {
-            tokenProvider.clear()
-            throw AuthenticationExpiredException("Refresh token expired")
-        }
+        if (tokens.refreshExpired(clock())) { tokenProvider.clear(); throw AuthenticationExpiredException("Refresh token expired") }
         val refreshed = refreshTokenApi.refresh(tokens.refreshToken)
-        if (refreshed == null) {
-            tokenProvider.clear()
-            throw AuthenticationExpiredException("Token refresh failed")
-        }
-        tokenProvider.save(refreshed)
-        return refreshed
+        if (refreshed == null || refreshed.productCode != SERVICE_PRODUCT_CODE) { tokenProvider.clear(); throw AuthenticationExpiredException("Token refresh failed") }
+        tokenProvider.save(refreshed); return refreshed
     }
 
     private fun authorized(request: ApiRequest, tokens: AuthTokens): ApiRequest = request.copy(
-        headers = request.headers + mapOf(
-            "Authorization" to "Bearer ${tokens.accessToken}",
-            "Accept" to "application/json",
-        ) + (request.organizationId ?: tokens.organizationId)
-            ?.takeIf { it.isNotBlank() }
-            ?.let { mapOf("X-Lexora-Organization" to it) }
-            .orEmpty(),
+        headers = request.headers + mapOf("Authorization" to "Bearer ${tokens.accessToken}", "Accept" to "application/json") +
+            (request.organizationId ?: tokens.organizationId)?.takeIf { it.isNotBlank() }?.let { mapOf("X-Lexora-Organization" to it) }.orEmpty(),
     )
 
-    private fun versionedPath(path: String): String =
-        if (path.startsWith("/api/")) path else "/api/${configuration.apiVersion}/${path.trim().trimStart('/')}"
+    private fun versionedPath(path: String): String = if (path.startsWith("/api/")) path else "/api/${configuration.apiVersion}/${path.trim().trimStart('/')}"
 }
 
-private fun JSONArray?.toStringSet(): Set<String> {
-    if (this == null) return emptySet()
-    return buildSet {
-        for (index in 0 until length()) optString(index).takeIf(String::isNotBlank)?.let(::add)
-    }
+private fun JSONArray?.toStringSet(): Set<String> = if (this == null) emptySet() else buildSet {
+    for (index in 0 until length()) optString(index).takeIf(String::isNotBlank)?.let(::add)
 }

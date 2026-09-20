@@ -119,9 +119,9 @@ class NotificationsViewModel(
         val current = state.value.preferences ?: delivery.preferences(organizationId, userId)
         val updated = transform(current)
         delivery.savePreferences(updated)
-        updateState { it.copy(preferences = updated, preferenceError = null) }
         if (!state.value.archivedMode) enqueueDeliveries(state.value.notifications, updated)
-        updateState { it.copy(deliveries = delivery.deliveries(organizationId, userId)) }
+        val deliveries = delivery.deliveries(organizationId, userId)
+        updateState { it.copy(preferences = updated, preferenceError = null, deliveries = deliveries) }
     }
 
     private suspend fun enqueueDeliveries(
@@ -166,11 +166,12 @@ class NotificationsViewModel(
 
     private suspend fun refreshList() {
         val list = if (state.value.archivedMode) notifications.archivedNotifications(organizationId) else notifications.notifications(organizationId)
+        val deliveries = delivery.deliveries(organizationId, userId)
         updateState {
             it.copy(
                 loading = false,
                 notifications = list,
-                deliveries = delivery.deliveries(organizationId, userId),
+                deliveries = deliveries,
                 error = null,
             )
         }

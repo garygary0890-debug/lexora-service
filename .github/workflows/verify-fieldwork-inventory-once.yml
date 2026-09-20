@@ -32,7 +32,7 @@ jobs:
           gradle-version: '9.4.1'
       - name: Compile business operations and debug APK
         shell: bash
-        run: gradle --no-daemon --stacktrace :core:database:assembleDebug :core:data:assembleDebug :feature:planning:assembleDebug :feature:fieldwork:assembleDebug :app:assembleDebug
+        run: gradle --no-daemon --stacktrace :core:database:assembleDebug :core:data:assembleDebug :core:network:assembleDebug :feature:planning:assembleDebug :feature:fieldwork:assembleDebug :app:assembleDebug
       - uses: actions/upload-artifact@v4
         with:
           name: lexora-service-business-operations-debug

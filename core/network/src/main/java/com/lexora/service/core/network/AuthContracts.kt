@@ -13,7 +13,7 @@ data class AuthTokens(
     val refreshExpiresAtEpochMs: Long,
     val organizationId: String? = null,
     val membershipId: String? = null,
-    val productCode: String,
+    val productCode: String = SERVICE_PRODUCT_CODE,
     val permissions: Set<String> = emptySet(),
     val globalOwner: Boolean = false,
 ) {

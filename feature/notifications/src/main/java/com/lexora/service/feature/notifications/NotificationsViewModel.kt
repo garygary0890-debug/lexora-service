@@ -146,7 +146,7 @@ class NotificationsViewModel(
                 onDeliveryQueued(queued)
             }
             if (preferences.pushEnabled) {
-                delivery.enqueue(
+                val queued = delivery.enqueue(
                     organizationId = organizationId,
                     userId = userId,
                     channel = NotificationChannel.PUSH,
@@ -159,6 +159,7 @@ class NotificationsViewModel(
                     entityId = item.entityId,
                     scheduledAtEpochMs = item.scheduledAtEpochMs,
                 )
+                onDeliveryQueued(queued)
             }
         }
     }

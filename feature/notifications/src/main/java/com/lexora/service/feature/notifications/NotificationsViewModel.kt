@@ -1,8 +1,9 @@
 package com.lexora.service.feature.notifications
 
+import com.lexora.service.core.data.BusinessOperationsRuntimeDependencies
+import com.lexora.service.core.data.NotificationDeliveryRuntimeDependencies
 import com.lexora.service.core.domain.NotificationDeliveryOperations
 import com.lexora.service.core.domain.NotificationOperations
-import com.lexora.service.core.model.DoNotDisturbPolicy
 import com.lexora.service.core.model.NotificationChannel
 import com.lexora.service.core.model.NotificationDelivery
 import com.lexora.service.core.model.NotificationPreferences
@@ -30,6 +31,17 @@ class NotificationsViewModel(
     private val delivery: NotificationDeliveryOperations,
     private val onDeliveryQueued: (NotificationDelivery) -> Unit = {},
 ) : LexoraViewModel<NotificationsUiState>(NotificationsUiState()) {
+    constructor(
+        organizationId: String,
+        notifications: NotificationOperations,
+    ) : this(
+        organizationId = organizationId,
+        userId = BusinessOperationsRuntimeDependencies.actorUserId(),
+        notifications = notifications,
+        delivery = NotificationDeliveryRuntimeDependencies.operations(),
+        onDeliveryQueued = NotificationDeliveryRuntimeDependencies::schedule,
+    )
+
     init { reload() }
 
     fun setArchivedMode(value: Boolean) {

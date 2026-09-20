@@ -155,6 +155,7 @@ private fun ExecutionReportBlock(
 private fun ClientSignaturePad(initialName: String, alreadySigned: Boolean, onSave: (String, String) -> Unit) {
     var customerName by remember(initialName) { mutableStateOf(initialName) }
     val points = remember { mutableStateListOf<Offset?>() }
+    val signatureColor = MaterialTheme.colorScheme.onSurface
     OutlinedTextField(customerName, { customerName = it }, label = { Text("ФИО клиента / представителя") }, modifier = Modifier.fillMaxWidth())
     if (alreadySigned) Text("Подпись подтверждена и сохранена")
     Card(Modifier.fillMaxWidth().height(180.dp)) {
@@ -172,7 +173,7 @@ private fun ClientSignaturePad(initialName: String, alreadySigned: Boolean, onSa
                     else if (!started) { path.moveTo(point.x, point.y); started = true }
                     else path.lineTo(point.x, point.y)
                 }
-                drawPath(path, MaterialTheme.colorScheme.onSurface, style = Stroke(width = 4f))
+                drawPath(path, signatureColor, style = Stroke(width = 4f))
             }
         }
     }

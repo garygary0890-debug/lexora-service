@@ -3,6 +3,7 @@ package com.lexora.service.notifications
 import com.lexora.service.core.model.NotificationChannel
 import com.lexora.service.core.model.NotificationDelivery
 import com.lexora.service.core.model.NotificationDeliveryStatus
+import com.lexora.service.core.model.ServiceNotificationPriority
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -33,7 +34,8 @@ class NotificationSchedulerTest {
         channel = NotificationChannel.LOCAL,
         eventCode = "TASK_REMINDER",
         title = "Напоминание",
-        message = "Задача",
+        body = "Задача",
+        priority = ServiceNotificationPriority.WARNING,
         nextAttemptAtEpochMs = nextAttempt,
         status = NotificationDeliveryStatus.PENDING,
     )

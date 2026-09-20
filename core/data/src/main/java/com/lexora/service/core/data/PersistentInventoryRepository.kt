@@ -26,7 +26,8 @@ class PersistentInventoryRepository(private val dao: InventoryDao) : InventoryRe
 
     override suspend fun saveItem(item: InventoryItem): InventoryItem {
         require(item.id.isNotBlank() && item.organizationId.isNotBlank() && item.sku.isNotBlank() && item.name.isNotBlank() && item.unit.isNotBlank()) { "Заполните карточку материала" }
-        require(item.minimumStock == null || item.minimumStock >= 0.0) { "Минимальный остаток не может быть отрицательным" }
+        val minimumStock = item.minimumStock
+        require(minimumStock == null || minimumStock >= 0.0) { "Минимальный остаток не может быть отрицательным" }
         dao.upsertItem(item.toEntity())
         return item
     }

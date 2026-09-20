@@ -42,7 +42,18 @@ class NotificationsViewModel(
         onDeliveryQueued = NotificationDeliveryRuntimeDependencies::schedule,
     )
 
-    init { reload() }
+    init {
+        NotificationUiRuntimeActions.install(
+            onDndEnabled = ::setDndEnabled,
+            onLocalEnabled = ::setLocalEnabled,
+            onPushEnabled = ::setPushEnabled,
+            onAllowCritical = ::setAllowCritical,
+            onDndStartChanged = ::setDndStartText,
+            onDndEndChanged = ::setDndEndText,
+            onSaveDndWindow = ::saveDndWindow,
+        )
+        reload()
+    }
 
     fun setArchivedMode(value: Boolean) {
         updateState { it.copy(archivedMode = value) }

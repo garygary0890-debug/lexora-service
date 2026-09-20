@@ -3,6 +3,7 @@ package com.lexora.service.di
 import android.content.Context
 import com.lexora.service.LexoraBackendGraph
 import com.lexora.service.core.data.*
+import com.lexora.service.core.database.InventoryDatabase
 import com.lexora.service.core.database.LexoraServiceDatabase
 import com.lexora.service.core.di.DependencyRegistry
 import com.lexora.service.core.domain.*
@@ -14,8 +15,11 @@ class LexoraServiceContainer(context: Context) {
 
     init {
         registry.registerSingleton(LexoraServiceDatabase::class) { LexoraServiceDatabase.create(appContext) }
+        registry.registerSingleton(InventoryDatabase::class) { InventoryDatabase.create(appContext) }
         registry.registerSingleton(LexoraBackendGraph::class) { LexoraBackendGraph(appContext, database) }
         registry.registerSingleton(ServiceOperations::class) { PersistentServiceOperations(database.serviceDao(), backend.syncQueue) }
+        registry.registerSingleton(VisitExecutionRepository::class) { VisitExecutionRepository(database.serviceDao()) }
+        registry.registerSingleton(InventoryRepository::class) { PersistentInventoryRepository(inventoryDatabase.inventoryDao()) }
         registry.registerSingleton(AccessPolicy::class) { AccessPolicy() }
         registry.registerSingleton(ModuleAccessPolicy::class) { ModuleAccessPolicy(accessPolicy) }
         registry.registerSingleton(PersistentOrganizationRepository::class) { PersistentOrganizationRepository(database.serviceDao()) }
@@ -40,8 +44,11 @@ class LexoraServiceContainer(context: Context) {
     }
 
     val database: LexoraServiceDatabase get() = registry.get()
+    val inventoryDatabase: InventoryDatabase get() = registry.get()
     val backend: LexoraBackendGraph get() = registry.get()
     val operations: ServiceOperations get() = registry.get()
+    val visitExecutionRepository: VisitExecutionRepository get() = registry.get()
+    val inventoryRepository: InventoryRepository get() = registry.get()
     val workspace: WorkspaceOperations get() = registry.get()
     val auditOperations: AuditOperations get() = registry.get()
     val notificationOperations: NotificationOperations get() = registry.get()

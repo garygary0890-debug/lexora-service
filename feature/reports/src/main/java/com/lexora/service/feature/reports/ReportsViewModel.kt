@@ -1,5 +1,6 @@
 package com.lexora.service.feature.reports
 
+import androidx.compose.runtime.mutableStateOf
 import com.lexora.service.core.data.ReportHubRuntimeDependencies
 import com.lexora.service.core.domain.ReportHubOperations
 import com.lexora.service.core.domain.ServiceOperations
@@ -21,8 +22,8 @@ data class ReportsUiState(
 )
 
 object ReportsUiRuntime {
-    @Volatile var latest: ReportHubSnapshot? = null
-    @Volatile var csv: String? = null
+    val latest = mutableStateOf<ReportHubSnapshot?>(null)
+    val csv = mutableStateOf<String?>(null)
 }
 
 class ReportsViewModel(
@@ -52,7 +53,7 @@ class ReportsViewModel(
     fun exportCsv() = launchSafely(onError = ::fail) {
         val hub = state.value.reportHub ?: return@launchSafely
         val csv = reportHub.exportCsv(hub)
-        ReportsUiRuntime.csv = csv
+        ReportsUiRuntime.csv.value = csv
         updateState { it.copy(csvPreview = csv) }
     }
 
@@ -68,7 +69,7 @@ class ReportsViewModel(
             toEpochMs = now,
             nowEpochMs = now,
         )
-        ReportsUiRuntime.latest = hub
+        ReportsUiRuntime.latest.value = hub
         setState(
             state.value.copy(
                 loading = false,

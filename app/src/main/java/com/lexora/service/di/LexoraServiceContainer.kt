@@ -53,6 +53,7 @@ class LexoraServiceContainer(context: Context) {
         registry.registerSingleton(LoadPlanningUseCase::class) { LoadPlanningUseCase(operations) }
         FieldWorkRuntimeDependencies.install(visitExecutionRepository, inventoryRepository)
         BusinessOperationsRuntimeDependencies.install(businessOperations)
+        ReportHubRuntimeDependencies.install(reportHubOperations)
         NotificationDeliveryRuntimeDependencies.install(notificationDeliveryOperations) { delivery ->
             com.lexora.service.notifications.NotificationScheduler.schedule(appContext, delivery)
         }

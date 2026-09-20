@@ -8,8 +8,8 @@ import com.lexora.service.core.model.InventoryMovement
 /**
  * Persistent warehouse contract.
  *
- * All quantity-changing operations go through [recordMovement], which is responsible
- * for validating stock invariants and applying the movement atomically.
+ * All quantity-changing operations go through [recordMovement], which validates stock
+ * invariants and applies the movement atomically inside the warehouse database.
  */
 interface InventoryRepository {
     suspend fun locations(organizationId: String, branchId: String? = null): List<InventoryLocation>
@@ -19,12 +19,16 @@ interface InventoryRepository {
     suspend fun saveItem(item: InventoryItem): InventoryItem
 
     suspend fun balances(organizationId: String, locationId: String? = null): List<InventoryBalance>
+
+    /** On-hand minus reserved quantity. Never returned as a negative value. */
+    suspend fun availableQuantity(organizationId: String, locationId: String, itemId: String): Double
+
     suspend fun movements(organizationId: String, itemId: String? = null, locationId: String? = null): List<InventoryMovement>
 
     /**
      * Supports receipt, issue, write-off, transfer, reservation, reservation release and adjustment.
-     * Implementations must reject negative/zero quantities (except adjustment semantics),
-     * prevent negative on-hand stock and prevent reserved stock from exceeding on-hand stock.
+     * Implementations reject zero/negative quantities, prevent negative on-hand stock and prevent
+     * reserved stock from exceeding on-hand stock.
      */
     suspend fun recordMovement(movement: InventoryMovement): InventoryMovement
 

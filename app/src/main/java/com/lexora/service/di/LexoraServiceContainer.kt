@@ -23,7 +23,8 @@ class LexoraServiceContainer(context: Context) {
         registry.registerSingleton(VisitExecutionRepository::class) { VisitExecutionRepository(database.serviceDao()) }
         registry.registerSingleton(InventoryRepository::class) { PersistentInventoryRepository(inventoryDatabase.inventoryDao()) }
         registry.registerSingleton(BusinessOperationsRepository::class) {
-            PersistentBusinessOperationsRepository(businessOperationsDatabase.businessOperationsDao(), inventoryRepository)
+            val persistent = PersistentBusinessOperationsRepository(businessOperationsDatabase.businessOperationsDao(), inventoryRepository)
+            ValidatedBusinessOperationsRepository(persistent, database.serviceDao(), database.contractDao())
         }
         registry.registerSingleton(AccessPolicy::class) { AccessPolicy() }
         registry.registerSingleton(ModuleAccessPolicy::class) { ModuleAccessPolicy(accessPolicy) }

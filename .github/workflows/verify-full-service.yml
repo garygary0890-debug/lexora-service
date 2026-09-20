@@ -6,6 +6,10 @@ on:
       - feature/full-service-completion-20260920
   workflow_dispatch:
 
+concurrency:
+  group: lexora-service-full-completion-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 

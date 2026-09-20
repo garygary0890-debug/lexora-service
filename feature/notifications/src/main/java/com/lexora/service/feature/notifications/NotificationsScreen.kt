@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.weight
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
@@ -28,13 +29,13 @@ fun NotificationsScreen(
     onMarkAllRead: () -> Unit,
     onMarkRead: (String, Boolean) -> Unit,
     onSetArchived: (String, Boolean) -> Unit,
-    onDndEnabled: (Boolean) -> Unit,
-    onLocalEnabled: (Boolean) -> Unit,
-    onPushEnabled: (Boolean) -> Unit,
-    onAllowCritical: (Boolean) -> Unit,
-    onDndStartChanged: (String) -> Unit,
-    onDndEndChanged: (String) -> Unit,
-    onSaveDndWindow: () -> Unit,
+    onDndEnabled: (Boolean) -> Unit = {},
+    onLocalEnabled: (Boolean) -> Unit = {},
+    onPushEnabled: (Boolean) -> Unit = {},
+    onAllowCritical: (Boolean) -> Unit = {},
+    onDndStartChanged: (String) -> Unit = {},
+    onDndEndChanged: (String) -> Unit = {},
+    onSaveDndWindow: () -> Unit = {},
 ) {
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),

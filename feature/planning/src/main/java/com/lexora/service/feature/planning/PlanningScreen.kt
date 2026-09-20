@@ -68,6 +68,7 @@ fun PlanningScreen(
             items(snapshot.employeeLoads, key = { "employee:${it.resourceId}" }) { load -> LoadCard(load) }
             item { Text(stringResource(R.string.planning_team_load), style = MaterialTheme.typography.titleLarge) }
             items(snapshot.teamLoads, key = { "team:${it.resourceId}" }) { load -> LoadCard(load) }
+            item { BusinessOperationsPanel(state.organizationId) }
         }
     }
 }

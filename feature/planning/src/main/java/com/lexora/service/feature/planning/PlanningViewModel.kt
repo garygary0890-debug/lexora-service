@@ -10,6 +10,7 @@ import java.time.ZoneId
 import java.time.temporal.TemporalAdjusters
 
 data class PlanningUiState(
+    val organizationId: String = "",
     val mode: PlanningMode = PlanningMode.DAY,
     val anchorDate: LocalDate = LocalDate.now(),
     val loading: Boolean = true,
@@ -21,7 +22,7 @@ class PlanningViewModel(
     private val organizationId: String,
     private val loadPlanning: LoadPlanningUseCase,
     private val zoneId: ZoneId = ZoneId.systemDefault(),
-) : LexoraViewModel<PlanningUiState>(PlanningUiState(anchorDate = LocalDate.now(zoneId))) {
+) : LexoraViewModel<PlanningUiState>(PlanningUiState(organizationId = organizationId, anchorDate = LocalDate.now(zoneId))) {
     init { reload() }
 
     fun setMode(mode: PlanningMode) {
@@ -74,4 +75,3 @@ class PlanningViewModel(
         PlanningMode.MONTH -> date.plusMonths(direction)
     }
 }
-

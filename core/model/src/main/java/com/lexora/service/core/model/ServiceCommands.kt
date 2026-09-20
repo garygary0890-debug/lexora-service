@@ -74,6 +74,10 @@ data class SaveRequestCommand(
     val assigneeEmployeeId: String?,
     val assigneeTeamName: String?,
     val plannedAtEpochMs: Long?,
+    val plannedEndEpochMs: Long?,
     val dueAtEpochMs: Long?,
-    val slaDeadlineEpochMs: Long?,
+    val slaReactionMinutes: Int?,
+    val slaResolutionMinutes: Int?,
+    val slaWarningMinutes: Int = 30,
+    val rescheduleReason: String? = null,
 )

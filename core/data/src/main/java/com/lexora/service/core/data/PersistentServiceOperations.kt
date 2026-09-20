@@ -160,12 +160,29 @@ class PersistentServiceOperations(
 
     override suspend fun saveRequest(organizationId: String, userId: String, draft: SaveRequestCommand, existingId: String?) {
         val now = System.currentTimeMillis(); val existing = existingId?.let { dao.serviceRequest(it) }; val id = existingId ?: UUID.randomUUID().toString()
+        validateSchedule(draft.plannedAtEpochMs, draft.plannedEndEpochMs)
+        validateSla(draft.slaReactionMinutes, draft.slaResolutionMinutes, draft.slaWarningMinutes)
+        val scheduleChanged = existing != null && (existing.plannedAtEpochMs != draft.plannedAtEpochMs || existing.plannedEndEpochMs != draft.plannedEndEpochMs)
+        if (scheduleChanged) require(!draft.rescheduleReason.isNullOrBlank()) { "При переносе заявки причина обязательна" }
         val number = existing?.number ?: run {
             val max = dao.serviceRequests(organizationId).mapNotNull { it.number.removePrefix("REQ-").toIntOrNull() }.maxOrNull() ?: 0
             "REQ-%06d".format(max + 1)
         }
-        dao.upsertServiceRequest(ServiceRequestEntity(id, organizationId, number, draft.clientId, existing?.vehicleId, draft.serviceObjectId, draft.equipmentId, draft.contractId, draft.branchId, draft.assigneeEmployeeId, draft.assigneeTeamName?.trim()?.ifBlank { null }, draft.title, draft.description.ifBlank { null }, existing?.status ?: RequestStatus.NEW.name, draft.priority.name, draft.plannedAtEpochMs, draft.dueAtEpochMs, draft.slaDeadlineEpochMs, existing?.closedAtEpochMs, existing?.archived ?: false, if (existing == null) SyncState.PENDING_CREATE.name else SyncState.PENDING_UPDATE.name, existing?.createdAtEpochMs ?: now, now))
-        if (existing == null) dao.insertRequestStatusHistory(RequestStatusHistoryEntity(UUID.randomUUID().toString(), id, null, RequestStatus.NEW.name, userId, now, "Создание заявки"))
+        val createdAt = existing?.createdAtEpochMs ?: now
+        val resolutionDeadline = draft.slaResolutionMinutes?.let { createdAt + it.toLong() * 60_000L }
+        dao.upsertServiceRequest(ServiceRequestEntity(id, organizationId, number, draft.clientId, existing?.vehicleId, draft.serviceObjectId, draft.equipmentId, draft.contractId, draft.branchId, draft.assigneeEmployeeId, draft.assigneeTeamName?.trim()?.ifBlank { null }, draft.title, draft.description.ifBlank { null }, existing?.status ?: RequestStatus.NEW.name, draft.priority.name, draft.plannedAtEpochMs, draft.plannedEndEpochMs, draft.dueAtEpochMs, draft.slaReactionMinutes, draft.slaResolutionMinutes, draft.slaWarningMinutes, resolutionDeadline, existing?.firstReactionAtEpochMs, existing?.closedAtEpochMs, existing?.archived ?: false, if (existing == null) SyncState.PENDING_CREATE.name else SyncState.PENDING_UPDATE.name, createdAt, now))
+        if (existing == null) {
+            dao.insertRequestStatusHistory(RequestStatusHistoryEntity(UUID.randomUUID().toString(), id, null, RequestStatus.NEW.name, userId, now, "Создание заявки"))
+            change(id, RequestChangeType.CREATED, userId, now, null, null, "$number · ${draft.title}")
+        } else {
+            if (scheduleChanged) {
+                dao.reschedulePlannedVisitsForRequest(id, organizationId, draft.plannedAtEpochMs, draft.plannedEndEpochMs, SyncState.PENDING_UPDATE.name, now)
+                change(id, RequestChangeType.RESCHEDULE, userId, now, draft.rescheduleReason!!.trim(), scheduleSummary(existing.plannedAtEpochMs, existing.plannedEndEpochMs), scheduleSummary(draft.plannedAtEpochMs, draft.plannedEndEpochMs))
+            }
+            val updated = dao.serviceRequest(id)!!
+            if (requestSummary(existing) != requestSummary(updated)) change(id, RequestChangeType.UPDATED, userId, now, null, requestSummary(existing), requestSummary(updated))
+            if (existing.slaReactionMinutes != draft.slaReactionMinutes || existing.slaResolutionMinutes != draft.slaResolutionMinutes || existing.slaWarningMinutes != draft.slaWarningMinutes) change(id, RequestChangeType.SLA, userId, now, null, slaSummary(existing), slaSummary(dao.serviceRequest(id)!!))
+        }
         audit(organizationId, userId, "SERVICE_REQUEST", id, if (existing == null) "CREATE" else "UPDATE", "$number · ${draft.title}")
     }
 
@@ -173,8 +190,10 @@ class PersistentServiceOperations(
         val current = dao.serviceRequest(id) ?: return; val from = RequestStatus.valueOf(current.status)
         if (!RequestWorkflow.canTransition(from, target) || from == target) return
         val now = System.currentTimeMillis()
+        if (current.firstReactionAtEpochMs == null && target != RequestStatus.NEW) dao.markRequestReaction(id, organizationId, now, SyncState.PENDING_UPDATE.name, now)
         dao.updateRequestStatus(id, target.name, SyncState.PENDING_UPDATE.name, now, if (target == RequestStatus.CLOSED) now else null)
         dao.insertRequestStatusHistory(RequestStatusHistoryEntity(UUID.randomUUID().toString(), id, from.name, target.name, userId, now, null))
+        change(id, RequestChangeType.STATUS, userId, now, null, from.name, target.name)
         audit(organizationId, userId, "SERVICE_REQUEST", id, "STATUS_CHANGE", "${current.number}: ${from.name} → ${target.name}")
     }
 
@@ -183,17 +202,41 @@ class PersistentServiceOperations(
         val normalizedTeam = teamName?.trim()?.ifBlank { null }
         val now = System.currentTimeMillis()
         dao.assignServiceRequest(id, organizationId, employeeId, normalizedTeam, SyncState.PENDING_UPDATE.name, now)
-        val label = employeeId ?: normalizedTeam ?: "без назначения"
-        audit(organizationId, userId, "SERVICE_REQUEST", id, "ASSIGN", "${current.number}: $label")
+        if (current.firstReactionAtEpochMs == null && (employeeId != null || normalizedTeam != null)) dao.markRequestReaction(id, organizationId, now, SyncState.PENDING_UPDATE.name, now)
+        val before = listOfNotNull(current.assigneeEmployeeId, current.assigneeTeamName).joinToString(" / ").ifBlank { "без назначения" }
+        val after = listOfNotNull(employeeId, normalizedTeam).joinToString(" / ").ifBlank { "без назначения" }
+        change(id, RequestChangeType.ASSIGNMENT, userId, now, null, before, after)
+        audit(organizationId, userId, "SERVICE_REQUEST", id, "ASSIGN", "${current.number}: $after")
+    }
+
+    override suspend fun rescheduleRequest(organizationId: String, userId: String, id: String, plannedStartEpochMs: Long, plannedEndEpochMs: Long, reason: String) {
+        require(reason.isNotBlank()) { "При переносе заявки причина обязательна" }
+        validateSchedule(plannedStartEpochMs, plannedEndEpochMs)
+        val current = dao.serviceRequest(id) ?: return
+        val now = System.currentTimeMillis()
+        dao.rescheduleServiceRequest(id, organizationId, plannedStartEpochMs, plannedEndEpochMs, SyncState.PENDING_UPDATE.name, now)
+        dao.reschedulePlannedVisitsForRequest(id, organizationId, plannedStartEpochMs, plannedEndEpochMs, SyncState.PENDING_UPDATE.name, now)
+        change(id, RequestChangeType.RESCHEDULE, userId, now, reason.trim(), scheduleSummary(current.plannedAtEpochMs, current.plannedEndEpochMs), scheduleSummary(plannedStartEpochMs, plannedEndEpochMs))
+        audit(organizationId, userId, "SERVICE_REQUEST", id, "RESCHEDULE", "${current.number}: ${reason.trim()}")
     }
 
     override suspend fun requestOperationalDetails(organizationId: String, requestId: String): RequestOperationalDetails {
+        val requestEntity = dao.serviceRequest(requestId) ?: error("Заявка не найдена")
+        val request = requestEntity.toModel()
         val visits = dao.visitsForRequest(requestId).map(ServiceVisitEntity::toModel)
         val work = visits.flatMap { dao.visitWorkEntries(it.id).map(VisitWorkEntryEntity::toModel) }
         val materials = visits.flatMap { dao.visitMaterialUsage(it.id).map(VisitMaterialUsageEntity::toModel) }
         val documents = dao.serviceDocuments(organizationId).filter { it.requestId == requestId }.map(ServiceDocumentEntity::toModel)
         val payments = dao.payments(organizationId).filter { it.requestId == requestId }.map(PaymentEntity::toModel)
-        return RequestOperationalDetails(visits, work, materials, documents, payments)
+        val history = dao.requestChangeHistory(organizationId, requestId).map(RequestChangeHistoryEntity::toModel)
+        val reactionMinutes = request.slaReactionMinutes
+        val resolutionMinutes = request.slaResolutionMinutes
+        val rule = if (reactionMinutes != null && resolutionMinutes != null) SlaRule(
+            id = "request:${request.id}", organizationId = organizationId, contractId = request.contractId, clientId = request.clientId,
+            reactionMinutes = reactionMinutes, resolutionMinutes = resolutionMinutes, businessHoursOnly = false,
+        ) else null
+        val sla = SlaEngine().evaluate(request, rule, request.createdAtEpochMs, request.firstReactionAtEpochMs, System.currentTimeMillis(), request.slaWarningMinutes)
+        return RequestOperationalDetails(visits, work, materials, documents, payments, history, sla)
     }
 
     override suspend fun visits(organizationId: String, selectedVisitId: String?): VisitCollection {
@@ -206,7 +249,7 @@ class PersistentServiceOperations(
 
     override suspend fun createVisit(organizationId: String, userId: String, requestId: String, employeeId: String?) {
         val request = dao.serviceRequest(requestId) ?: return; val now = System.currentTimeMillis(); val id = UUID.randomUUID().toString()
-        dao.upsertServiceVisit(ServiceVisitEntity(id, organizationId, requestId, request.branchId, employeeId ?: request.assigneeEmployeeId, VisitStatus.PLANNED.name, request.plannedAtEpochMs, request.dueAtEpochMs, null, null, null, null, null, SyncState.PENDING_CREATE.name, now, now))
+        dao.upsertServiceVisit(ServiceVisitEntity(id, organizationId, requestId, request.branchId, employeeId ?: request.assigneeEmployeeId, VisitStatus.PLANNED.name, request.plannedAtEpochMs, request.plannedEndEpochMs ?: request.dueAtEpochMs, null, null, null, null, null, SyncState.PENDING_CREATE.name, now, now))
         audit(organizationId, userId, "SERVICE_VISIT", id, "CREATE", "Выезд по заявке ${request.number}")
     }
 
@@ -278,6 +321,32 @@ class PersistentServiceOperations(
         audit(organizationId, userId, "PAYMENT", id, "STATUS_CHANGE", "PLANNED → PAID")
     }
 
+    private fun validateSchedule(start: Long?, end: Long?) {
+        require((start == null) == (end == null)) { "Плановое окно должно содержать начало и окончание" }
+        if (start != null && end != null) require(end > start) { "Окончание планового окна должно быть позже начала" }
+    }
+
+    private fun validateSla(reaction: Int?, resolution: Int?, warning: Int) {
+        require((reaction == null) == (resolution == null)) { "SLA должен содержать срок реакции и срок выполнения" }
+        if (reaction != null && resolution != null) {
+            require(reaction > 0 && resolution > 0) { "Сроки SLA должны быть больше нуля" }
+            require(resolution >= reaction) { "Срок выполнения SLA не может быть меньше срока реакции" }
+        }
+        require(warning >= 0) { "Окно предупреждения SLA не может быть отрицательным" }
+    }
+
+    private suspend fun change(requestId: String, type: RequestChangeType, userId: String, at: Long, reason: String?, before: String?, after: String?) =
+        dao.insertRequestChangeHistory(RequestChangeHistoryEntity(UUID.randomUUID().toString(), requestId, type.name, userId, at, reason, before, after))
+
+    private fun scheduleSummary(start: Long?, end: Long?) = "${start ?: 0}..${end ?: 0}"
+    private fun slaSummary(value: ServiceRequestEntity) = "reaction=${value.slaReactionMinutes}; resolution=${value.slaResolutionMinutes}; warning=${value.slaWarningMinutes}"
+    private fun requestSummary(value: ServiceRequestEntity) = buildString {
+        append("title=${value.title}; priority=${value.priority}; client=${value.clientId}; object=${value.serviceObjectId}; equipment=${value.equipmentId}; contract=${value.contractId}")
+        append("; branch=${value.branchId}; employee=${value.assigneeEmployeeId}; team=${value.assigneeTeamName}")
+        append("; planned=${scheduleSummary(value.plannedAtEpochMs, value.plannedEndEpochMs)}; due=${value.dueAtEpochMs}")
+        append("; sla=${slaSummary(value)}; status=${value.status}")
+    }
+
     private suspend fun audit(organizationId: String, userId: String, entityType: String, entityId: String?, action: String, summary: String) {
         dao.insertAuditEvent(AuditEventEntity(UUID.randomUUID().toString(), organizationId, userId, entityType, entityId, action, summary, System.currentTimeMillis()))
     }
@@ -289,7 +358,7 @@ private fun ServiceObjectEntity.toModel() = ServiceObject(id, organizationId, cl
 private fun EquipmentEntity.toModel() = Equipment(id, organizationId, serviceObjectId, type, make, model, serialNumber, inventoryNumber, barcode, commissionedNote, warrantyNote, archived, SyncState.valueOf(syncState))
 private fun BranchEntity.toModel() = Branch(id, organizationId, name, address, phone, email, workSchedule, timeZoneId, active, SyncState.valueOf(syncState))
 private fun EmployeeEntity.toModel() = Employee(id, organizationId, branchId, displayName, position, phone, email, active, SyncState.valueOf(syncState))
-private fun ServiceRequestEntity.toModel() = ServiceRequest(id, organizationId, number, clientId, vehicleId, serviceObjectId, equipmentId, contractId, branchId, assigneeEmployeeId, assigneeTeamName, title, description, RequestStatus.valueOf(status), RequestPriority.valueOf(priority), plannedAtEpochMs, dueAtEpochMs, slaDeadlineEpochMs, closedAtEpochMs, archived, SyncState.valueOf(syncState))
+private fun ServiceRequestEntity.toModel() = ServiceRequest(id, organizationId, number, clientId, vehicleId, serviceObjectId, equipmentId, contractId, branchId, assigneeEmployeeId, assigneeTeamName, title, description, RequestStatus.valueOf(status), RequestPriority.valueOf(priority), plannedAtEpochMs, plannedEndEpochMs, dueAtEpochMs, slaReactionMinutes, slaResolutionMinutes, slaWarningMinutes, slaDeadlineEpochMs, firstReactionAtEpochMs, closedAtEpochMs, archived, SyncState.valueOf(syncState), createdAtEpochMs, updatedAtEpochMs)
 private fun ServiceVisitEntity.toModel() = ServiceVisit(id, organizationId, requestId, branchId, employeeId, VisitStatus.valueOf(status), plannedStartEpochMs, plannedEndEpochMs, actualStartEpochMs, actualEndEpochMs, resultNote, customerName, customerSignatureRef, SyncState.valueOf(syncState))
 private fun VisitChecklistItemEntity.toModel() = VisitChecklistItem(id, visitId, title, ChecklistItemState.valueOf(state), comment, sortOrder, SyncState.valueOf(syncState))
 private fun ServiceDocumentEntity.toModel() = ServiceDocument(id, organizationId, requestId, visitId, clientId, ServiceDocumentType.valueOf(type), number, ServiceDocumentStatus.valueOf(status), issuedAtEpochMs, totalMinor, currency, externalFileRef, note, archived, SyncState.valueOf(syncState))
@@ -297,3 +366,5 @@ private fun PaymentEntity.toModel() = Payment(id, organizationId, requestId, doc
 
 private fun VisitWorkEntryEntity.toModel() = VisitWorkEntry(id, visitId, serviceCode, title, quantity, unit, note, SyncState.valueOf(syncState))
 private fun VisitMaterialUsageEntity.toModel() = VisitMaterialUsage(id, visitId, materialCode, title, quantity, unit, note, SyncState.valueOf(syncState))
+
+private fun RequestChangeHistoryEntity.toModel() = RequestChangeHistory(id, requestId, RequestChangeType.valueOf(type), changedByUserId, changedAtEpochMs, reason, beforeSummary, afterSummary)

@@ -28,6 +28,8 @@ data class RequestOperationalDetails(
     val materials: List<VisitMaterialUsage>,
     val documents: List<ServiceDocument>,
     val payments: List<Payment>,
+    val history: List<RequestChangeHistory>,
+    val sla: SlaEvaluation,
 )
 
 interface ServiceOperations {
@@ -52,6 +54,7 @@ interface ServiceOperations {
     suspend fun saveRequest(organizationId: String, userId: String, draft: SaveRequestCommand, existingId: String?)
     suspend fun changeRequestStatus(organizationId: String, userId: String, id: String, target: RequestStatus)
     suspend fun assignRequest(organizationId: String, userId: String, id: String, employeeId: String?, teamName: String?)
+    suspend fun rescheduleRequest(organizationId: String, userId: String, id: String, plannedStartEpochMs: Long, plannedEndEpochMs: Long, reason: String)
     suspend fun requestOperationalDetails(organizationId: String, requestId: String): RequestOperationalDetails
     suspend fun visits(organizationId: String, selectedVisitId: String?): VisitCollection
     suspend fun checklist(visitId: String): List<VisitChecklistItem>

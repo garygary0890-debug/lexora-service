@@ -11,7 +11,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
     entities = [
         OrganizationEntity::class, ClientEntity::class, VehicleEntity::class, BranchEntity::class,
         EmployeeEntity::class, ModuleSettingEntity::class, AuditEventEntity::class, ServiceHistoryEntity::class,
-        ServiceObjectEntity::class, EquipmentEntity::class, ServiceRequestEntity::class, RequestStatusHistoryEntity::class,
+        ServiceObjectEntity::class, EquipmentEntity::class, ServiceRequestEntity::class, RequestStatusHistoryEntity::class, RequestChangeHistoryEntity::class,
         ServiceVisitEntity::class, VisitChecklistItemEntity::class, VisitWorkEntryEntity::class, VisitMaterialUsageEntity::class,
         VisitPhotoEntity::class, ServiceDocumentEntity::class, PaymentEntity::class, SyncOperationEntity::class,
         SyncConflictEntity::class, WashPostEntity::class, WashQueueItemEntity::class, WashTechCardEntity::class,
@@ -24,7 +24,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         ServiceRecipeEntity::class, ServiceRecipeComponentEntity::class,
         ServiceNotificationEntity::class, ServiceUserEntity::class, UserOrganizationRoleEntity::class,
     ],
-    version = 21,
+    version = 22,
     exportSchema = true,
 )
 abstract class LexoraServiceDatabase : RoomDatabase() {
@@ -180,7 +180,18 @@ abstract class LexoraServiceDatabase : RoomDatabase() {
             db.execSQL("ALTER TABLE service_requests ADD COLUMN assigneeTeamName TEXT")
             db.execSQL("CREATE INDEX IF NOT EXISTS index_service_requests_contractId ON service_requests(contractId)")
         } }
+        private val MIGRATION_21_22 = object : Migration(21, 22) { override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE service_requests ADD COLUMN plannedEndEpochMs INTEGER")
+            db.execSQL("ALTER TABLE service_requests ADD COLUMN slaReactionMinutes INTEGER")
+            db.execSQL("ALTER TABLE service_requests ADD COLUMN slaResolutionMinutes INTEGER")
+            db.execSQL("ALTER TABLE service_requests ADD COLUMN slaWarningMinutes INTEGER NOT NULL DEFAULT 30")
+            db.execSQL("ALTER TABLE service_requests ADD COLUMN firstReactionAtEpochMs INTEGER")
+            db.execSQL("CREATE TABLE IF NOT EXISTS request_change_history (id TEXT NOT NULL PRIMARY KEY, requestId TEXT NOT NULL, type TEXT NOT NULL, changedByUserId TEXT NOT NULL, changedAtEpochMs INTEGER NOT NULL, reason TEXT, beforeSummary TEXT, afterSummary TEXT)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_request_change_history_requestId ON request_change_history(requestId)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_request_change_history_changedAtEpochMs ON request_change_history(changedAtEpochMs)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_request_change_history_type ON request_change_history(type)")
+        } }
 
-        fun create(context: Context): LexoraServiceDatabase = Room.databaseBuilder(context.applicationContext, LexoraServiceDatabase::class.java, "lexora-service.db").addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21).build()
+        fun create(context: Context): LexoraServiceDatabase = Room.databaseBuilder(context.applicationContext, LexoraServiceDatabase::class.java, "lexora-service.db").addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22).build()
     }
 }

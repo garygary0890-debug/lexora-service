@@ -167,6 +167,10 @@ data class SlaEvaluation(
     val resolutionDeadlineEpochMs: Long?,
     val atRisk: Boolean,
     val breached: Boolean,
+    val reactionAtRisk: Boolean = false,
+    val resolutionAtRisk: Boolean = false,
+    val reactionBreached: Boolean = false,
+    val resolutionBreached: Boolean = false,
 )
 
 data class ClientPortalSnapshot(

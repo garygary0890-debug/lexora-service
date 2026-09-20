@@ -42,9 +42,8 @@ class NotificationRepository(
     }
 
     override suspend fun refreshGenerated(organizationId: String, now: Long) {
-        serviceDao.serviceRequests(organizationId)
-            .filter { it.status != "CLOSED" }
-            .forEach { request ->
+        serviceDao.serviceRequests(organizationId).forEach { request ->
+                val activeRequest = request.status != "CLOSED" && request.status != "CANCELLED"
                 request.dueAtEpochMs?.let { due ->
                     if (due <= now + DAY_MS) {
                         createIfMissing(
@@ -61,21 +60,23 @@ class NotificationRepository(
                         )
                     }
                 }
-                request.slaDeadlineEpochMs?.let { sla ->
-                    if (sla <= now + DAY_MS) {
-                        createIfMissing(
-                            id = "sla:${request.id}",
-                            organizationId = organizationId,
-                            type = ServiceNotificationType.SLA_WARNING,
-                            priority = if (sla < now) ServiceNotificationPriority.CRITICAL else ServiceNotificationPriority.WARNING,
-                            title = if (sla < now) "SLA РЅР°СЂСѓС€РµРЅ: ${request.number}" else "РџСЂРёР±Р»РёР¶Р°РµС‚СЃСЏ SLA: ${request.number}",
-                            message = request.title,
-                            entityType = "SERVICE_REQUEST",
-                            entityId = request.id,
-                            scheduledAt = sla,
-                            now = now,
-                        )
-                    }
+                val warningWindowMs = request.slaWarningMinutes.coerceAtLeast(0).toLong() * 60_000L
+                val reactionDeadline = request.slaReactionMinutes?.let { request.createdAtEpochMs + it.toLong() * 60_000L }
+                syncSlaNotification(
+                    id = "sla-reaction:${request.id}", organizationId = organizationId, requestNumber = request.number,
+                    requestTitle = request.title, label = "реакции", deadline = reactionDeadline,
+                    active = activeRequest && request.firstReactionAtEpochMs == null && reactionDeadline != null && reactionDeadline <= now + warningWindowMs,
+                    now = now,
+                )
+                val resolutionDeadline = request.slaResolutionMinutes?.let { request.createdAtEpochMs + it.toLong() * 60_000L }
+                syncSlaNotification(
+                    id = "sla-resolution:${request.id}", organizationId = organizationId, requestNumber = request.number,
+                    requestTitle = request.title, label = "выполнения", deadline = resolutionDeadline,
+                    active = activeRequest && request.closedAtEpochMs == null && resolutionDeadline != null && resolutionDeadline <= now + warningWindowMs,
+                    now = now,
+                )
+                notificationDao.notification("sla:${request.id}")?.let { legacy ->
+                    if (!legacy.archived) notificationDao.setArchived(legacy.id, true, SyncState.PENDING_UPDATE.name, now)
                 }
             }
 
@@ -97,6 +98,37 @@ class NotificationRepository(
                     )
                 }
         }
+    }
+
+    private suspend fun syncSlaNotification(
+        id: String,
+        organizationId: String,
+        requestNumber: String,
+        requestTitle: String,
+        label: String,
+        deadline: Long?,
+        active: Boolean,
+        now: Long,
+    ) {
+        val existing = notificationDao.notification(id)
+        if (!active || deadline == null) {
+            if (existing != null && !existing.archived) notificationDao.setArchived(id, true, SyncState.PENDING_UPDATE.name, now)
+            return
+        }
+        val breached = deadline < now
+        val title = if (breached) "SLA $label нарушен: $requestNumber" else "Приближается SLA $label: $requestNumber"
+        val priority = if (breached) ServiceNotificationPriority.CRITICAL else ServiceNotificationPriority.WARNING
+        if (existing?.archived == true) return
+        notificationDao.upsert(
+            ServiceNotificationEntity(
+                id = id, organizationId = organizationId, type = ServiceNotificationType.SLA_WARNING.name,
+                priority = priority.name, title = title, message = requestTitle,
+                entityType = "SERVICE_REQUEST", entityId = id.substringAfterLast(':'), scheduledAtEpochMs = deadline,
+                occurredAtEpochMs = existing?.occurredAtEpochMs ?: now,
+                readAtEpochMs = if (existing?.priority != null && existing.priority != priority.name) null else existing?.readAtEpochMs,
+                archived = false, syncState = if (existing == null) SyncState.PENDING_CREATE.name else SyncState.PENDING_UPDATE.name, updatedAtEpochMs = now,
+            ),
+        )
     }
 
     private suspend fun createIfMissing(

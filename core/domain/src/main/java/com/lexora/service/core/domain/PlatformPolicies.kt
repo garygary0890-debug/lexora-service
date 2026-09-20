@@ -34,24 +34,28 @@ class SlaEngine {
         nowEpochMs: Long,
         riskWindowMinutes: Int = 30,
     ): SlaEvaluation {
-        if (rule == null) {
-            return SlaEvaluation(request.id, null, request.slaDeadlineEpochMs, atRisk = false, breached = false)
-        }
+        if (rule == null) return SlaEvaluation(request.id, null, null, false, false)
+        require(rule.reactionMinutes > 0) { "SLA реакции должен быть больше нуля" }
+        require(rule.resolutionMinutes > 0) { "SLA выполнения должен быть больше нуля" }
         val reactionDeadline = createdAtEpochMs + rule.reactionMinutes.minutesToMillis()
-        val resolutionDeadline = request.slaDeadlineEpochMs
-            ?: createdAtEpochMs + rule.resolutionMinutes.minutesToMillis()
+        val resolutionDeadline = createdAtEpochMs + rule.resolutionMinutes.minutesToMillis()
         val reactionBreached = firstReactionAtEpochMs?.let { it > reactionDeadline }
             ?: (nowEpochMs > reactionDeadline)
         val resolutionBreached = request.closedAtEpochMs?.let { it > resolutionDeadline }
             ?: (nowEpochMs > resolutionDeadline)
-        val riskWindow = riskWindowMinutes.minutesToMillis()
-        val atRisk = !resolutionBreached && resolutionDeadline - nowEpochMs in 0..riskWindow
+        val riskWindow = riskWindowMinutes.coerceAtLeast(0).minutesToMillis()
+        val reactionAtRisk = firstReactionAtEpochMs == null && !reactionBreached && reactionDeadline - nowEpochMs in 0..riskWindow
+        val resolutionAtRisk = request.closedAtEpochMs == null && !resolutionBreached && resolutionDeadline - nowEpochMs in 0..riskWindow
         return SlaEvaluation(
             requestId = request.id,
             reactionDeadlineEpochMs = reactionDeadline,
             resolutionDeadlineEpochMs = resolutionDeadline,
-            atRisk = atRisk,
+            atRisk = reactionAtRisk || resolutionAtRisk,
             breached = reactionBreached || resolutionBreached,
+            reactionAtRisk = reactionAtRisk,
+            resolutionAtRisk = resolutionAtRisk,
+            reactionBreached = reactionBreached,
+            resolutionBreached = resolutionBreached,
         )
     }
 

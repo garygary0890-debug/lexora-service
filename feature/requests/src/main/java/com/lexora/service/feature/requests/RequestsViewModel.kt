@@ -38,13 +38,20 @@ class RequestsViewModel(
             clientId = draft.clientId, serviceObjectId = draft.serviceObjectId, equipmentId = draft.equipmentId,
             contractId = draft.contractId, branchId = draft.branchId, assigneeEmployeeId = draft.assigneeEmployeeId,
             assigneeTeamName = draft.assigneeTeamName, plannedAtEpochMs = draft.plannedAtEpochMs,
-            dueAtEpochMs = draft.dueAtEpochMs, slaDeadlineEpochMs = draft.slaDeadlineEpochMs,
+            plannedEndEpochMs = draft.plannedEndEpochMs, dueAtEpochMs = draft.dueAtEpochMs,
+            slaReactionMinutes = draft.slaReactionMinutes, slaResolutionMinutes = draft.slaResolutionMinutes,
+            slaWarningMinutes = draft.slaWarningMinutes, rescheduleReason = draft.rescheduleReason,
         ), existingId)
         refresh(existingId)
     }
 
     fun assign(id: String, employeeId: String?, teamName: String?) = launchSafely(::fail) {
         operations.assignRequest(organizationId, userId, id, employeeId, teamName)
+        refresh(id)
+    }
+
+    fun reschedule(id: String, startAt: Long, endAt: Long, reason: String) = launchSafely(::fail) {
+        operations.rescheduleRequest(organizationId, userId, id, startAt, endAt, reason)
         refresh(id)
     }
 

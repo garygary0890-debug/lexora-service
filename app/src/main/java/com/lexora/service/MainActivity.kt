@@ -248,7 +248,7 @@ private fun LexoraNavHost(
                 factory = LexoraViewModelFactory { RequestsViewModel(organization.id, user.id, container.operations, container.documentFeatureOperations) },
             )
             val state by vm.state.collectAsStateWithLifecycle()
-            RequestsScreen(state, vm::open, vm::close, vm::save, vm::assign, vm::changeStatus)
+            RequestsScreen(state, vm::open, vm::close, vm::save, vm::assign, vm::reschedule, vm::changeStatus)
         }
         composable(Routes.Organization) {
             val vm: OrganizationViewModel = viewModel(

@@ -6,7 +6,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.weight
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
@@ -113,13 +112,11 @@ private fun NotificationPreferencesCard(
                         value = state.dndStartText,
                         onValueChange = onDndStartChanged,
                         label = { Text("Начало ЧЧ:ММ") },
-                        modifier = Modifier.weight(1f),
                     )
                     OutlinedTextField(
                         value = state.dndEndText,
                         onValueChange = onDndEndChanged,
                         label = { Text("Конец ЧЧ:ММ") },
-                        modifier = Modifier.weight(1f),
                     )
                 }
                 ToggleRow("Пропускать критические события", preferences.doNotDisturb.allowCritical, onAllowCritical)
@@ -134,7 +131,7 @@ private fun NotificationPreferencesCard(
 @Composable
 private fun ToggleRow(label: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-        Text(label, modifier = Modifier.weight(1f))
+        Text(label)
         Switch(checked = checked, onCheckedChange = onCheckedChange)
     }
 }

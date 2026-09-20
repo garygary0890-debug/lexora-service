@@ -1,0 +1,48 @@
+name: Install Lexora Service on Xiaomi once
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/install-xiaomi-once.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  install:
+    runs-on: [self-hosted, Windows, X64, Lexora]
+    timeout-minutes: 35
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build debug APK
+        shell: powershell
+        run: |
+          $env:JAVA_HOME = 'C:\Program Files\Android\Android Studio\jbr'
+          $env:ANDROID_HOME = 'C:\Users\Maria\AppData\Local\Android\Sdk'
+          $env:ANDROID_SDK_ROOT = $env:ANDROID_HOME
+          $env:Path = "$env:JAVA_HOME\bin;$env:ANDROID_HOME\platform-tools;$env:Path"
+          $wrapper = 'C:\Users\Maria\AndroidStudioProjects\lexora-service\gradlew.bat'
+          if (-not (Test-Path $wrapper)) { throw "Gradle wrapper not found: $wrapper" }
+          & $wrapper -p $env:GITHUB_WORKSPACE --no-daemon :app:assembleDebug
+          if ($LASTEXITCODE -ne 0) { throw "Gradle build failed with exit code $LASTEXITCODE" }
+
+      - name: Install on wireless Xiaomi
+        shell: powershell
+        run: |
+          $adb = 'C:\Users\Maria\AppData\Local\Android\Sdk\platform-tools\adb.exe'
+          $serial = 'adb-f14409357d7c-FlHEGM._adb-tls-connect._tcp'
+          & $adb devices -l
+          $devices = & $adb devices
+          if (-not ($devices -match [regex]::Escape($serial))) { throw "Wireless Xiaomi $serial is not connected" }
+          $apk = Join-Path $env:GITHUB_WORKSPACE 'app\build\outputs\apk\debug\app-debug.apk'
+          if (-not (Test-Path $apk)) { throw "APK not found: $apk" }
+          & $adb -s $serial install --no-streaming -r $apk
+          if ($LASTEXITCODE -ne 0) { throw "ADB install failed with exit code $LASTEXITCODE" }
+          & $adb -s $serial shell am force-stop com.lexora.service
+          & $adb -s $serial shell monkey -p com.lexora.service -c android.intent.category.LAUNCHER 1
+          Start-Sleep -Seconds 3
+          & $adb -s $serial shell dumpsys package com.lexora.service | Select-String 'versionCode|versionName'
+          & $adb -s $serial shell dumpsys activity activities | Select-String 'topResumedActivity|mResumedActivity'

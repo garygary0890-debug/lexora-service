@@ -1,4 +1,4 @@
-name: Verify fieldwork and inventory stage
+name: Verify service business operations
 
 on:
   push:
@@ -30,12 +30,12 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '9.4.1'
-      - name: Compile and build debug APK
+      - name: Compile business operations and debug APK
         shell: bash
-        run: gradle --no-daemon --stacktrace :core:database:assembleDebug :core:data:assembleDebug :feature:fieldwork:assembleDebug :app:assembleDebug
+        run: gradle --no-daemon --stacktrace :core:database:assembleDebug :core:data:assembleDebug :feature:planning:assembleDebug :feature:fieldwork:assembleDebug :app:assembleDebug
       - uses: actions/upload-artifact@v4
         with:
-          name: lexora-service-fieldwork-inventory-debug
+          name: lexora-service-business-operations-debug
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 14

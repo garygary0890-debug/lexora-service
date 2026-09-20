@@ -2,6 +2,7 @@ package com.lexora.service.core.domain
 
 import com.lexora.service.core.model.NotificationDelivery
 import com.lexora.service.core.model.NotificationPreferences
+import com.lexora.service.core.model.ServiceNotificationPriority
 
 interface NotificationDeliveryOperations {
     suspend fun preferences(organizationId: String, userId: String): NotificationPreferences
@@ -12,6 +13,9 @@ interface NotificationDeliveryOperations {
         userId: String,
         idempotencyKey: String,
         eventCode: String,
+        title: String,
+        body: String,
+        priority: ServiceNotificationPriority,
         entityType: String?,
         entityId: String?,
         scheduledAtEpochMs: Long?,

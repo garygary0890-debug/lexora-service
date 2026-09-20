@@ -49,3 +49,22 @@ data class MaterialUsageReportRow(
     val unit: String?,
     val quantity: Double,
 )
+
+data class RequestStatusReportRow(
+    val status: RequestStatus,
+    val count: Int,
+)
+
+data class ReportHubSnapshot(
+    val organizationId: String,
+    val branchIds: Set<String>,
+    val fromEpochMs: Long,
+    val toEpochMs: Long,
+    val requestStatuses: List<RequestStatusReportRow>,
+    val workload: List<WorkloadReportRow>,
+    val employeeOutput: List<EmployeeOutputReportRow>,
+    val financial: FinancialReport,
+    val sla: SlaReport,
+    val repeatIssues: RepeatIssueReport,
+    val materials: List<MaterialUsageReportRow>,
+)

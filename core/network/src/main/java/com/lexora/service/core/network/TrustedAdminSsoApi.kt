@@ -4,6 +4,8 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.time.OffsetDateTime
 
+private const val TRUSTED_SSO_SERVICE_PRODUCT = "LEXORA_SERVICE"
+
 class TrustedAdminSsoApi(
     private val configuration: ApiConfiguration,
     private val transport: HttpTransport,
@@ -16,7 +18,7 @@ class TrustedAdminSsoApi(
     ): AuthTokens {
         require(authorizationCode.isNotBlank())
         require(codeVerifier.length in 43..128)
-        require(targetProductCode.isNotBlank())
+        require(targetProductCode == TRUSTED_SSO_SERVICE_PRODUCT) { "Service SSO target product mismatch" }
         val response = transport.execute(
             ApiRequest(
                 method = HttpMethod.POST,
@@ -25,7 +27,7 @@ class TrustedAdminSsoApi(
                 body = JSONObject()
                     .put("authorizationCode", authorizationCode)
                     .put("codeVerifier", codeVerifier)
-                    .put("targetProductCode", targetProductCode)
+                    .put("targetProductCode", TRUSTED_SSO_SERVICE_PRODUCT)
                     .toString(),
             ),
         )
@@ -37,6 +39,7 @@ class TrustedAdminSsoApi(
     }
 
     private fun parseTokens(json: JSONObject): AuthTokens {
+        require(json.getString("productCode") == TRUSTED_SSO_SERVICE_PRODUCT) { "Backend returned a session for another product" }
         val accessTtlSeconds = json.optLong("accessTokenExpiresInSeconds", 900L)
         return AuthTokens(
             accessToken = json.getString("accessToken"),
@@ -45,6 +48,7 @@ class TrustedAdminSsoApi(
             refreshExpiresAtEpochMs = OffsetDateTime.parse(json.getString("refreshTokenExpiresAt")).toInstant().toEpochMilli(),
             organizationId = json.optString("organizationId").takeIf(String::isNotBlank),
             membershipId = json.optString("membershipId").takeIf(String::isNotBlank),
+            productCode = json.getString("productCode"),
             permissions = json.optJSONArray("permissions").toStringSet(),
             globalOwner = json.optBoolean("globalOwner", false),
         )
@@ -53,7 +57,5 @@ class TrustedAdminSsoApi(
 
 private fun JSONArray?.toStringSet(): Set<String> {
     if (this == null) return emptySet()
-    return buildSet {
-        for (index in 0 until length()) optString(index).takeIf(String::isNotBlank)?.let(::add)
-    }
+    return buildSet { for (index in 0 until length()) optString(index).takeIf(String::isNotBlank)?.let(::add) }
 }

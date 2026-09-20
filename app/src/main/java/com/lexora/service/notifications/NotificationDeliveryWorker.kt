@@ -5,6 +5,8 @@ import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.lexora.service.core.database.NotificationRuntimeDatabase
 import com.lexora.service.core.domain.NotificationPolicy
+import com.lexora.service.core.domain.PushDeliveryDecision
+import com.lexora.service.core.domain.PushDeliveryPolicy
 import com.lexora.service.core.domain.QuietHoursPolicy
 import com.lexora.service.core.model.DoNotDisturbPolicy
 import com.lexora.service.core.model.NotificationChannel
@@ -30,12 +32,17 @@ class NotificationDeliveryWorker(
         ) return Result.success()
 
         val now = System.currentTimeMillis()
-        if (entity.channel != NotificationChannel.LOCAL.name) return Result.success()
+        val channel = NotificationChannel.valueOf(entity.channel)
         val prefs = dao.preferences(entity.organizationId, entity.userId)
-        if (prefs != null && !prefs.localEnabled) {
+        if (channel == NotificationChannel.LOCAL && prefs != null && !prefs.localEnabled) {
             dao.updateState(id, NotificationDeliveryStatus.SUPPRESSED.name, null, null, entity.attemptCount, "local_notifications_disabled", now)
             return Result.success()
         }
+        if (channel == NotificationChannel.PUSH && prefs != null && !prefs.pushEnabled) {
+            dao.updateState(id, NotificationDeliveryStatus.SUPPRESSED.name, null, null, entity.attemptCount, "push_notifications_disabled", now)
+            return Result.success()
+        }
+        if (channel !in setOf(NotificationChannel.LOCAL, NotificationChannel.PUSH)) return Result.success()
 
         val policy = DoNotDisturbPolicy(
             userId = entity.userId,
@@ -55,13 +62,48 @@ class NotificationDeliveryWorker(
             return Result.success()
         }
 
+        return when (channel) {
+            NotificationChannel.LOCAL -> deliverLocal(entity.toModel(), entity.attemptCount, id, now)
+            NotificationChannel.PUSH -> deliverPush(entity.toModel(), entity.attemptCount, id, now)
+            else -> Result.success()
+        }
+    }
+
+    private suspend fun deliverLocal(delivery: NotificationDelivery, attempts: Int, id: String, now: Long): Result {
+        val dao = NotificationRuntimeDatabase.create(applicationContext).notificationDeliveryDao()
         val publisher = AndroidNotificationPublisher(applicationContext)
-        if (!publisher.publish(entity.toModel())) {
-            dao.updateState(id, NotificationDeliveryStatus.FAILED.name, null, null, entity.attemptCount + 1, "notification_permission_denied", now)
+        if (!publisher.publish(delivery)) {
+            dao.updateState(id, NotificationDeliveryStatus.FAILED.name, null, null, attempts + 1, "notification_permission_denied", now)
             return Result.failure()
         }
-        dao.updateState(id, NotificationDeliveryStatus.DELIVERED.name, null, now, entity.attemptCount, null, now)
+        dao.updateState(id, NotificationDeliveryStatus.DELIVERED.name, null, now, attempts, null, now)
         return Result.success()
+    }
+
+    private suspend fun deliverPush(delivery: NotificationDelivery, attempts: Int, id: String, now: Long): Result {
+        val dao = NotificationRuntimeDatabase.create(applicationContext).notificationDeliveryDao()
+        val result = PushProviderRuntime.current().send(delivery)
+        val outcome = PushDeliveryPolicy.afterFailure(attempts, now, result)
+        return when (outcome.decision) {
+            PushDeliveryDecision.DELIVERED -> {
+                dao.updateState(id, NotificationDeliveryStatus.DELIVERED.name, null, now, attempts, null, now)
+                Result.success()
+            }
+            PushDeliveryDecision.RETRY -> {
+                val next = requireNotNull(outcome.nextAttemptAtEpochMs)
+                dao.updateState(id, NotificationDeliveryStatus.FAILED.name, next, null, attempts + 1, "push_transient_failure", now)
+                NotificationScheduler.schedule(applicationContext, delivery.copy(nextAttemptAtEpochMs = next, attemptCount = attempts + 1))
+                Result.success()
+            }
+            PushDeliveryDecision.DISABLE_TOKEN -> {
+                dao.updateState(id, NotificationDeliveryStatus.SUPPRESSED.name, null, null, attempts + 1, "push_invalid_token", now)
+                Result.success()
+            }
+            PushDeliveryDecision.TERMINAL_FAILURE -> {
+                dao.updateState(id, NotificationDeliveryStatus.FAILED.name, null, null, attempts + 1, "push_terminal_failure", now)
+                Result.success()
+            }
+        }
     }
 
     companion object {

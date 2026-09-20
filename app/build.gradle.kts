@@ -81,4 +81,6 @@ dependencies {
     implementation("androidx.compose.ui:ui")
     implementation("androidx.navigation:navigation-compose:2.9.3")
     implementation("androidx.work:work-runtime-ktx:2.10.3")
+
+    testImplementation("junit:junit:4.13.2")
 }

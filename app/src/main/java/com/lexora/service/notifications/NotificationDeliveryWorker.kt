@@ -7,11 +7,13 @@ import com.lexora.service.core.database.NotificationRuntimeDatabase
 import com.lexora.service.core.domain.NotificationPolicy
 import com.lexora.service.core.domain.PushDeliveryDecision
 import com.lexora.service.core.domain.PushDeliveryPolicy
+import com.lexora.service.core.domain.PushTokenPolicy
 import com.lexora.service.core.domain.QuietHoursPolicy
 import com.lexora.service.core.model.DoNotDisturbPolicy
 import com.lexora.service.core.model.NotificationChannel
 import com.lexora.service.core.model.NotificationDelivery
 import com.lexora.service.core.model.NotificationDeliveryStatus
+import com.lexora.service.core.model.PushDeviceToken
 import com.lexora.service.core.model.ServiceNotificationPriority
 import java.time.Instant
 import java.time.ZoneId
@@ -82,7 +84,13 @@ class NotificationDeliveryWorker(
 
     private suspend fun deliverPush(delivery: NotificationDelivery, attempts: Int, id: String, now: Long): Result {
         val dao = NotificationRuntimeDatabase.create(applicationContext).notificationDeliveryDao()
-        val result = PushProviderRuntime.current().send(delivery)
+        val tokenEntities = dao.pushTokens(delivery.organizationId, delivery.userId)
+        val token = PushTokenPolicy().select(tokenEntities.map { it.toModel() })
+        if (token == null) {
+            dao.updateState(id, NotificationDeliveryStatus.SUPPRESSED.name, null, null, attempts, "push_token_missing", now)
+            return Result.success()
+        }
+        val result = PushProviderRuntime.current().send(delivery, token)
         val outcome = PushDeliveryPolicy.afterFailure(attempts, now, result)
         return when (outcome.decision) {
             PushDeliveryDecision.DELIVERED -> {
@@ -96,6 +104,7 @@ class NotificationDeliveryWorker(
                 Result.success()
             }
             PushDeliveryDecision.DISABLE_TOKEN -> {
+                dao.deactivatePushToken(token.id, now)
                 dao.updateState(id, NotificationDeliveryStatus.SUPPRESSED.name, null, null, attempts + 1, "push_invalid_token", now)
                 Result.success()
             }
@@ -130,4 +139,15 @@ private fun com.lexora.service.core.database.NotificationDeliveryEntity.toModel(
     status = NotificationDeliveryStatus.valueOf(status),
     attemptCount = attemptCount,
     lastError = lastError,
+)
+
+private fun com.lexora.service.core.database.PushDeviceTokenEntity.toModel() = PushDeviceToken(
+    id = id,
+    organizationId = organizationId,
+    userId = userId,
+    deviceId = deviceId,
+    provider = provider,
+    token = token,
+    active = active,
+    updatedAtEpochMs = updatedAtEpochMs,
 )

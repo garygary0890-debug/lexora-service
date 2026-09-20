@@ -33,5 +33,5 @@ object NotificationUiRuntimeActions {
     fun setAllowCritical(value: Boolean) = allowCritical?.invoke(value)
     fun setDndStart(value: String) = dndStartChanged?.invoke(value)
     fun setDndEnd(value: String) = dndEndChanged?.invoke(value)
-    fun saveDndWindow() = saveDndWindow?.invoke(Unit)
+    fun saveDndWindow() = saveDndWindow?.invoke()
 }

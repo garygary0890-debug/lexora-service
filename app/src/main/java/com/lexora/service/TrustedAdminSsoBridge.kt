@@ -10,6 +10,7 @@ data class PreparedTrustedAdminSso(
     val intent: Intent,
     val codeVerifier: String,
     val requestState: String,
+    val silentOwnerOnly: Boolean = false,
 )
 
 data class TrustedAdminSsoResult(
@@ -27,6 +28,7 @@ object TrustedAdminSsoBridge {
     const val EXTRA_AUTHORIZATION_CODE = "lexora.authorization_code"
     const val EXTRA_ORGANIZATION_ID = "lexora.organization_id"
     const val EXTRA_ERROR = "lexora.error"
+    const val EXTRA_SILENT_OWNER_ONLY = "lexora.silent_owner_only"
 
     private val random = SecureRandom()
 
@@ -37,7 +39,7 @@ object TrustedAdminSsoBridge {
         ) != null
     }.getOrDefault(false)
 
-    fun prepare(): PreparedTrustedAdminSso {
+    fun prepare(silentOwnerOnly: Boolean = false): PreparedTrustedAdminSso {
         val verifier = randomToken(32)
         val challenge = Base64.encodeToString(
             MessageDigest.getInstance("SHA-256").digest(verifier.toByteArray(Charsets.US_ASCII)),
@@ -49,7 +51,8 @@ object TrustedAdminSsoBridge {
             .putExtra(EXTRA_TARGET_PRODUCT_CODE, TARGET_PRODUCT)
             .putExtra(EXTRA_PKCE_CHALLENGE, challenge)
             .putExtra(EXTRA_REQUEST_STATE, state)
-        return PreparedTrustedAdminSso(intent, verifier, state)
+            .putExtra(EXTRA_SILENT_OWNER_ONLY, silentOwnerOnly)
+        return PreparedTrustedAdminSso(intent, verifier, state, silentOwnerOnly)
     }
 
     fun readResult(intent: Intent?, expectedState: String): TrustedAdminSsoResult {

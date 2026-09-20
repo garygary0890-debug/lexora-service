@@ -3,6 +3,7 @@ package com.lexora.service.core.domain
 import com.lexora.service.core.model.NotificationChannel
 import com.lexora.service.core.model.NotificationDelivery
 import com.lexora.service.core.model.NotificationPreferences
+import com.lexora.service.core.model.PushDeviceToken
 import com.lexora.service.core.model.ServiceNotificationPriority
 
 interface NotificationDeliveryOperations {
@@ -48,6 +49,9 @@ interface NotificationDeliveryOperations {
         scheduledAtEpochMs = scheduledAtEpochMs,
     )
 
+    suspend fun pushTokens(organizationId: String, userId: String): List<PushDeviceToken>
+    suspend fun registerPushToken(token: PushDeviceToken)
+    suspend fun deactivatePushToken(id: String)
     suspend fun due(nowEpochMs: Long, limit: Int = 100): List<NotificationDelivery>
     suspend fun defer(id: String, nextAttemptAtEpochMs: Long)
     suspend fun markSent(id: String, sentAtEpochMs: Long)

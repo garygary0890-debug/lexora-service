@@ -22,6 +22,17 @@ data class NotificationDelivery(
     val lastError: String? = null,
 )
 
+data class PushDeviceToken(
+    val id: String,
+    val organizationId: String,
+    val userId: String,
+    val deviceId: String,
+    val provider: String,
+    val token: String,
+    val active: Boolean = true,
+    val updatedAtEpochMs: Long,
+)
+
 data class DoNotDisturbPolicy(
     val userId: String,
     val enabled: Boolean,

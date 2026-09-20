@@ -3,12 +3,14 @@ package com.lexora.service.core.data
 import com.lexora.service.core.database.NotificationDeliveryDao
 import com.lexora.service.core.database.NotificationDeliveryEntity
 import com.lexora.service.core.database.NotificationPreferenceEntity
+import com.lexora.service.core.database.PushDeviceTokenEntity
 import com.lexora.service.core.domain.NotificationDeliveryOperations
 import com.lexora.service.core.model.DoNotDisturbPolicy
 import com.lexora.service.core.model.NotificationChannel
 import com.lexora.service.core.model.NotificationDelivery
 import com.lexora.service.core.model.NotificationDeliveryStatus
 import com.lexora.service.core.model.NotificationPreferences
+import com.lexora.service.core.model.PushDeviceToken
 import com.lexora.service.core.model.ServiceNotificationPriority
 import java.util.UUID
 
@@ -66,6 +68,19 @@ class PersistentNotificationDeliveryRepository(
         return dao.deliveries(organizationId, userId, 500)
             .firstOrNull { it.idempotencyKey == idempotencyKey && it.channel == channel.name }
             ?.toModel() ?: error("Notification delivery idempotency lookup failed")
+    }
+
+    override suspend fun pushTokens(organizationId: String, userId: String): List<PushDeviceToken> =
+        dao.pushTokens(organizationId, userId).map(PushDeviceTokenEntity::toModel)
+
+    override suspend fun registerPushToken(token: PushDeviceToken) {
+        require(token.organizationId.isNotBlank() && token.userId.isNotBlank() && token.deviceId.isNotBlank())
+        require(token.provider.isNotBlank() && token.token.isNotBlank())
+        dao.upsertPushToken(token.toEntity())
+    }
+
+    override suspend fun deactivatePushToken(id: String) {
+        dao.deactivatePushToken(id, System.currentTimeMillis())
     }
 
     override suspend fun due(nowEpochMs: Long, limit: Int): List<NotificationDelivery> =
@@ -147,4 +162,14 @@ private fun NotificationDeliveryEntity.toModel() = NotificationDelivery(
     entityType = entityType, entityId = entityId, scheduledAtEpochMs = scheduledAtEpochMs,
     nextAttemptAtEpochMs = nextAttemptAtEpochMs, deliveredAtEpochMs = deliveredAtEpochMs,
     status = NotificationDeliveryStatus.valueOf(status), attemptCount = attemptCount, lastError = lastError,
+)
+
+private fun PushDeviceTokenEntity.toModel() = PushDeviceToken(
+    id = id, organizationId = organizationId, userId = userId, deviceId = deviceId,
+    provider = provider, token = token, active = active, updatedAtEpochMs = updatedAtEpochMs,
+)
+
+private fun PushDeviceToken.toEntity() = PushDeviceTokenEntity(
+    id = id, organizationId = organizationId, userId = userId, deviceId = deviceId,
+    provider = provider, token = token, active = active, updatedAtEpochMs = updatedAtEpochMs,
 )

@@ -19,15 +19,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.lexora.service.core.model.IntegrationDescriptor
-import com.lexora.service.core.model.Payment
-import com.lexora.service.core.model.PaymentStatus
-import com.lexora.service.core.model.RequestStatus
-import com.lexora.service.core.model.ServiceDocument
-import com.lexora.service.core.model.ServiceDocumentStatus
-import com.lexora.service.core.model.ServiceRequest
-import com.lexora.service.core.model.ServiceVisit
-import com.lexora.service.core.model.VisitStatus
+import com.lexora.service.core.model.*
 
 private enum class ReportsSection { OPERATIONS, CUSTOMER_CARE }
 
@@ -76,6 +68,7 @@ private fun OperationsContent(
     payments: List<Payment>,
     integrations: List<IntegrationDescriptor>,
 ) {
+    val hub by ReportsUiRuntime.latest
     val openRequests = requests.count { it.status != RequestStatus.CLOSED && it.status != RequestStatus.CANCELLED }
     val completedVisits = visits.count { it.status == VisitStatus.COMPLETED }
     val activeVisits = visits.count { it.status != VisitStatus.COMPLETED && it.status != VisitStatus.CANCELLED }
@@ -101,10 +94,35 @@ private fun OperationsContent(
             MetricCard("Ожидается", money(plannedMinor), Modifier.weight(1f))
         }
 
-        Text("Статусы заявок", style = MaterialTheme.typography.titleMedium)
-        RequestStatus.entries.forEach { status ->
-            val count = requests.count { it.status == status }
-            if (count > 0) Text("${status.name}: $count")
+        hub?.let { report ->
+            Text("1. Заявки по статусам", style = MaterialTheme.typography.titleMedium)
+            report.requestStatuses.forEach { Text("${it.status.name}: ${it.count}") }
+
+            Text("2. Загрузка сотрудников и филиалов", style = MaterialTheme.typography.titleMedium)
+            if (report.workload.isEmpty()) Text("Нет данных за выбранный период")
+            report.workload.forEach { Text("${it.employeeId} · ${it.branchId ?: "без филиала"}: ${it.visitCount} выездов") }
+
+            Text("3. Выработка сотрудников", style = MaterialTheme.typography.titleMedium)
+            report.employeeOutput.forEach { Text("${it.employeeId}: ${it.completedVisits} выездов · ${it.workQuantity} ед. работ") }
+
+            Text("4. Финансы", style = MaterialTheme.typography.titleMedium)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                MetricCard("Выручка", money(report.financial.netRevenueMinor), Modifier.weight(1f))
+                MetricCard("Долг", money(report.financial.debtMinor), Modifier.weight(1f))
+                MetricCard("Просрочено", money(report.financial.overdueDebtMinor), Modifier.weight(1f))
+            }
+
+            Text("5. SLA", style = MaterialTheme.typography.titleMedium)
+            Text("Нарушения реакции: ${report.sla.reactionBreachedCount}; выполнения: ${report.sla.resolutionBreachedCount}")
+            Text("Средняя реакция: ${minutes(report.sla.averageReactionMinutes)}; выполнение: ${minutes(report.sla.averageResolutionMinutes)}")
+
+            Text("6. Повторные обращения по оборудованию", style = MaterialTheme.typography.titleMedium)
+            if (report.repeatIssues.rows.isEmpty()) Text("Повторные обращения не выявлены")
+            report.repeatIssues.rows.forEach { Text("${it.equipmentId} · ${it.issueKey}: ${it.requestIds.size}") }
+
+            Text("7. Расход материалов", style = MaterialTheme.typography.titleMedium)
+            if (report.materials.isEmpty()) Text("Расход материалов не зафиксирован")
+            report.materials.forEach { Text("${it.materialCode ?: it.title}: ${it.quantity} ${it.unit.orEmpty()}") }
         }
 
         Text("Интеграционный контур", style = MaterialTheme.typography.titleMedium)
@@ -131,3 +149,4 @@ private fun MetricCard(title: String, value: String, modifier: Modifier = Modifi
 }
 
 private fun money(minor: Long): String = "%.2f ₽".format(minor / 100.0)
+private fun minutes(value: Double?): String = value?.let { "%.1f мин".format(it) } ?: "нет данных"

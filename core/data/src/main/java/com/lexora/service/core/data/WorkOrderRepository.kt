@@ -1,22 +1,29 @@
 package com.lexora.service.core.data
 
 import android.content.Context
+import com.lexora.service.core.database.AdditionalWorkApprovalEventEntity
 import com.lexora.service.core.database.AuditEventEntity
 import com.lexora.service.core.database.LexoraServiceDatabase
+import com.lexora.service.core.database.WorkOrderCommercialDao
+import com.lexora.service.core.database.WorkOrderCommercialDatabase
 import com.lexora.service.core.database.WorkOrderItemEntity
+import com.lexora.service.core.model.AdditionalWorkApprovalDecision
+import com.lexora.service.core.model.AdditionalWorkApprovalEvent
 import com.lexora.service.core.model.AdditionalWorkApprovalStatus
 import com.lexora.service.core.model.ServiceCatalogItem
 import com.lexora.service.core.model.ServiceDocumentStatus
 import com.lexora.service.core.model.ServiceDocumentType
 import com.lexora.service.core.model.SyncState
 import com.lexora.service.core.model.SyncOperationType
-import org.json.JSONObject
 import com.lexora.service.core.model.WorkOrderItem
+import java.security.MessageDigest
 import java.util.UUID
 import kotlin.math.roundToLong
+import org.json.JSONObject
 
 class WorkOrderRepository private constructor(
     private val database: LexoraServiceDatabase,
+    private val commercialDao: WorkOrderCommercialDao,
 ) {
     private val serviceDao = database.serviceDao()
     private val catalogDao = database.catalogDao()
@@ -25,6 +32,9 @@ class WorkOrderRepository private constructor(
 
     suspend fun items(documentId: String): List<WorkOrderItem> =
         workOrderDao.items(documentId).map { it.toModel() }
+
+    suspend fun approvalEvents(itemId: String): List<AdditionalWorkApprovalEvent> =
+        commercialDao.approvalEvents(itemId).map { it.toModel() }
 
     suspend fun availableServices(organizationId: String): List<ServiceCatalogItem> =
         catalogDao.services(organizationId)
@@ -167,12 +177,14 @@ class WorkOrderRepository private constructor(
         itemId: String,
         approve: Boolean,
         comment: String? = null,
+        channel: String = "IN_APP",
     ) {
         val item = workOrderDao.item(itemId) ?: return
         requireEditableWorkOrder(organizationId, item.documentId)
         if (!item.additional || item.approvalStatus != AdditionalWorkApprovalStatus.PENDING.name) return
         val now = System.currentTimeMillis()
         val status = if (approve) AdditionalWorkApprovalStatus.APPROVED else AdditionalWorkApprovalStatus.REJECTED
+        val decision = if (approve) AdditionalWorkApprovalDecision.APPROVED else AdditionalWorkApprovalDecision.REJECTED
         val approvalComment = comment?.trim()?.takeIf { it.isNotBlank() }
             ?: if (approve) "Согласовано клиентом" else "Отклонено клиентом"
         workOrderDao.updateApproval(
@@ -183,6 +195,23 @@ class WorkOrderRepository private constructor(
             syncState = SyncState.PENDING_UPDATE.name,
             updatedAt = now,
         )
+        val payloadHash = sha256(
+            listOf(item.id, item.documentId, item.title, item.quantity, item.unit, item.unitPriceMinor, approvalComment)
+                .joinToString("|")
+        )
+        commercialDao.insertApprovalEvent(
+            AdditionalWorkApprovalEventEntity(
+                id = UUID.randomUUID().toString(),
+                organizationId = organizationId,
+                workOrderItemId = itemId,
+                actorUserId = userId,
+                channel = channel,
+                payloadHash = payloadHash,
+                decision = decision.name,
+                sentAtEpochMs = item.updatedAtEpochMs,
+                decidedAtEpochMs = now,
+            ),
+        )
         recalculateDocumentTotal(item.documentId)
         audit(
             organizationId,
@@ -190,7 +219,7 @@ class WorkOrderRepository private constructor(
             "WORK_ORDER_ITEM",
             itemId,
             if (approve) "APPROVE_ADDITIONAL_WORK" else "REJECT_ADDITIONAL_WORK",
-            "${item.title} · $approvalComment",
+            "${item.title} · $approvalComment · $payloadHash",
         )
     }
 
@@ -280,9 +309,16 @@ class WorkOrderRepository private constructor(
         )
     }
 
+    private fun sha256(value: String): String =
+        MessageDigest.getInstance("SHA-256").digest(value.toByteArray())
+            .joinToString("") { "%02x".format(it) }
+
     companion object {
         fun create(context: Context): WorkOrderRepository =
-            WorkOrderRepository(LexoraServiceDatabase.create(context.applicationContext))
+            WorkOrderRepository(
+                LexoraServiceDatabase.create(context.applicationContext),
+                WorkOrderCommercialDatabase.create(context.applicationContext).dao(),
+            )
     }
 }
 
@@ -300,4 +336,16 @@ private fun WorkOrderItemEntity.toModel() = WorkOrderItem(
     approvalComment = approvalComment,
     approvedAtEpochMs = approvedAtEpochMs,
     syncState = SyncState.valueOf(syncState),
+)
+
+private fun AdditionalWorkApprovalEventEntity.toModel() = AdditionalWorkApprovalEvent(
+    id = id,
+    organizationId = organizationId,
+    workOrderItemId = workOrderItemId,
+    actorUserId = actorUserId,
+    channel = channel,
+    payloadHash = payloadHash,
+    decision = AdditionalWorkApprovalDecision.valueOf(decision),
+    sentAtEpochMs = sentAtEpochMs,
+    decidedAtEpochMs = decidedAtEpochMs,
 )

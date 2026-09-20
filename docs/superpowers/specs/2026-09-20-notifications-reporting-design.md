@@ -32,7 +32,7 @@ Critical SLA breaches may bypass DND. Ordinary reminders are deferred until quie
 
 Add per-user notification preferences with enabled flag, start/end local time, timezone, and critical-bypass flag. DND applies to system tray/push delivery, not to the in-app notification center: records remain visible immediately inside Lexora Service.
 
-If a notification becomes due during DND, the delivery job stores/deferres the next attempt until the quiet period ends. Time-window evaluation must support intervals crossing midnight.
+If a notification becomes due during DND, the delivery job stores/defers the next attempt until the quiet period ends. Time-window evaluation must support intervals crossing midnight.
 
 ## 5. Android delivery and push
 

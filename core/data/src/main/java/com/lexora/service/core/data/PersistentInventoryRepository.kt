@@ -35,6 +35,11 @@ class PersistentInventoryRepository(private val dao: InventoryDao) : InventoryRe
     override suspend fun balances(organizationId: String, locationId: String?): List<InventoryBalance> =
         dao.balances(organizationId, locationId).map { it.toModel() }
 
+    override suspend fun availableQuantity(organizationId: String, locationId: String, itemId: String): Double {
+        val balance = dao.balance(organizationId, locationId, itemId) ?: return 0.0
+        return (balance.quantity - balance.reservedQuantity).coerceAtLeast(0.0)
+    }
+
     override suspend fun movements(organizationId: String, itemId: String?, locationId: String?): List<InventoryMovement> =
         dao.movements(organizationId, itemId, locationId).map { it.toModel() }
 

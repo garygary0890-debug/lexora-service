@@ -16,6 +16,10 @@ object ServiceSyncScheduler {
     private const val UNIQUE_PERIODIC = "lexora-service-sync-periodic"
 
     fun ensurePeriodic(context: Context) {
+        if (!ServiceAccessConfiguration.BACKGROUND_SYNC_ENABLED) {
+            cancelScheduled(context)
+            return
+        }
         val request = PeriodicWorkRequestBuilder<ServiceSyncWorker>(15, TimeUnit.MINUTES)
             .setConstraints(networkConstraints())
             .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS)
@@ -28,6 +32,7 @@ object ServiceSyncScheduler {
     }
 
     fun enqueue(context: Context, delayMs: Long = 0L) {
+        if (!ServiceAccessConfiguration.BACKGROUND_SYNC_ENABLED) return
         val builder = OneTimeWorkRequestBuilder<ServiceSyncWorker>()
             .setConstraints(networkConstraints())
             .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS)
@@ -37,6 +42,12 @@ object ServiceSyncScheduler {
             ExistingWorkPolicy.REPLACE,
             builder.build(),
         )
+    }
+
+    fun cancelScheduled(context: Context) {
+        val workManager = WorkManager.getInstance(context.applicationContext)
+        workManager.cancelUniqueWork(UNIQUE_IMMEDIATE)
+        workManager.cancelUniqueWork(UNIQUE_PERIODIC)
     }
 
     private fun networkConstraints() = Constraints.Builder()

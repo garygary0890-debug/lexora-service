@@ -12,6 +12,8 @@ object Routes {
     const val Vehicles = "vehicles"
     const val Clients = "clients"
     const val Home = "home"
+    const val Menu = "menu"
+    const val ProfileSettings = "profile-settings"
     const val Search = "search"
     const val Planning = "planning"
     const val Settings = "settings"
@@ -20,4 +22,6 @@ object Routes {
     const val Audit = "audit"
     const val Wash = "wash"
     const val Tires = "tires"
+
+    fun usesBottomNavigation(route: String?): Boolean = route == Home || route == Menu
 }

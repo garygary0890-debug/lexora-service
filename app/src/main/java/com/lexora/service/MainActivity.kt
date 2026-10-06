@@ -4,12 +4,16 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.material3.Scaffold
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
+import androidx.annotation.StringRes
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
+import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
@@ -90,6 +94,7 @@ private fun LexoraServiceApp(globalOwner: Boolean) {
         val accessibleModules = if (globalOwner) modules else modules.filter { container.moduleAccessPolicy.isAvailable(it, user) }
         val canManageUsers = globalOwner || container.accessPolicy.can(user, Permission.MANAGE_USERS)
         val canManageOrganization = globalOwner || container.accessPolicy.can(user, Permission.MANAGE_ORGANIZATION)
+        val canViewAudit = globalOwner || container.accessPolicy.can(user, Permission.VIEW_AUDIT)
 
         LaunchedEffect(organization.id) {
             while (true) {
@@ -104,7 +109,32 @@ private fun LexoraServiceApp(globalOwner: Boolean) {
             onRetrySync = { ServiceSyncScheduler.enqueue(context, 0L) },
             onRetryTechnicalError = { systemState.clearTechnicalError() },
         ) {
-            Scaffold { _ ->
+            val backStackEntry by navController.currentBackStackEntryAsState()
+            val currentRoute = backStackEntry?.destination?.route ?: Routes.Home
+            Scaffold(
+                topBar = {
+                    LexoraTopBar(
+                        title = stringResource(titleResourceForRoute(currentRoute)),
+                        canNavigateBack = navController.previousBackStackEntry != null,
+                        onBack = { navController.navigateUp() },
+                        onOpenRoute = { route -> navController.navigate(route) { launchSingleTop = true } },
+                    )
+                },
+                bottomBar = {
+                    if (Routes.usesBottomNavigation(currentRoute)) {
+                        LexoraBottomBar(
+                            currentRoute = currentRoute,
+                            onNavigate = { route ->
+                                navController.navigate(route) {
+                                    popUpTo(Routes.Home) { saveState = true }
+                                    launchSingleTop = true
+                                    restoreState = true
+                                }
+                            },
+                        )
+                    }
+                },
+            ) { innerPadding ->
                 LexoraNavHost(
                     navController = navController,
                     container = container,
@@ -115,6 +145,8 @@ private fun LexoraServiceApp(globalOwner: Boolean) {
                     globalOwner = globalOwner,
                     canManageUsers = canManageUsers,
                     canManageOrganization = canManageOrganization,
+                    canViewAudit = canViewAudit,
+                    modifier = Modifier.padding(innerPadding),
                 )
             }
         }
@@ -132,10 +164,37 @@ private fun LexoraNavHost(
     globalOwner: Boolean,
     canManageUsers: Boolean,
     canManageOrganization: Boolean,
+    canViewAudit: Boolean,
+    modifier: Modifier = Modifier,
 ) {
     val organization = snapshot.organization
     val user = snapshot.user
-    NavHost(navController = navController, startDestination = Routes.Home) {
+    val menuDestinations = buildList {
+        add(AppMenuDestination(Routes.Search, R.string.nav_title_search))
+        add(AppMenuDestination(Routes.Planning, R.string.nav_title_planning))
+        add(AppMenuDestination(Routes.Requests, R.string.nav_title_requests))
+        add(AppMenuDestination(Routes.Clients, R.string.nav_title_clients))
+        add(AppMenuDestination(Routes.Vehicles, R.string.nav_title_vehicles))
+        add(AppMenuDestination(Routes.Assets, R.string.nav_title_assets))
+        add(AppMenuDestination(Routes.FieldWork, R.string.nav_title_field_work))
+        add(AppMenuDestination(Routes.Documents, R.string.nav_title_documents))
+        add(AppMenuDestination(Routes.Catalog, R.string.nav_title_catalog))
+        add(AppMenuDestination(Routes.Reports, R.string.nav_title_reports))
+        add(AppMenuDestination(Routes.Notifications, R.string.nav_title_notifications))
+        add(AppMenuDestination(Routes.Organization, R.string.nav_title_organization))
+        if (canViewAudit) add(AppMenuDestination(Routes.Audit, R.string.nav_title_audit))
+        if (canManageUsers) add(AppMenuDestination(Routes.Users, R.string.nav_title_users))
+        add(AppMenuDestination(Routes.Settings, R.string.nav_title_settings))
+        if (globalOwner || (container.accessPolicy.can(user, Permission.VIEW_WASH) &&
+                    accessibleModules.any { it.id == LexoraModuleId.WASH })) {
+            add(AppMenuDestination(Routes.Wash, R.string.nav_title_wash))
+        }
+        if (globalOwner || (container.accessPolicy.can(user, Permission.VIEW_TIRES) &&
+                    accessibleModules.any { it.id == LexoraModuleId.TIRES })) {
+            add(AppMenuDestination(Routes.Tires, R.string.nav_title_tires))
+        }
+    }
+    NavHost(navController = navController, startDestination = Routes.Home, modifier = modifier) {
         composable(Routes.Home) {
             val vm: HomeViewModel = viewModel(
                 key = "home:${organization.id}",
@@ -143,27 +202,24 @@ private fun LexoraNavHost(
             )
             val state by vm.state.collectAsStateWithLifecycle()
             HomeScreen(
-                organization = organization,
-                modules = accessibleModules,
                 state = state,
                 onRefresh = vm::refresh,
                 onOpenGlobalSearch = { navController.navigate(Routes.Search) },
                 onOpenPlanning = { navController.navigate(Routes.Planning) },
-                onOpenClients = { navController.navigate(Routes.Clients) },
-                onOpenVehicles = { navController.navigate(Routes.Vehicles) },
-                onOpenAssets = { navController.navigate(Routes.Assets) },
-                onOpenOrganization = { navController.navigate(Routes.Organization) },
-                onOpenRequests = { navController.navigate(Routes.Requests) },
-                onOpenFieldWork = { navController.navigate(Routes.FieldWork) },
-                onOpenDocuments = { navController.navigate(Routes.Documents) },
-                onOpenReports = { navController.navigate(Routes.Reports) },
-                onOpenCatalog = { navController.navigate(Routes.Catalog) },
-                onOpenNotifications = { navController.navigate(Routes.Notifications) },
-                onOpenAudit = { navController.navigate(Routes.Audit) },
-                onOpenUsers = if (canManageUsers) ({ navController.navigate(Routes.Users) }) else null,
-                onOpenWash = { navController.navigate(Routes.Wash) },
-                onOpenTires = { navController.navigate(Routes.Tires) },
-                onOpenSettings = { navController.navigate(Routes.Settings) },
+            )
+        }
+        composable(Routes.Menu) {
+            LexoraMenuScreen(
+                destinations = menuDestinations,
+                onOpenProfileSettings = { navController.navigate(Routes.ProfileSettings) },
+                onOpenDestination = { route -> navController.navigate(route) { launchSingleTop = true } },
+            )
+        }
+        composable(Routes.ProfileSettings) {
+            ProfileSettingsScreen(
+                user = user,
+                activeOrganization = organization,
+                onManageOrganizations = { navController.navigate(Routes.Organization) },
             )
         }
         composable(Routes.Search) {
@@ -328,7 +384,7 @@ private fun LexoraNavHost(
             NotificationsScreen(state, vm::setArchivedMode, vm::markAllRead, vm::markRead, vm::setArchived)
         }
         composable(Routes.Audit) {
-            PermissionGuard(globalOwner || container.accessPolicy.can(user, Permission.VIEW_AUDIT), "Недостаточно прав для просмотра журнала аудита") {
+            PermissionGuard(canViewAudit, "Недостаточно прав для просмотра журнала аудита") {
                 val vm: AuditViewModel = viewModel(
                     key = "audit:${organization.id}",
                     factory = LexoraViewModelFactory { AuditViewModel(organization.id, container.auditOperations) },
@@ -378,4 +434,29 @@ private fun LexoraNavHost(
             }
         }
     }
+}
+
+@StringRes
+private fun titleResourceForRoute(route: String?): Int = when (route) {
+    Routes.Home -> R.string.nav_title_home
+    Routes.Menu -> R.string.nav_title_menu
+    Routes.ProfileSettings -> R.string.nav_title_profile_settings
+    Routes.Search -> R.string.nav_title_search
+    Routes.Planning -> R.string.nav_title_planning
+    Routes.Clients -> R.string.nav_title_clients
+    Routes.Vehicles -> R.string.nav_title_vehicles
+    Routes.Assets -> R.string.nav_title_assets
+    Routes.Requests -> R.string.nav_title_requests
+    Routes.Organization -> R.string.nav_title_organization
+    Routes.FieldWork -> R.string.nav_title_field_work
+    Routes.Documents -> R.string.nav_title_documents
+    Routes.Reports -> R.string.nav_title_reports
+    Routes.Catalog -> R.string.nav_title_catalog
+    Routes.Notifications -> R.string.nav_title_notifications
+    Routes.Audit -> R.string.nav_title_audit
+    Routes.Users -> R.string.nav_title_users
+    Routes.Settings -> R.string.nav_title_settings
+    Routes.Wash -> R.string.nav_title_wash
+    Routes.Tires -> R.string.nav_title_tires
+    else -> R.string.nav_title_fallback
 }

@@ -17,54 +17,23 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import com.lexora.service.core.model.LexoraModuleId
-import com.lexora.service.core.model.ModuleDescriptor
-import com.lexora.service.core.model.Organization
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
 @Composable
 fun HomeScreen(
-    organization: Organization,
-    modules: List<ModuleDescriptor>,
     state: HomeUiState,
     onRefresh: () -> Unit,
     onOpenGlobalSearch: () -> Unit,
     onOpenPlanning: () -> Unit,
-    onOpenClients: () -> Unit,
-    onOpenVehicles: () -> Unit,
-    onOpenAssets: () -> Unit,
-    onOpenOrganization: () -> Unit,
-    onOpenRequests: () -> Unit,
-    onOpenFieldWork: () -> Unit,
-    onOpenDocuments: () -> Unit = {},
-    onOpenReports: () -> Unit = {},
-    onOpenCatalog: () -> Unit = {},
-    onOpenNotifications: () -> Unit = {},
-    onOpenAudit: () -> Unit = {},
-    onOpenUsers: (() -> Unit)? = null,
-    onOpenWash: () -> Unit,
-    onOpenTires: () -> Unit,
-    onOpenSettings: () -> Unit,
 ) {
-    val washAvailable = modules.any { it.id == LexoraModuleId.WASH && it.enabled && it.licensed }
-    val tiresAvailable = modules.any { it.id == LexoraModuleId.TIRES && it.enabled && it.licensed }
     val dashboard = state.dashboard
 
     LazyColumn(
         modifier = Modifier.fillMaxSize().padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        item { Text(stringResource(R.string.home_title), style = MaterialTheme.typography.headlineMedium) }
-        item {
-            Card(Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(16.dp)) {
-                    Text(stringResource(R.string.home_active_organization), style = MaterialTheme.typography.labelMedium)
-                    Text(organization.name, style = MaterialTheme.typography.titleMedium)
-                }
-            }
-        }
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(onClick = onOpenGlobalSearch) { Text(stringResource(R.string.home_global_search)) }
@@ -120,44 +89,7 @@ fun HomeScreen(
                 }
             }
         }
-        item { Text(stringResource(R.string.home_sections), style = MaterialTheme.typography.titleLarge) }
-        item {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = onOpenClients) { Text("Клиенты") }
-                Button(onClick = onOpenVehicles) { Text("Автомобили") }
-                Button(onClick = onOpenRequests) { Text("Заявки") }
-            }
-        }
-        item {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(onClick = onOpenFieldWork) { Text("Выезды") }
-                OutlinedButton(onClick = onOpenAssets) { Text("Объекты") }
-                OutlinedButton(onClick = onOpenOrganization) { Text("Команда") }
-            }
-        }
-        item {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(onClick = onOpenDocuments) { Text("Документы") }
-                OutlinedButton(onClick = onOpenCatalog) { Text("Услуги") }
-                OutlinedButton(onClick = onOpenReports) { Text("Отчёты") }
-            }
-        }
-        item {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(onClick = onOpenNotifications) { Text("Уведомления") }
-                OutlinedButton(onClick = onOpenAudit) { Text("Аудит") }
-                onOpenUsers?.let { open -> OutlinedButton(onClick = open) { Text("Пользователи") } }
-            }
-        }
-        if (washAvailable || tiresAvailable) {
-            item {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    if (washAvailable) OutlinedButton(onClick = onOpenWash) { Text("Автомойка") }
-                    if (tiresAvailable) OutlinedButton(onClick = onOpenTires) { Text("Шиномонтаж") }
-                }
-            }
-        }
-        item { OutlinedButton(onClick = onOpenSettings) { Text("Настройки") } }
+
     }
 }
 

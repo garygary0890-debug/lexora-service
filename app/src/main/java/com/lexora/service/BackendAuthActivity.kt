@@ -38,11 +38,20 @@ import com.lexora.service.core.designsystem.LexoraTheme
 import com.lexora.service.core.network.AuthenticationExpiredException
 import kotlinx.coroutines.launch
 
-private const val MANUAL_TEST_GLOBAL_OWNER = true
+private val MANUAL_TEST_GLOBAL_OWNER = ServiceAccessConfiguration.MANUAL_TEST_GLOBAL_OWNER
 
 class BackendAuthActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (!ServiceAccessConfiguration.AUTHENTICATION_ENABLED) {
+            ServiceSyncScheduler.cancelScheduled(this)
+            startActivity(
+                Intent(this, MainActivity::class.java)
+                    .putExtra(MainActivity.EXTRA_GLOBAL_OWNER, ServiceAccessConfiguration.MANUAL_TEST_GLOBAL_OWNER),
+            )
+            finish()
+            return
+        }
         ServiceSyncScheduler.ensurePeriodic(this)
         ServiceSyncScheduler.enqueue(this)
         val database = LexoraServiceDatabase.create(this)

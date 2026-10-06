@@ -11,6 +11,7 @@ class ServiceSyncWorker(
     params: WorkerParameters,
 ) : CoroutineWorker(appContext, params) {
     override suspend fun doWork(): Result {
+        if (!ServiceAccessConfiguration.BACKGROUND_SYNC_ENABLED) return Result.success()
         val database = LexoraServiceDatabase.create(applicationContext)
         val graph = LexoraBackendGraph(applicationContext, database)
         val session = graph.authSession.restore() ?: return Result.success()

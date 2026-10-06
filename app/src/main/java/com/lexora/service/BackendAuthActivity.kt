@@ -38,6 +38,8 @@ import com.lexora.service.core.designsystem.LexoraTheme
 import com.lexora.service.core.network.AuthenticationExpiredException
 import kotlinx.coroutines.launch
 
+private const val MANUAL_TEST_GLOBAL_OWNER = true
+
 class BackendAuthActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -205,6 +207,40 @@ private fun BackendSessionGate(
                     style = MaterialTheme.typography.bodySmall,
                     modifier = Modifier.padding(top = 8.dp),
                 )
+            }
+
+            OutlinedButton(
+                enabled = !submitting,
+                onClick = {
+                    submitting = true
+                    error = null
+                    scope.launch {
+                        runCatching {
+                            // TEMPORARY MANUAL TEST BYPASS.
+                            // This path intentionally does not create backend tokens and must be removed
+                            // before release/auth acceptance. It only opens the local workspace for manual UI checks.
+                            backend.authSession.clearLocalSession()
+                            MANUAL_TEST_GLOBAL_OWNER
+                        }.onSuccess { globalOwner ->
+                            onReady(globalOwner)
+                        }.onFailure { failure ->
+                            error = failure.message ?: "Не удалось открыть ручной тестовый режим"
+                            submitting = false
+                        }
+                    }
+                },
+                modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+            ) {
+                Text(if (submitting) "Открытие тестового режима…" else "Войти без авторизации (ручные тесты)")
+            }
+            Text(
+                "Временный режим: только для ручной проверки интерфейса, без серверной авторизации и без сохранения токенов.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.padding(top = 8.dp),
+            )
+            error?.let {
+                Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(top = 12.dp))
             }
             return@Column
         }

@@ -1,3 +1,36 @@
 <resources>
     <string name="app_name">Lexora Service</string>
+    <string name="nav_title_home">Главная</string>
+    <string name="nav_title_menu">Меню</string>
+    <string name="nav_title_profile_settings">Настройки профиля</string>
+    <string name="nav_title_search">Глобальный поиск</string>
+    <string name="nav_title_planning">Планирование</string>
+    <string name="nav_title_clients">Клиенты</string>
+    <string name="nav_title_vehicles">Автомобили</string>
+    <string name="nav_title_assets">Объекты и оборудование</string>
+    <string name="nav_title_requests">Заявки</string>
+    <string name="nav_title_organization">Организация и команда</string>
+    <string name="nav_title_field_work">Выезды и работы</string>
+    <string name="nav_title_documents">Документы</string>
+    <string name="nav_title_reports">Отчёты</string>
+    <string name="nav_title_catalog">Услуги и прайс-листы</string>
+    <string name="nav_title_notifications">Уведомления</string>
+    <string name="nav_title_audit">Журнал аудита</string>
+    <string name="nav_title_users">Пользователи</string>
+    <string name="nav_title_settings">Настройки приложения</string>
+    <string name="nav_title_wash">Автомойка</string>
+    <string name="nav_title_tires">Шиномонтаж</string>
+    <string name="nav_title_fallback">Lexora Service</string>
+    <string name="nav_back">Назад</string>
+    <string name="nav_more_actions">Дополнительные действия</string>
+    <string name="nav_action_menu">Открыть меню</string>
+    <string name="nav_action_profile">Настройки профиля</string>
+    <string name="nav_action_settings">Настройки приложения</string>
+    <string name="nav_action_notifications">Уведомления</string>
+    <string name="nav_profile_panel_description">Профиль и активная организация</string>
+    <string name="nav_active_organization">Активная организация</string>
+    <string name="nav_active_organization_description">Организация, данные которой сейчас открыты в приложении</string>
+    <string name="nav_manage_organizations">Управление организациями и командой</string>
+    <string name="nav_profile_heading">Профиль пользователя</string>
+    <string name="nav_roles">Роли: %1$s</string>
 </resources>

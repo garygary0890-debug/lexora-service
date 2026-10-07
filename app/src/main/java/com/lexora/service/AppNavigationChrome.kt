@@ -12,7 +12,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.Menu
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.Card
@@ -87,7 +87,7 @@ fun LexoraBottomBar(currentRoute: String, onNavigate: (String) -> Unit) {
         NavigationBarItem(
             selected = currentRoute == Routes.Menu,
             onClick = { onNavigate(Routes.Menu) },
-            icon = { Icon(Icons.AutoMirrored.Filled.Menu, contentDescription = null) },
+            icon = { Icon(Icons.Filled.Menu, contentDescription = null) },
             label = { Text(stringResource(R.string.nav_title_menu)) },
         )
     }

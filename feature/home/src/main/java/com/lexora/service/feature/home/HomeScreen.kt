@@ -25,7 +25,6 @@ import java.time.format.DateTimeFormatter
 fun HomeScreen(
     state: HomeUiState,
     onRefresh: () -> Unit,
-    onOpenGlobalSearch: () -> Unit,
     onOpenPlanning: () -> Unit,
 ) {
     val dashboard = state.dashboard
@@ -35,10 +34,7 @@ fun HomeScreen(
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = onOpenGlobalSearch) { Text(stringResource(R.string.home_global_search)) }
-                Button(onClick = onOpenPlanning) { Text(stringResource(R.string.home_planning)) }
-            }
+            Button(onClick = onOpenPlanning) { Text(stringResource(R.string.home_planning)) }
         }
         item { Text(stringResource(R.string.home_operational_summary), style = MaterialTheme.typography.titleLarge) }
         if (state.loading && dashboard == null) {

@@ -29,6 +29,15 @@ class OwnerSilentSsoEntryActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (!ServiceAccessConfiguration.AUTHENTICATION_ENABLED) {
+            ServiceSyncScheduler.cancelScheduled(this)
+            startActivity(
+                Intent(this, MainActivity::class.java)
+                    .putExtra(MainActivity.EXTRA_GLOBAL_OWNER, ServiceAccessConfiguration.MANUAL_TEST_GLOBAL_OWNER),
+            )
+            finish()
+            return
+        }
         ServiceSyncScheduler.ensurePeriodic(this)
         database = LexoraServiceDatabase.create(this)
         backend = LexoraBackendGraph(this, database)

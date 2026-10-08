@@ -71,7 +71,7 @@ internal fun BusinessOperationsPanel(organizationId: String) {
     }
 
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text("Задачи, закупки и платежи", style = MaterialTheme.typography.titleLarge)
+        Text("Задачи и\nплатежи", style = MaterialTheme.typography.titleLarge)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             FilterChip(tab == BusinessTab.TASKS, { tab = BusinessTab.TASKS }, label = { Text("Задачи") })
             FilterChip(tab == BusinessTab.PURCHASES, { tab = BusinessTab.PURCHASES }, label = { Text("Закупки") })

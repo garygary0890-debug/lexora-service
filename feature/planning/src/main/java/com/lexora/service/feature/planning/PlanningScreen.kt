@@ -109,7 +109,7 @@ private fun LoadCard(load: ResourceLoad) {
 }
 
 private fun formatAnchor(state: PlanningUiState): String = when (state.mode) {
-    PlanningMode.DAY -> state.anchorDate.format(DateTimeFormatter.ofPattern("dd.MM.yyyy"))
+    PlanningMode.DAY -> state.anchorDate.format(DateTimeFormatter.ofPattern("dd.MM.yyyy, EEE", java.util.Locale("ru")))
     PlanningMode.WEEK -> "Неделя ${state.anchorDate.format(DateTimeFormatter.ofPattern("dd.MM.yyyy"))}"
     PlanningMode.MONTH -> state.anchorDate.format(DateTimeFormatter.ofPattern("LLLL yyyy"))
 }

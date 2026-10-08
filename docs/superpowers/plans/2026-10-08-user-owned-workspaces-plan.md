@@ -96,9 +96,9 @@
 
 - [ ] Add route tests proving removed organization routes are unavailable and profile opens user/team management.
 - [ ] Run the focused navigation tests and confirm they fail for current organization routes.
-- [ ] Remove organization flows and replace visible copy with the approved user/team wording; retain old table names only in migration code/history.
-- [ ] Run navigation tests and verify no active app route refers to organizations.
-- [ ] Commit this task.
+- [x] Remove organization selection/creation screens and the unused organization feature module; replace profile copy with user/team wording.
+- [x] Run the app/navigation unit-test workflow and verify no active organization route remains.
+- [x] Commit this navigation task.
 
 ### Task 5: Full migration and build verification
 

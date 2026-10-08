@@ -1,13 +1,14 @@
 Lexora Service build diagnostics
 Status: SUCCESS
-Build: :app:assembleDebug
+Builds: module unit tests; :app:assembleDebug
 Version: 0.28.0
 VersionCode: 28
-Source commit: ee70419cdff43aea42298d96858619c15b96590f
-CI run: https://github.com/garygary0890-debug/lexora-service/actions/runs/35021490332
+Source commit: dbb25fb3870b22b2eb71b665114f61b2b95900d8
+CI run: https://github.com/garygary0890-debug/lexora-service/actions/runs/37776708980
 APK: app/build/outputs/apk/debug/app-debug.apk
 Artifact: lexora-service-0.28.0-debug
-Artifact size: 12537558 bytes
-Artifact SHA-256: 70ef759e157e69204d2aad77555d2c0ecb140e8001884062d28fcff6a2cac1d2
-Verification: Gradle assembleDebug completed successfully; APK existence check passed; artifact upload completed successfully.
-Verified at: 2026-09-15T20:46:36Z
+Artifact ID: 11550094794
+Artifact URL: https://github.com/garygary0890-debug/lexora-service/actions/runs/37776708980/artifacts/11550094794
+Artifact ZIP SHA-256: 10b19af45d4dd61b28890d4a3131fda6d16f85983707d17791f09ded5ef3a9f1
+Verification: all affected module unit tests passed; APK assembled, existence verified, and artifact upload completed.
+Verified at: 2026-10-08T12:29:34Z

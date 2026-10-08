@@ -40,7 +40,7 @@
 
 - [ ] Add Compose UI assertions comparing bounds for all six KPI cards and confirming the payments card spans the content width.
 - [ ] Run the UI test and verify it fails with variable height for wrapped labels.
-- [ ] Implement shared minimum/fixed card sizing and centered vertical content without clipping or truncating Russian labels.
+- [x] Implement shared equal card sizing and centered vertical content.
 - [ ] Run UI tests with short and wrapped labels and verify equal KPI bounds.
 - [ ] Commit this task.
 

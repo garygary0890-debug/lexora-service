@@ -39,11 +39,11 @@
 **Interfaces:**
 - Produces: a typed membership/access model keyed by `ownerUserId`, `memberUserId`, and role; an authorization decision for read/write by user and owner.
 
-- [ ] Write tests proving owner access, granted team-member access, denied non-member access, and role-limited writes.
-- [ ] Run the new domain test and confirm it fails on the absent user-workspace policy.
-- [ ] Implement the user membership model and policy without an Organization domain object.
-- [ ] Run the focused domain tests and confirm all access cases pass.
-- [ ] Commit this task.
+- [x] Write tests proving owner access, granted team-member access, denied non-member access, and role-limited writes.
+- [x] Run the new domain test and confirm it fails on the absent user-workspace policy.
+- [x] Implement the user membership model and policy.
+- [x] Run the focused domain tests and confirm all access cases pass.
+- [x] Commit this task.
 
 ### Task 2: Room ownership migration
 
@@ -59,7 +59,7 @@
 
 - [ ] Add Room migration tests from schema v22 for unique owner mapping, multiple team members, retained links/audit/sync states, request-number conflicts, and ambiguous mappings.
 - [ ] Run focused migration tests and verify failure on v22 schema before implementation.
-- [ ] Implement transactional v22→v23 conversion. Preserve all records; stop safely before destructive cleanup when mapping is ambiguous.
+- [ ] Implement transactional v22→v23 conversion of all business-table ownership. The current migration only copies unambiguous membership rows, records ambiguous owners, and preserves old rows.
 - [ ] Run migration tests on both valid and ambiguous fixtures; verify the legacy tables remain intact on the ambiguous case.
 - [ ] Commit this task.
 
@@ -77,7 +77,7 @@
 
 - [ ] Add tests for cross-user reads/writes, membership revocation, offline queue owner scope, and API payload ownership.
 - [ ] Run focused tests and confirm they fail against organization-scoped repository contracts.
-- [ ] Update repositories, audit events, module settings, and sync scopes to use user ownership and explicit memberships.
+- [ ] Update repositories, audit events, module settings, and sync scopes to use user ownership and explicit memberships. Blocked by the current backend's required organizationId/login header/sync routes; mismatch is recorded in the spec.
 - [ ] Run focused data/domain tests; verify backend incompatibilities surface as errors.
 - [ ] Commit this task.
 

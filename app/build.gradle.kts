@@ -59,7 +59,6 @@ dependencies {
     implementation(project(":feature:documents"))
     implementation(project(":feature:fieldwork"))
     implementation(project(":feature:requests"))
-    implementation(project(":feature:organization"))
     implementation(project(":feature:assets"))
     implementation(project(":feature:vehicles"))
     implementation(project(":feature:clients"))

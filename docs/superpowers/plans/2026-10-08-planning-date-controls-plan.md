@@ -41,7 +41,7 @@
 
 - [ ] Add UI tests for heading count/location, Today button width, icon descriptions, and callback behavior for all three controls.
 - [ ] Run the focused UI test and verify it fails for the duplicate heading and current text buttons.
-- [ ] Remove the content title; replace previous/next controls with accessible chevron IconButtons around a full-width-weighted Today button.
+- [x] Remove the content title; replace previous/next controls with accessible chevron IconButtons around a full-width-weighted Today button.
 - [ ] Run focused UI tests for day/week/month modes and verify all callbacks work.
 - [ ] Commit this task.
 

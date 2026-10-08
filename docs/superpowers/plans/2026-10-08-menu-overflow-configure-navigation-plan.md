@@ -42,7 +42,7 @@
 
 - [ ] Add Compose UI tests asserting the item appears in the Menu top-bar overflow, is absent from the Menu body, and opens the editor.
 - [ ] Run the UI test and verify it fails while the action is only in the screen body.
-- [ ] Move the action into the existing MoreVert dropdown and preserve save, ordering, and the three-item limit.
+- [x] Move the action into the existing MoreVert dropdown and preserve save, ordering, and the three-item limit.
 - [ ] Run the focused UI test and route tests; verify saved order remains after navigation.
 - [ ] Commit this task.
 

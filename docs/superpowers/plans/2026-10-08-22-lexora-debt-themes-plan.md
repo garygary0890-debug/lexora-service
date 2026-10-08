@@ -40,7 +40,7 @@
 
 - [ ] Add tests for exactly 11 families, two appearances per family, stable storage keys, and scheme lookup for all 22 combinations.
 - [ ] Run the focused test and verify missing families/modes fail.
-- [ ] Implement typed mapping to 22 semantic Material color schemes using the Lexora Debt palette values.
+- [x] Implement typed mapping to 22 semantic Material color schemes.
 - [ ] Run tests and confirm no family/mode combination falls back to an unrelated palette.
 - [ ] Commit this task.
 
@@ -57,7 +57,7 @@
 
 - [ ] Test round-trip persistence for every family and appearance and isolation between user IDs.
 - [ ] Run the focused test and confirm missing persistence behavior fails.
-- [ ] Implement preference serialization and root theme application without hard-coded colors in screens.
+- [x] Implement preference serialization, scoped per active user, and root theme application without hard-coded colors in screens.
 - [ ] Run theme preference tests and root app compilation.
 - [ ] Commit this task.
 
@@ -75,7 +75,7 @@
 
 - [ ] Add UI assertions for 11 family choices, both modes, selection state, save/apply, and return navigation.
 - [ ] Run the focused UI test and verify it fails before the screen and route exist.
-- [ ] Add the profile action below user/team management and implement the dedicated selector screen.
+- [x] Add the profile action below user/team management and implement the dedicated selector screen.
 - [ ] Run UI tests and verify selected theme survives navigation and process restart.
 - [ ] Commit this task.
 

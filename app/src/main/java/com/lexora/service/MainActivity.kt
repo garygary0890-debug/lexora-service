@@ -80,7 +80,11 @@ private fun LexoraServiceApp(globalOwner: Boolean) {
         val snapshot = workspaceState.snapshot
         if (snapshot == null) {
             systemState.updateLoading(workspaceState.loading)
-            SystemStateHost(systemState.state(hasContent = false)) {}
+            SystemStateHost(
+                state = systemState.state(hasContent = false),
+                emptyMessage = workspaceState.error
+                    ?: if (workspaceState.loading) "Загрузка…" else "Не удалось загрузить рабочее пространство",
+            ) {}
             return@LexoraTheme
         }
         systemState.updateLoading(false)

@@ -20,11 +20,11 @@
 
 ## Review Focus
 
-1. Старый пользователь состоит в нескольких организациях — тест миграции подтверждает сохранение всех рабочих доступов пользователя.
-2. Участник команды без членства обращается к чужим данным — тест репозитория подтверждает отказ.
-3. Конфликт номеров заявок после преобразования области владения — тест миграции подтверждает отсутствие потери ссылок.
-4. Обновление схемы прерывается при неоднозначном владельце — тест подтверждает сохранность исходной базы.
-5. Сервер продолжает требовать старый контекст организации — проверка клиента фиксирует несовместимость и не подменяет ответ фиктивным успехом.
+1. A legacy/unknown stored theme key — test verifies deterministic safe fallback.
+2. Toggling Light/Dark preserves the selected family — test asserts both dimensions independently.
+3. Switching users preserves each user's selection — persistence test uses two user IDs.
+4. Process recreation keeps the saved theme — UI/persistence test verifies round-trip.
+5. Every family/mode pair resolves to a distinct supported scheme with adequate contrast — palette test checks all 22.
 
 ---
 

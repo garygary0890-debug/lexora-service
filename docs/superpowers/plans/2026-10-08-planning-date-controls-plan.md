@@ -20,11 +20,11 @@
 
 ## Review Focus
 
-1. Старый пользователь состоит в нескольких организациях — тест миграции подтверждает сохранение всех рабочих доступов пользователя.
-2. Участник команды без членства обращается к чужим данным — тест репозитория подтверждает отказ.
-3. Конфликт номеров заявок после преобразования области владения — тест миграции подтверждает отсутствие потери ссылок.
-4. Обновление схемы прерывается при неоднозначном владельце — тест подтверждает сохранность исходной базы.
-5. Сервер продолжает требовать старый контекст организации — проверка клиента фиксирует несовместимость и не подменяет ответ фиктивным успехом.
+1. Day/week/month navigation — UI test confirms each mode still updates the date range.
+2. Previous/next chevrons — UI test verifies the existing callbacks fire in the correct direction.
+3. Today action — UI test confirms the date anchor resets to today.
+4. Screen-reader use — test checks previous/next content descriptions and button labels.
+5. Narrow screen and large text — UI test confirms all three controls remain visible and Today uses the available row width.
 
 ---
 
@@ -50,6 +50,6 @@
 **Files:**
 - Modify: `docs/LEXORA_SERVICE_CHANGELOG.md`
 
-- [ ] Run `./gradlew :feature:planning:test :feature:planning:connectedAndroidTest :app:assembleDebug` on the configured Android runner.
+- [ ] Run `./gradlew :feature:planning:test :feature:planning:connectedDebugAndroidTest :app:assembleDebug` on the configured Android runner.
 - [ ] Verify date-anchor display and day/week/month chips are unchanged.
 - [ ] Record results and commit the changelog update.

@@ -14,6 +14,7 @@ object Routes {
     const val Home = "home"
     const val Menu = "menu"
     const val ProfileSettings = "profile-settings"
+    const val ThemeSettings = "theme-settings"
     const val Search = "search"
     const val Planning = "planning"
     const val Settings = "settings"

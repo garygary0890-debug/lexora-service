@@ -12,12 +12,15 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.lexora.service.core.model.PlanningEvent
@@ -26,6 +29,9 @@ import com.lexora.service.core.model.ResourceLoad
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 
 @Composable
 fun PlanningScreen(
@@ -37,16 +43,23 @@ fun PlanningScreen(
     onRefresh: () -> Unit,
 ) {
     Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text(stringResource(R.string.planning_title), style = MaterialTheme.typography.headlineMedium)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             ModeChip(PlanningMode.DAY, state.mode, stringResource(R.string.planning_day), onModeChange)
             ModeChip(PlanningMode.WEEK, state.mode, stringResource(R.string.planning_week), onModeChange)
             ModeChip(PlanningMode.MONTH, state.mode, stringResource(R.string.planning_month), onModeChange)
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(onClick = onPrevious) { Text(stringResource(R.string.planning_previous)) }
-            Button(onClick = onToday) { Text(stringResource(R.string.planning_today)) }
-            OutlinedButton(onClick = onNext) { Text(stringResource(R.string.planning_next)) }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            IconButton(onClick = onPrevious) {
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.planning_previous))
+            }
+            Button(onClick = onToday, modifier = Modifier.weight(1f)) { Text(stringResource(R.string.planning_today)) }
+            IconButton(onClick = onNext) {
+                Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = stringResource(R.string.planning_next))
+            }
         }
         Text(formatAnchor(state), style = MaterialTheme.typography.titleMedium)
         if (state.loading && state.snapshot == null) {

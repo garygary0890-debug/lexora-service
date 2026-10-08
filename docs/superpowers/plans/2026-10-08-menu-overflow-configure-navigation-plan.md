@@ -20,11 +20,11 @@
 
 ## Review Focus
 
-1. Старый пользователь состоит в нескольких организациях — тест миграции подтверждает сохранение всех рабочих доступов пользователя.
-2. Участник команды без членства обращается к чужим данным — тест репозитория подтверждает отказ.
-3. Конфликт номеров заявок после преобразования области владения — тест миграции подтверждает отсутствие потери ссылок.
-4. Обновление схемы прерывается при неоднозначном владельце — тест подтверждает сохранность исходной базы.
-5. Сервер продолжает требовать старый контекст организации — проверка клиента фиксирует несовместимость и не подменяет ответ фиктивным успехом.
+1. Overflow actions are shown only on the Menu screen — UI test checks Menu and Home.
+2. The editor is dismissed with Back — UI test verifies return to Menu without losing preferences.
+3. Three-section limit and route validation — test verifies invalid routes are ignored and only three extras persist.
+4. User-specific preference storage — test verifies users do not overwrite each other's menu selection.
+5. Reordered sections survive app navigation — UI test verifies saved order after returning to Home and Menu.
 
 ---
 
@@ -51,6 +51,6 @@
 **Files:**
 - Modify: `docs/LEXORA_SERVICE_CHANGELOG.md`
 
-- [ ] Run `./gradlew :app:test :app:connectedAndroidTest :app:assembleDebug` on the configured Android runner.
+- [ ] Run `./gradlew :app:test :app:connectedDebugAndroidTest :app:assembleDebug` on the configured Android runner.
 - [ ] Verify other top-bar actions remain available on screens where they belong.
 - [ ] Record results and commit the changelog update.

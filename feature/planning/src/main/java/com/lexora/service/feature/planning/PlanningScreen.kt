@@ -11,17 +11,17 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.lexora.service.core.model.PlanningEvent
 import com.lexora.service.core.model.PlanningMode
@@ -36,18 +36,12 @@ import androidx.compose.material.icons.automirrored.filled.ArrowForward
 @Composable
 fun PlanningScreen(
     state: PlanningUiState,
-    onModeChange: (PlanningMode) -> Unit,
+    onPeriodClick: () -> Unit,
     onPrevious: () -> Unit,
-    onToday: () -> Unit,
     onNext: () -> Unit,
     onRefresh: () -> Unit,
 ) {
-    Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            ModeChip(PlanningMode.DAY, state.mode, stringResource(R.string.planning_day), onModeChange)
-            ModeChip(PlanningMode.WEEK, state.mode, stringResource(R.string.planning_week), onModeChange)
-            ModeChip(PlanningMode.MONTH, state.mode, stringResource(R.string.planning_month), onModeChange)
-        }
+    Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -56,12 +50,18 @@ fun PlanningScreen(
             IconButton(onClick = onPrevious) {
                 Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.planning_previous))
             }
-            Button(onClick = onToday, modifier = Modifier.weight(1f)) { Text(stringResource(R.string.planning_today)) }
+            Button(
+                onClick = onPeriodClick,
+                modifier = Modifier
+                    .weight(1f)
+                    .semantics { contentDescription = "Сегодня, режим ${modeLabel(state.mode)}" },
+            ) {
+                Text(formatDateLabel(state), maxLines = 1)
+            }
             IconButton(onClick = onNext) {
                 Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = stringResource(R.string.planning_next))
             }
         }
-        Text(formatAnchor(state), style = MaterialTheme.typography.titleMedium)
         if (state.loading && state.snapshot == null) {
             CircularProgressIndicator()
             return@Column
@@ -84,11 +84,6 @@ fun PlanningScreen(
             item { BusinessOperationsPanel(state.organizationId) }
         }
     }
-}
-
-@Composable
-private fun ModeChip(mode: PlanningMode, selected: PlanningMode, label: String, onModeChange: (PlanningMode) -> Unit) {
-    FilterChip(selected = mode == selected, onClick = { onModeChange(mode) }, label = { Text(label) })
 }
 
 @Composable
@@ -121,11 +116,14 @@ private fun LoadCard(load: ResourceLoad) {
     }
 }
 
-private fun formatAnchor(state: PlanningUiState): String = when (state.mode) {
-    PlanningMode.DAY -> state.anchorDate.format(DateTimeFormatter.ofPattern("dd.MM.yyyy"))
-    PlanningMode.WEEK -> "Неделя ${state.anchorDate.format(DateTimeFormatter.ofPattern("dd.MM.yyyy"))}"
-    PlanningMode.MONTH -> state.anchorDate.format(DateTimeFormatter.ofPattern("LLLL yyyy"))
+private fun modeLabel(mode: PlanningMode): String = when (mode) {
+        PlanningMode.DAY -> "День"
+        PlanningMode.WEEK -> "Неделя"
+        PlanningMode.MONTH -> "Месяц"
 }
+
+private fun formatDateLabel(state: PlanningUiState): String =
+    state.anchorDate.format(DateTimeFormatter.ofPattern("dd.MM.yyyy"))
 
 private fun formatTime(epochMs: Long): String =
     DateTimeFormatter.ofPattern("dd.MM HH:mm").format(Instant.ofEpochMilli(epochMs).atZone(ZoneId.systemDefault()))

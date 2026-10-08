@@ -11,7 +11,7 @@ import java.time.temporal.TemporalAdjusters
 
 data class PlanningUiState(
     val organizationId: String = "",
-    val mode: PlanningMode = PlanningMode.DAY,
+    val mode: PlanningMode = PlanningMode.WEEK,
     val anchorDate: LocalDate = LocalDate.now(),
     val loading: Boolean = true,
     val snapshot: PlanningSnapshot? = null,
@@ -28,6 +28,15 @@ class PlanningViewModel(
     fun setMode(mode: PlanningMode) {
         updateState { it.copy(mode = mode) }
         reload()
+    }
+
+    fun cycleMode() {
+        val nextMode = when (state.value.mode) {
+            PlanningMode.DAY -> PlanningMode.WEEK
+            PlanningMode.WEEK -> PlanningMode.MONTH
+            PlanningMode.MONTH -> PlanningMode.DAY
+        }
+        setMode(nextMode)
     }
 
     fun previous() {

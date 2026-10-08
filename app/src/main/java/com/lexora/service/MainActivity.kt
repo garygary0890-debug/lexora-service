@@ -286,7 +286,7 @@ private fun LexoraNavHost(
                 factory = LexoraViewModelFactory { PlanningViewModel(organization.id, container.loadPlanning) },
             )
             val state by vm.state.collectAsStateWithLifecycle()
-            PlanningScreen(state, vm::setMode, vm::previous, vm::today, vm::next, vm::reload)
+            PlanningScreen(state, vm::cycleMode, vm::previous, vm::next, vm::reload)
         }
         composable(Routes.Clients) {
             val vm: ClientsViewModel = viewModel(

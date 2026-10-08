@@ -20,11 +20,11 @@
 
 ## Review Focus
 
-1. Старый пользователь состоит в нескольких организациях — тест миграции подтверждает сохранение всех рабочих доступов пользователя.
-2. Участник команды без членства обращается к чужим данным — тест репозитория подтверждает отказ.
-3. Конфликт номеров заявок после преобразования области владения — тест миграции подтверждает отсутствие потери ссылок.
-4. Обновление схемы прерывается при неоднозначном владельце — тест подтверждает сохранность исходной базы.
-5. Сервер продолжает требовать старый контекст организации — проверка клиента фиксирует несовместимость и не подменяет ответ фиктивным успехом.
+1. Long Russian KPI labels wrap — UI test compares all six card bounds.
+2. Large accessibility font scale — UI test confirms labels remain visible and cards stay equal.
+3. Narrow device width — UI test confirms the two-row grid has no horizontal overflow.
+4. Large payment amount — UI test confirms the full-width payment panel remains separate.
+5. Loading/error/empty state — regression test confirms sizing changes do not remove existing state messaging.
 
 ---
 
@@ -49,6 +49,6 @@
 **Files:**
 - Modify: `docs/LEXORA_SERVICE_CHANGELOG.md`
 
-- [ ] Run `./gradlew :feature:home:test :feature:home:connectedAndroidTest :app:assembleDebug` on the configured Android runner.
+- [ ] Run `./gradlew :feature:home:test :feature:home:connectedDebugAndroidTest :app:assembleDebug` on the configured Android runner.
 - [ ] Verify Expected Payments remains a separate wide panel on narrow screens and with long values.
 - [ ] Record results and commit the changelog update.

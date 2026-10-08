@@ -38,3 +38,24 @@ data class UserOrganizationRoleEntity(
     val syncState: String,
     val updatedAtEpochMs: Long,
 )
+
+@Entity(
+    tableName = "user_workspace_memberships",
+    primaryKeys = ["ownerUserId", "memberUserId", "role"],
+    indices = [Index("ownerUserId"), Index("memberUserId")],
+)
+data class UserWorkspaceMembershipEntity(
+    val ownerUserId: String,
+    val memberUserId: String,
+    val role: String,
+    val active: Boolean,
+    val syncState: String,
+    val updatedAtEpochMs: Long,
+)
+
+@Entity(tableName = "user_workspace_migration_conflicts")
+data class UserWorkspaceMigrationConflictEntity(
+    @PrimaryKey val legacyWorkspaceId: String,
+    val reason: String,
+    val detectedAtEpochMs: Long,
+)

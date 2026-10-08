@@ -5,15 +5,31 @@ import com.lexora.service.core.database.ServiceDao
 import com.lexora.service.core.database.ServiceUserEntity
 import com.lexora.service.core.database.UserDao
 import com.lexora.service.core.database.UserOrganizationRoleEntity
+import com.lexora.service.core.database.UserWorkspaceMembershipEntity
 import com.lexora.service.core.model.ServiceUser
 import com.lexora.service.core.model.SyncState
 import com.lexora.service.core.model.UserRole
+import com.lexora.service.core.model.UserWorkspaceMembership
 import java.util.UUID
 
 class PersistentUserRepository(
     private val userDao: UserDao,
     private val serviceDao: ServiceDao,
 ) {
+    suspend fun workspaceMemberships(ownerUserId: String): List<UserWorkspaceMembership> =
+        userDao.workspaceMemberships(ownerUserId)
+            .groupBy { it.ownerUserId to it.memberUserId }
+            .map { (key, records) ->
+                UserWorkspaceMembership(
+                    ownerUserId = key.first,
+                    memberUserId = key.second,
+                    roles = records.filter { it.active }.mapNotNull {
+                        runCatching { UserRole.valueOf(it.role) }.getOrNull()
+                    }.toSet(),
+                    active = records.any { it.active },
+                )
+            }
+
     suspend fun ensureLocalAdmin(organizationId: String): ServiceUser {
         val now = System.currentTimeMillis()
         val userId = LOCAL_ADMIN_ID
@@ -133,6 +149,7 @@ class PersistentUserRepository(
                 updatedAtEpochMs = now,
             ),
         )
+        upsertWorkspaceMembership(actorUserId, userId, initialRole, active = true)
         serviceDao.insertAuditEvent(
             AuditEventEntity(
                 id = UUID.randomUUID().toString(),
@@ -189,6 +206,7 @@ class PersistentUserRepository(
         } else {
             return
         }
+        if (actorUserId != userId) upsertWorkspaceMembership(actorUserId, userId, role, active)
 
         serviceDao.insertAuditEvent(
             AuditEventEntity(
@@ -216,6 +234,7 @@ class PersistentUserRepository(
         if (existing.active == active) return
         val now = System.currentTimeMillis()
         userDao.setUserActive(userId, active, SyncState.PENDING_UPDATE.name, now)
+        if (!active) userDao.revokeWorkspaceMemberships(userId, SyncState.PENDING_UPDATE.name, now)
         serviceDao.insertAuditEvent(
             AuditEventEntity(
                 id = UUID.randomUUID().toString(),
@@ -232,5 +251,24 @@ class PersistentUserRepository(
 
     companion object {
         const val LOCAL_ADMIN_ID = "user-local-admin"
+    }
+
+    private suspend fun upsertWorkspaceMembership(
+        ownerUserId: String,
+        memberUserId: String,
+        role: UserRole,
+        active: Boolean,
+    ) {
+        if (ownerUserId == memberUserId) return
+        userDao.upsertWorkspaceMembership(
+            UserWorkspaceMembershipEntity(
+                ownerUserId = ownerUserId,
+                memberUserId = memberUserId,
+                role = role.name,
+                active = active,
+                syncState = SyncState.PENDING_UPDATE.name,
+                updatedAtEpochMs = System.currentTimeMillis(),
+            ),
+        )
     }
 }

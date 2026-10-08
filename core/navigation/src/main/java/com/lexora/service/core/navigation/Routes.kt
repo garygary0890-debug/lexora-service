@@ -23,5 +23,16 @@ object Routes {
     const val Wash = "wash"
     const val Tires = "tires"
 
-    fun usesBottomNavigation(route: String?): Boolean = route == Home || route == Menu
+    fun normalizeBottomDestinations(selected: List<String>, available: Collection<String>): List<String> {
+        val availableRoutes = available.toSet()
+        return selected
+            .asSequence()
+            .filter { it != Home && it != Menu && it in availableRoutes }
+            .distinct()
+            .take(3)
+            .toList()
+    }
+
+    fun usesBottomNavigation(route: String?, selectedSections: Collection<String> = emptyList()): Boolean =
+        route == Home || route == Menu || route in selectedSections
 }

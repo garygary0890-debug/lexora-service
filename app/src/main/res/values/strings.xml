@@ -33,4 +33,10 @@
     <string name="nav_manage_organizations">Управление организациями и командой</string>
     <string name="nav_profile_heading">Профиль пользователя</string>
     <string name="nav_roles">Роли: %1$s</string>
+    <string name="nav_edit_bottom_menu">Настроить нижнее меню</string>
+    <string name="nav_bottom_menu_limit">Выберите до 3 разделов. Порядок кнопок можно менять стрелками.</string>
+    <string name="nav_move_up">Переместить выше</string>
+    <string name="nav_move_down">Переместить ниже</string>
+    <string name="nav_save">Сохранить</string>
+    <string name="nav_cancel">Отмена</string>
 </resources>

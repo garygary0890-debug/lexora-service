@@ -26,24 +26,27 @@ data class LexoraThemeSelection(
     val family: LexoraThemeFamily = LexoraThemeFamily.PEARL,
     val dark: Boolean = false,
 ) {
-    fun save(context: Context) {
+    fun save(context: Context, userId: String) {
+        require(userId.isNotBlank())
         context.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE).edit()
-            .putString(KEY_FAMILY, family.name)
-            .putBoolean(KEY_DARK, dark)
+            .putString(familyKey(userId), family.name)
+            .putBoolean(darkKey(userId), dark)
             .apply()
     }
 
     companion object {
         private const val PREFERENCES = "lexora_theme"
-        private const val KEY_FAMILY = "family"
-        private const val KEY_DARK = "dark"
 
-        fun read(context: Context): LexoraThemeSelection {
+        fun read(context: Context, userId: String): LexoraThemeSelection {
+            require(userId.isNotBlank())
             val preferences = context.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE)
             val family = runCatching {
-                LexoraThemeFamily.valueOf(preferences.getString(KEY_FAMILY, null).orEmpty())
+                LexoraThemeFamily.valueOf(preferences.getString(familyKey(userId), null).orEmpty())
             }.getOrDefault(LexoraThemeFamily.PEARL)
-            return LexoraThemeSelection(family, preferences.getBoolean(KEY_DARK, false))
+            return LexoraThemeSelection(family, preferences.getBoolean(darkKey(userId), false))
         }
+
+        private fun familyKey(userId: String) = "$userId.family"
+        private fun darkKey(userId: String) = "$userId.dark"
     }
 }

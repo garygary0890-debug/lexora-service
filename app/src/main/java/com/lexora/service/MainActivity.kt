@@ -65,7 +65,7 @@ class MainActivity : ComponentActivity() {
 @Composable
 private fun LexoraServiceApp(globalOwner: Boolean) {
     val context = LocalContext.current
-    var themeSelection by remember(context) { mutableStateOf(LexoraThemeSelection.read(context)) }
+    var themeSelection by remember(context) { mutableStateOf(LexoraThemeSelection()) }
     LexoraTheme(selection = themeSelection) {
         val container = remember(context) { LexoraServiceContainer(context) }
         val workspaceViewModel: WorkspaceViewModel = viewModel(
@@ -89,6 +89,9 @@ private fun LexoraServiceApp(globalOwner: Boolean) {
         systemState.updateLoading(false)
         val organization = snapshot.organization
         val user = snapshot.user
+        LaunchedEffect(user.id) {
+            themeSelection = LexoraThemeSelection.read(context, user.id)
+        }
         val modules = if (globalOwner) snapshot.modules.map { module ->
             module.copy(
                 enabled = true,
@@ -200,7 +203,7 @@ private fun LexoraServiceApp(globalOwner: Boolean) {
                     themeSelection = themeSelection,
                     onThemeSelectionChange = {
                         themeSelection = it
-                        it.save(context)
+                        it.save(context, user.id)
                     },
                     modifier = Modifier.padding(innerPadding),
                 )

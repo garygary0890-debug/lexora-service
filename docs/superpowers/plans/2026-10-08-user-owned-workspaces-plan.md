@@ -103,11 +103,12 @@
 ### Task 5: Full migration and build verification
 
 **Files:**
+- Modify: `.github/workflows/build.yml` to run on `feature/srv-104-user-workspace-themes` and execute affected module unit-test tasks before assembling the APK
 - Modify: `docs/LEXORA_SERVICE_CHANGELOG.md`, `build-diagnostics/latest-summary.txt`
 - Verify: all modules in the Lexora Service repository.
 
 - [ ] Run searches for active `Organization`, `organizationId`, organization routes, strings, and API fields; distinguish migration-only historical references from active code.
-- [ ] Run `./gradlew test` and `./gradlew :app:assembleDebug`; record full results.
+- [ ] Run the affected module `testDebugUnitTest` tasks and `:app:assembleDebug` on the GitHub Actions Ubuntu/JDK 17/Gradle 9.4.1 runner; record full results.
 - [ ] Run Room schema validation and verify user-team access remains isolated.
 - [ ] Update the changelog and build diagnostic with actual status.
 - [ ] Commit final verification records.

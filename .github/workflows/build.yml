@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - feature/srv-103-navigation-menu-search
+      - feature/srv-104-user-workspace-themes
 
 permissions:
   contents: read
@@ -39,9 +40,19 @@ jobs:
         with:
           gradle-version: '9.4.1'
 
-      - name: Run navigation unit tests
+      - name: Run module unit tests
         shell: bash
-        run: gradle --no-daemon --stacktrace :core:navigation:testDebugUnitTest
+        run: >-
+          gradle --no-daemon --stacktrace
+          :core:domain:testDebugUnitTest
+          :core:navigation:testDebugUnitTest
+          :core:database:testDebugUnitTest
+          :core:data:testDebugUnitTest
+          :core:designsystem:testDebugUnitTest
+          :feature:home:testDebugUnitTest
+          :feature:planning:testDebugUnitTest
+          :feature:settings:testDebugUnitTest
+          :app:testDebugUnitTest
 
       - name: Assemble debug APK
         id: assemble

@@ -23,8 +23,9 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         ReferenceDirectoryEntity::class, ReferenceDirectoryItemEntity::class,
         ServiceRecipeEntity::class, ServiceRecipeComponentEntity::class,
         ServiceNotificationEntity::class, ServiceUserEntity::class, UserOrganizationRoleEntity::class,
+        UserWorkspaceMembershipEntity::class, UserWorkspaceMigrationConflictEntity::class,
     ],
-    version = 22,
+    version = 23,
     exportSchema = true,
 )
 abstract class LexoraServiceDatabase : RoomDatabase() {
@@ -192,6 +193,15 @@ abstract class LexoraServiceDatabase : RoomDatabase() {
             db.execSQL("CREATE INDEX IF NOT EXISTS index_request_change_history_type ON request_change_history(type)")
         } }
 
-        fun create(context: Context): LexoraServiceDatabase = Room.databaseBuilder(context.applicationContext, LexoraServiceDatabase::class.java, "lexora-service.db").addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22).build()
+        private val MIGRATION_22_23 = object : Migration(22, 23) { override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("CREATE TABLE IF NOT EXISTS user_workspace_memberships (ownerUserId TEXT NOT NULL, memberUserId TEXT NOT NULL, role TEXT NOT NULL, active INTEGER NOT NULL, syncState TEXT NOT NULL, updatedAtEpochMs INTEGER NOT NULL, PRIMARY KEY(ownerUserId, memberUserId, role))")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_user_workspace_memberships_ownerUserId ON user_workspace_memberships(ownerUserId)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_user_workspace_memberships_memberUserId ON user_workspace_memberships(memberUserId)")
+            db.execSQL("CREATE TABLE IF NOT EXISTS user_workspace_migration_conflicts (legacyWorkspaceId TEXT NOT NULL PRIMARY KEY, reason TEXT NOT NULL, detectedAtEpochMs INTEGER NOT NULL)")
+            db.execSQL("INSERT OR IGNORE INTO user_workspace_memberships(ownerUserId, memberUserId, role, active, syncState, updatedAtEpochMs) SELECT owners.userId, roles.userId, roles.role, roles.active, roles.syncState, roles.updatedAtEpochMs FROM user_organization_roles AS roles JOIN (SELECT organizationId, MIN(userId) AS userId FROM user_organization_roles WHERE active = 1 AND role = 'ADMIN' GROUP BY organizationId HAVING COUNT(DISTINCT userId) = 1) AS owners ON owners.organizationId = roles.organizationId WHERE roles.active = 1 AND roles.userId != owners.userId")
+            db.execSQL("INSERT INTO user_workspace_migration_conflicts(legacyWorkspaceId, reason, detectedAtEpochMs) SELECT organizations.id, 'OWNER_NOT_UNIQUE', organizations.updatedAtEpochMs FROM organizations LEFT JOIN (SELECT organizationId, COUNT(DISTINCT userId) AS ownerCount FROM user_organization_roles WHERE active = 1 AND role = 'ADMIN' GROUP BY organizationId) AS owners ON owners.organizationId = organizations.id WHERE COALESCE(owners.ownerCount, 0) != 1")
+        } }
+
+        fun create(context: Context): LexoraServiceDatabase = Room.databaseBuilder(context.applicationContext, LexoraServiceDatabase::class.java, "lexora-service.db").addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23).build()
     }
 }

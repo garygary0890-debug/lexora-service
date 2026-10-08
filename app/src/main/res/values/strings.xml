@@ -31,6 +31,11 @@
     <string name="nav_active_organization">Активная организация</string>
     <string name="nav_active_organization_description">Организация, данные которой сейчас открыты в приложении</string>
     <string name="nav_manage_organizations">Управление организациями и командой</string>
+    <string name="nav_configure_theme">Настроить тему</string>
+    <string name="nav_theme_settings">Оформление</string>
+    <string name="nav_dark_theme">Тёмная тема</string>
+    <string name="nav_theme_count">11 цветовых семейств в светлом и тёмном вариантах — всего 22 темы</string>
+    <string name="nav_theme_selected">Выбрано</string>
     <string name="nav_profile_heading">Профиль пользователя</string>
     <string name="nav_roles">Роли: %1$s</string>
     <string name="nav_edit_bottom_menu">Настроить нижнее меню</string>

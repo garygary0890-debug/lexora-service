@@ -1,6 +1,14 @@
 package com.lexora.service
 
 import androidx.annotation.StringRes
+import androidx.compose.ui.graphics.Color
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.material3.Switch
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -48,6 +56,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.lexora.service.core.designsystem.LexoraThemeFamily
+import com.lexora.service.core.designsystem.LexoraThemeSelection
 import com.lexora.service.core.model.Organization
 import com.lexora.service.core.model.ServiceUser
 import com.lexora.service.core.navigation.Routes
@@ -62,6 +72,7 @@ fun LexoraTopBar(
     onBack: () -> Unit,
     onOpenRoute: (String) -> Unit,
     onOpenSearch: (() -> Unit)? = null,
+    onConfigureBottomMenu: (() -> Unit)? = null,
 ) {
     var menuExpanded by remember { mutableStateOf(false) }
     TopAppBar(
@@ -81,6 +92,15 @@ fun LexoraTopBar(
                 Icon(Icons.Filled.MoreVert, contentDescription = stringResource(R.string.nav_more_actions))
             }
             DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
+                if (onConfigureBottomMenu != null) {
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.nav_edit_bottom_menu)) },
+                        onClick = {
+                            menuExpanded = false
+                            onConfigureBottomMenu()
+                        },
+                    )
+                }
                 listOf(
                     Routes.Menu to R.string.nav_action_menu,
                     Routes.ProfileSettings to R.string.nav_action_profile,
@@ -137,9 +157,16 @@ fun LexoraMenuScreen(
     onSelectedRoutesChange: (List<String>) -> Unit,
     onOpenProfileSettings: () -> Unit,
     onOpenDestination: (String) -> Unit,
+    configureRequest: Int,
 ) {
     var editorOpen by remember { mutableStateOf(false) }
     var draftRoutes by remember { mutableStateOf(selectedRoutes) }
+    LaunchedEffect(configureRequest) {
+        if (configureRequest > 0) {
+            draftRoutes = selectedRoutes
+            editorOpen = true
+        }
+    }
 
     LazyVerticalGrid(
         columns = GridCells.Fixed(2),
@@ -156,17 +183,6 @@ fun LexoraMenuScreen(
                     Text(stringResource(R.string.nav_title_profile_settings))
                     Text(stringResource(R.string.nav_profile_panel_description))
                 }
-            }
-        }
-        item(span = { GridItemSpan(maxLineSpan) }) {
-            OutlinedButton(
-                onClick = {
-                    draftRoutes = selectedRoutes
-                    editorOpen = true
-                },
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text(stringResource(R.string.nav_edit_bottom_menu))
             }
         }
         items(destinations, key = { it.route }) { destination ->
@@ -264,7 +280,12 @@ fun LexoraMenuScreen(
 }
 
 @Composable
-fun ProfileSettingsScreen(user: ServiceUser, activeOrganization: Organization, onManageOrganizations: () -> Unit) {
+fun ProfileSettingsScreen(
+    user: ServiceUser,
+    activeOrganization: Organization,
+    onManageOrganizations: () -> Unit,
+    onConfigureTheme: () -> Unit,
+) {
     Column(
         modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -279,11 +300,67 @@ fun ProfileSettingsScreen(user: ServiceUser, activeOrganization: Organization, o
         OutlinedButton(onClick = onManageOrganizations, modifier = Modifier.fillMaxWidth()) {
             Text(stringResource(R.string.nav_manage_organizations))
         }
+        OutlinedButton(onClick = onConfigureTheme, modifier = Modifier.fillMaxWidth()) {
+            Text(stringResource(R.string.nav_configure_theme))
+        }
         Text(stringResource(R.string.nav_profile_heading))
         Card(Modifier.fillMaxWidth()) {
             Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(user.displayName)
                 Text(stringResource(R.string.nav_roles, user.roles.joinToString()))
+            }
+        }
+    }
+}
+
+
+@Composable
+fun ThemeSettingsScreen(
+    selection: LexoraThemeSelection,
+    onSelectionChange: (LexoraThemeSelection) -> Unit,
+) {
+    Column(
+        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Row(
+            Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Text(stringResource(R.string.nav_dark_theme))
+            Switch(
+                checked = selection.dark,
+                onCheckedChange = { onSelectionChange(selection.copy(dark = it)) },
+            )
+        }
+        Text(stringResource(R.string.nav_theme_count), style = MaterialTheme.typography.bodyMedium)
+        LexoraThemeFamily.entries.forEach { family ->
+            Card(
+                onClick = { onSelectionChange(selection.copy(family = family)) },
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Row(
+                    Modifier.fillMaxWidth().padding(14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    Box(
+                        Modifier
+                            .size(36.dp)
+                            .background(
+                                Color(if (selection.dark) family.darkPrimary else family.lightPrimary),
+                                RoundedCornerShape(10.dp),
+                            ),
+                    )
+                    Text(family.title, modifier = Modifier.weight(1f))
+                    if (selection.family == family) {
+                        Text(
+                            stringResource(R.string.nav_theme_selected),
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                    }
+                }
             }
         }
     }

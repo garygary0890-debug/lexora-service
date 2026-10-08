@@ -24,6 +24,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.lexora.service.core.designsystem.LexoraTheme
+import com.lexora.service.core.designsystem.LexoraThemeSelection
 import com.lexora.service.core.designsystem.PermissionGuard
 import com.lexora.service.core.designsystem.SystemStateHost
 import com.lexora.service.core.model.*
@@ -64,8 +65,9 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 private fun LexoraServiceApp(globalOwner: Boolean) {
-    LexoraTheme {
-        val context = LocalContext.current
+    val context = LocalContext.current
+    var themeSelection by remember(context) { mutableStateOf(LexoraThemeSelection()) }
+    LexoraTheme(selection = themeSelection) {
         val container = remember(context) { LexoraServiceContainer(context) }
         val workspaceViewModel: WorkspaceViewModel = viewModel(
             factory = LexoraViewModelFactory { WorkspaceViewModel(container.workspace) },
@@ -92,6 +94,9 @@ private fun LexoraServiceApp(globalOwner: Boolean) {
         systemState.updateLoading(false)
         val organization = snapshot.organization
         val user = snapshot.user
+        LaunchedEffect(user.id) {
+            themeSelection = LexoraThemeSelection.read(context, user.id)
+        }
         val modules = if (globalOwner) snapshot.modules.map { module ->
             module.copy(
                 enabled = true,
@@ -132,6 +137,7 @@ private fun LexoraServiceApp(globalOwner: Boolean) {
         val selectedBottomDestinations = selectedBottomRoutes.mapNotNull { route ->
             menuDestinations.firstOrNull { it.route == route }
         }
+        var bottomMenuConfigureRequest by remember { mutableStateOf(0) }
 
         LaunchedEffect(organization.id) {
             while (true) {
@@ -157,6 +163,9 @@ private fun LexoraServiceApp(globalOwner: Boolean) {
                         onOpenRoute = { route -> navController.navigate(route) { launchSingleTop = true } },
                         onOpenSearch = if (currentRoute == Routes.Home) {
                             { navController.navigate(Routes.Search) { launchSingleTop = true } }
+                        } else null,
+                        onConfigureBottomMenu = if (currentRoute == Routes.Menu) {
+                            { bottomMenuConfigureRequest++ }
                         } else null,
                     )
                 },
@@ -197,6 +206,12 @@ private fun LexoraServiceApp(globalOwner: Boolean) {
                     canManageUsers = canManageUsers,
                     canManageOrganization = canManageOrganization,
                     canViewAudit = canViewAudit,
+                    configureBottomMenuRequest = bottomMenuConfigureRequest,
+                    themeSelection = themeSelection,
+                    onThemeSelectionChange = {
+                        themeSelection = it
+                        it.save(context, user.id)
+                    },
                     modifier = Modifier.padding(innerPadding),
                 )
             }
@@ -219,6 +234,9 @@ private fun LexoraNavHost(
     canManageUsers: Boolean,
     canManageOrganization: Boolean,
     canViewAudit: Boolean,
+    configureBottomMenuRequest: Int,
+    themeSelection: LexoraThemeSelection,
+    onThemeSelectionChange: (LexoraThemeSelection) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val organization = snapshot.organization
@@ -243,6 +261,7 @@ private fun LexoraNavHost(
                 onSelectedRoutesChange = onSelectedBottomRoutesChange,
                 onOpenProfileSettings = { navController.navigate(Routes.ProfileSettings) },
                 onOpenDestination = { route -> navController.navigate(route) { launchSingleTop = true } },
+                configureRequest = configureBottomMenuRequest,
             )
         }
         composable(Routes.ProfileSettings) {
@@ -250,7 +269,11 @@ private fun LexoraNavHost(
                 user = user,
                 activeOrganization = organization,
                 onManageOrganizations = { navController.navigate(Routes.Organization) },
+                onConfigureTheme = { navController.navigate(Routes.ThemeSettings) },
             )
+        }
+        composable(Routes.ThemeSettings) {
+            ThemeSettingsScreen(themeSelection, onThemeSelectionChange)
         }
         composable(Routes.Search) {
             val vm: GlobalSearchViewModel = viewModel(
@@ -495,6 +518,7 @@ private fun titleResourceForRoute(route: String?): Int = when (route) {
     Routes.Home -> R.string.nav_title_home
     Routes.Menu -> R.string.nav_title_menu
     Routes.ProfileSettings -> R.string.nav_title_profile_settings
+    Routes.ThemeSettings -> R.string.nav_theme_settings
     Routes.Search -> R.string.nav_title_search
     Routes.Planning -> R.string.nav_title_planning
     Routes.Clients -> R.string.nav_title_clients

@@ -15,8 +15,14 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.res.stringResource
@@ -41,6 +47,7 @@ fun PlanningScreen(
     onNext: () -> Unit,
     onRefresh: () -> Unit,
 ) {
+    var selectedTab by rememberSaveable { mutableIntStateOf(0) }
     Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -72,16 +79,36 @@ fun PlanningScreen(
             return@Column
         }
         val snapshot = state.snapshot ?: return@Column
+        val tabs = listOf(
+            "Календарь выездов",
+            "Загруженность",
+            "Задачи и платежи",
+        )
+        TabRow(selectedTabIndex = selectedTab) {
+            tabs.forEachIndexed { index, title ->
+                Tab(
+                    selected = selectedTab == index,
+                    onClick = { selectedTab = index },
+                    text = { Text(title, maxLines = 1) },
+                )
+            }
+        }
         LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            item { Text(stringResource(R.string.planning_calendar), style = MaterialTheme.typography.titleLarge) }
-            if (snapshot.events.isEmpty()) item { Text(stringResource(R.string.planning_no_events)) }
-            items(snapshot.events, key = { it.id }) { event -> EventCard(event) }
-            item { Text(stringResource(R.string.planning_employee_load), style = MaterialTheme.typography.titleLarge) }
-            if (snapshot.employeeLoads.isEmpty()) item { Text(stringResource(R.string.planning_no_resources)) }
-            items(snapshot.employeeLoads, key = { "employee:${it.resourceId}" }) { load -> LoadCard(load) }
-            item { Text(stringResource(R.string.planning_team_load), style = MaterialTheme.typography.titleLarge) }
-            items(snapshot.teamLoads, key = { "team:${it.resourceId}" }) { load -> LoadCard(load) }
-            item { BusinessOperationsPanel(state.organizationId) }
+            when (selectedTab) {
+                0 -> {
+                    item { Text(stringResource(R.string.planning_calendar), style = MaterialTheme.typography.titleLarge) }
+                    if (snapshot.events.isEmpty()) item { Text(stringResource(R.string.planning_no_events)) }
+                    items(snapshot.events, key = { it.id }) { event -> EventCard(event) }
+                }
+                1 -> {
+                    item { Text(stringResource(R.string.planning_employee_load), style = MaterialTheme.typography.titleLarge) }
+                    if (snapshot.employeeLoads.isEmpty()) item { Text(stringResource(R.string.planning_no_resources)) }
+                    items(snapshot.employeeLoads, key = { "employee:${it.resourceId}" }) { load -> LoadCard(load) }
+                    item { Text(stringResource(R.string.planning_team_load), style = MaterialTheme.typography.titleLarge) }
+                    items(snapshot.teamLoads, key = { "team:${it.resourceId}" }) { load -> LoadCard(load) }
+                }
+                2 -> item { BusinessOperationsPanel(state.organizationId) }
+            }
         }
     }
 }

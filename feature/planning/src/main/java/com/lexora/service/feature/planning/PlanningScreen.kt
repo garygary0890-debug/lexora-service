@@ -11,14 +11,23 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.lexora.service.core.model.PlanningEvent
 import com.lexora.service.core.model.PlanningMode
@@ -26,6 +35,9 @@ import com.lexora.service.core.model.ResourceLoad
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 
 @Composable
 fun PlanningScreen(
@@ -36,19 +48,28 @@ fun PlanningScreen(
     onNext: () -> Unit,
     onRefresh: () -> Unit,
 ) {
-    Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text(stringResource(R.string.planning_title), style = MaterialTheme.typography.headlineMedium)
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            ModeChip(PlanningMode.DAY, state.mode, stringResource(R.string.planning_day), onModeChange)
-            ModeChip(PlanningMode.WEEK, state.mode, stringResource(R.string.planning_week), onModeChange)
-            ModeChip(PlanningMode.MONTH, state.mode, stringResource(R.string.planning_month), onModeChange)
+    var selectedTab by rememberSaveable { mutableIntStateOf(0) }
+    Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            IconButton(onClick = onPrevious) {
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.planning_previous))
+            }
+            Button(
+                onClick = { onModeChange(when (state.mode) { PlanningMode.DAY -> PlanningMode.WEEK; PlanningMode.WEEK -> PlanningMode.MONTH; PlanningMode.MONTH -> PlanningMode.DAY }) },
+                modifier = Modifier
+                    .weight(1f)
+                    .semantics { contentDescription = "Сегодня, режим ${modeLabel(state.mode)}" },
+            ) {
+                Text(formatDateLabel(state), maxLines = 1)
+            }
+            IconButton(onClick = onNext) {
+                Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = stringResource(R.string.planning_next))
+            }
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(onClick = onPrevious) { Text(stringResource(R.string.planning_previous)) }
-            Button(onClick = onToday) { Text(stringResource(R.string.planning_today)) }
-            OutlinedButton(onClick = onNext) { Text(stringResource(R.string.planning_next)) }
-        }
-        Text(formatAnchor(state), style = MaterialTheme.typography.titleMedium)
         if (state.loading && state.snapshot == null) {
             CircularProgressIndicator()
             return@Column
@@ -59,23 +80,38 @@ fun PlanningScreen(
             return@Column
         }
         val snapshot = state.snapshot ?: return@Column
+        val tabs = listOf(
+            "Календарь\nвыездов",
+            "Загруженность",
+            "Задачи и\nплатежи",
+        )
+        TabRow(selectedTabIndex = selectedTab) {
+            tabs.forEachIndexed { index, title ->
+                Tab(
+                    selected = selectedTab == index,
+                    onClick = { selectedTab = index },
+                    text = { Text(title, maxLines = 2) },
+                )
+            }
+        }
         LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            item { Text(stringResource(R.string.planning_calendar), style = MaterialTheme.typography.titleLarge) }
-            if (snapshot.events.isEmpty()) item { Text(stringResource(R.string.planning_no_events)) }
-            items(snapshot.events, key = { it.id }) { event -> EventCard(event) }
-            item { Text(stringResource(R.string.planning_employee_load), style = MaterialTheme.typography.titleLarge) }
-            if (snapshot.employeeLoads.isEmpty()) item { Text(stringResource(R.string.planning_no_resources)) }
-            items(snapshot.employeeLoads, key = { "employee:${it.resourceId}" }) { load -> LoadCard(load) }
-            item { Text(stringResource(R.string.planning_team_load), style = MaterialTheme.typography.titleLarge) }
-            items(snapshot.teamLoads, key = { "team:${it.resourceId}" }) { load -> LoadCard(load) }
-            item { BusinessOperationsPanel(state.organizationId) }
+            when (selectedTab) {
+                0 -> {
+                    item { Text(stringResource(R.string.planning_calendar), style = MaterialTheme.typography.titleLarge) }
+                    if (snapshot.events.isEmpty()) item { Text(stringResource(R.string.planning_no_events)) }
+                    items(snapshot.events, key = { it.id }) { event -> EventCard(event) }
+                }
+                1 -> {
+                    item { Text(stringResource(R.string.planning_employee_load), style = MaterialTheme.typography.titleLarge) }
+                    if (snapshot.employeeLoads.isEmpty()) item { Text(stringResource(R.string.planning_no_resources)) }
+                    items(snapshot.employeeLoads, key = { "employee:${it.resourceId}" }) { load -> LoadCard(load) }
+                    item { Text(stringResource(R.string.planning_team_load), style = MaterialTheme.typography.titleLarge) }
+                    items(snapshot.teamLoads, key = { "team:${it.resourceId}" }) { load -> LoadCard(load) }
+                }
+                2 -> item { BusinessOperationsPanel(state.organizationId) }
+            }
         }
     }
-}
-
-@Composable
-private fun ModeChip(mode: PlanningMode, selected: PlanningMode, label: String, onModeChange: (PlanningMode) -> Unit) {
-    FilterChip(selected = mode == selected, onClick = { onModeChange(mode) }, label = { Text(label) })
 }
 
 @Composable
@@ -108,11 +144,14 @@ private fun LoadCard(load: ResourceLoad) {
     }
 }
 
-private fun formatAnchor(state: PlanningUiState): String = when (state.mode) {
-    PlanningMode.DAY -> state.anchorDate.format(DateTimeFormatter.ofPattern("dd.MM.yyyy, EEE", java.util.Locale("ru")))
-    PlanningMode.WEEK -> "Неделя ${state.anchorDate.format(DateTimeFormatter.ofPattern("dd.MM.yyyy"))}"
-    PlanningMode.MONTH -> state.anchorDate.format(DateTimeFormatter.ofPattern("LLLL yyyy"))
+private fun modeLabel(mode: PlanningMode): String = when (mode) {
+        PlanningMode.DAY -> "День"
+        PlanningMode.WEEK -> "Неделя"
+        PlanningMode.MONTH -> "Месяц"
 }
+
+private fun formatDateLabel(state: PlanningUiState): String =
+    state.anchorDate.format(DateTimeFormatter.ofPattern("dd.MM.yyyy, EEE", java.util.Locale("ru")))
 
 private fun formatTime(epochMs: Long): String =
     DateTimeFormatter.ofPattern("dd.MM HH:mm").format(Instant.ofEpochMilli(epochMs).atZone(ZoneId.systemDefault()))

@@ -58,7 +58,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.shape.RoundedCornerShape
 import com.lexora.service.core.designsystem.LexoraThemeFamily
 import com.lexora.service.core.designsystem.LexoraThemeSelection
-import com.lexora.service.core.model.Organization
 import com.lexora.service.core.model.ServiceUser
 import com.lexora.service.core.navigation.Routes
 
@@ -282,34 +281,27 @@ fun LexoraMenuScreen(
 @Composable
 fun ProfileSettingsScreen(
     user: ServiceUser,
-    activeOrganization: Organization,
-    onManageOrganizations: () -> Unit,
+    onManageUsers: () -> Unit,
     onConfigureTheme: () -> Unit,
 ) {
     Column(
         modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Text(stringResource(R.string.nav_active_organization))
-        Card(Modifier.fillMaxWidth()) {
-            Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(activeOrganization.name)
-                Text(stringResource(R.string.nav_active_organization_description))
-            }
-        }
-        OutlinedButton(onClick = onManageOrganizations, modifier = Modifier.fillMaxWidth()) {
-            Text(stringResource(R.string.nav_manage_organizations))
-        }
-        OutlinedButton(onClick = onConfigureTheme, modifier = Modifier.fillMaxWidth()) {
-            Text(stringResource(R.string.nav_configure_theme))
-        }
         Text(stringResource(R.string.nav_profile_heading))
         Card(Modifier.fillMaxWidth()) {
             Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(user.displayName)
-                Text(stringResource(R.string.nav_roles, user.roles.joinToString()))
+                Text(stringResource(R.string.nav_workspace_description))
             }
         }
+        OutlinedButton(onClick = onManageUsers, modifier = Modifier.fillMaxWidth()) {
+            Text(stringResource(R.string.nav_manage_users_team))
+        }
+        OutlinedButton(onClick = onConfigureTheme, modifier = Modifier.fillMaxWidth()) {
+            Text(stringResource(R.string.nav_configure_theme))
+        }
+        Text(stringResource(R.string.nav_roles, user.roles.joinToString()))
     }
 }
 

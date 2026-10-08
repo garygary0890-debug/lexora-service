@@ -42,7 +42,6 @@ import com.lexora.service.feature.documents.*
 import com.lexora.service.feature.fieldwork.*
 import com.lexora.service.feature.home.*
 import com.lexora.service.feature.notifications.*
-import com.lexora.service.feature.organization.*
 import com.lexora.service.feature.planning.*
 import com.lexora.service.feature.reports.*
 import com.lexora.service.feature.requests.*
@@ -98,7 +97,6 @@ private fun LexoraServiceApp(globalOwner: Boolean) {
         } else snapshot.modules
         val accessibleModules = if (globalOwner) modules else modules.filter { container.moduleAccessPolicy.isAvailable(it, user) }
         val canManageUsers = globalOwner || container.accessPolicy.can(user, Permission.MANAGE_USERS)
-        val canManageOrganization = globalOwner || container.accessPolicy.can(user, Permission.MANAGE_ORGANIZATION)
         val canViewAudit = globalOwner || container.accessPolicy.can(user, Permission.VIEW_AUDIT)
         val canViewWash = globalOwner || (
             container.accessPolicy.can(user, Permission.VIEW_WASH) &&
@@ -197,7 +195,6 @@ private fun LexoraServiceApp(globalOwner: Boolean) {
                     },
                     globalOwner = globalOwner,
                     canManageUsers = canManageUsers,
-                    canManageOrganization = canManageOrganization,
                     canViewAudit = canViewAudit,
                     configureBottomMenuRequest = bottomMenuConfigureRequest,
                     themeSelection = themeSelection,
@@ -225,7 +222,6 @@ private fun LexoraNavHost(
     onSelectedBottomRoutesChange: (List<String>) -> Unit,
     globalOwner: Boolean,
     canManageUsers: Boolean,
-    canManageOrganization: Boolean,
     canViewAudit: Boolean,
     configureBottomMenuRequest: Int,
     themeSelection: LexoraThemeSelection,
@@ -260,8 +256,7 @@ private fun LexoraNavHost(
         composable(Routes.ProfileSettings) {
             ProfileSettingsScreen(
                 user = user,
-                activeOrganization = organization,
-                onManageOrganizations = { navController.navigate(Routes.Organization) },
+                onManageUsers = { navController.navigate(Routes.Users) },
                 onConfigureTheme = { navController.navigate(Routes.ThemeSettings) },
             )
         }
@@ -351,31 +346,6 @@ private fun LexoraNavHost(
             )
             val state by vm.state.collectAsStateWithLifecycle()
             RequestsScreen(state, vm::open, vm::close, vm::save, vm::assign, vm::reschedule, vm::changeStatus)
-        }
-        composable(Routes.Organization) {
-            val vm: OrganizationViewModel = viewModel(
-                key = "organization:${organization.id}:${user.id}",
-                factory = LexoraViewModelFactory { OrganizationViewModel(organization.id, user.id, container.operations) },
-            )
-            val state by vm.state.collectAsStateWithLifecycle()
-            OrganizationHubScreen(
-                activeOrganization = organization,
-                organizations = snapshot.organizations,
-                allowedOrganizationIds = user.organizationIds,
-                canManageOrganization = canManageOrganization,
-                onCreateOrganization = workspaceViewModel::createOrganization,
-                onSwitchOrganization = workspaceViewModel::switchOrganization,
-                branches = state.branches,
-                inactiveBranches = state.inactiveBranches,
-                employees = state.employees,
-                inactiveEmployees = state.inactiveEmployees,
-                onSaveBranch = vm::saveBranch,
-                onDeactivateBranch = { vm.setBranchActive(it, false) },
-                onActivateBranch = { vm.setBranchActive(it, true) },
-                onSaveEmployee = vm::saveEmployee,
-                onDeactivateEmployee = { vm.setEmployeeActive(it, false) },
-                onActivateEmployee = { vm.setEmployeeActive(it, true) },
-            )
         }
         composable(Routes.FieldWork) {
             val vm: FieldWorkViewModel = viewModel(
@@ -499,7 +469,6 @@ private fun buildMenuDestinations(
     add(AppMenuDestination(Routes.Catalog, R.string.nav_title_catalog))
     add(AppMenuDestination(Routes.Reports, R.string.nav_title_reports))
     add(AppMenuDestination(Routes.Notifications, R.string.nav_title_notifications))
-    add(AppMenuDestination(Routes.Organization, R.string.nav_title_organization))
     if (canViewAudit) add(AppMenuDestination(Routes.Audit, R.string.nav_title_audit))
     if (canManageUsers) add(AppMenuDestination(Routes.Users, R.string.nav_title_users))
     add(AppMenuDestination(Routes.Settings, R.string.nav_title_settings))
@@ -518,7 +487,6 @@ private fun titleResourceForRoute(route: String?): Int = when (route) {
     Routes.Vehicles -> R.string.nav_title_vehicles
     Routes.Assets -> R.string.nav_title_assets
     Routes.Requests -> R.string.nav_title_requests
-    Routes.Organization -> R.string.nav_title_organization
     Routes.FieldWork -> R.string.nav_title_field_work
     Routes.Documents -> R.string.nav_title_documents
     Routes.Reports -> R.string.nav_title_reports

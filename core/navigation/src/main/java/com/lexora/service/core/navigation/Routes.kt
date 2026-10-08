@@ -6,8 +6,6 @@ object Routes {
     const val Documents = "documents"
     const val FieldWork = "fieldwork"
     const val Requests = "requests"
-    const val Organization = "organization"
-    const val Organizations = "organizations"
     const val Assets = "assets"
     const val Vehicles = "vehicles"
     const val Clients = "clients"

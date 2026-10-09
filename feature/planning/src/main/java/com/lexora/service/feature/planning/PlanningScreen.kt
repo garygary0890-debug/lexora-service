@@ -73,7 +73,7 @@ fun PlanningScreen(
                 onClick = onPeriodClick,
                 modifier = Modifier
                     .weight(1f)
-                    .semantics { contentDescription = "РЎРµРіРѕРґРЅСЏ, СЂРµР¶РёРј ${modeLabel(state.mode)}" },
+                    .semantics { contentDescription = "Сегодня, режим ${modeLabel(state.mode)}" },
             ) {
                 Text(formatDateLabel(state), maxLines = 1)
             }
@@ -158,10 +158,10 @@ fun PlanningScreen(
 private fun EventCard(event: PlanningEvent) {
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text("${event.requestNumber} В· ${event.title}", style = MaterialTheme.typography.titleMedium)
-            Text("${formatTime(event.startAtEpochMs)} вЂ” ${formatTime(event.endAtEpochMs)}")
-            Text(listOfNotNull(event.employeeName, event.branchName).joinToString(" В· ").ifBlank { "РСЃРїРѕР»РЅРёС‚РµР»СЊ РЅРµ РЅР°Р·РЅР°С‡РµРЅ" })
-            Text("${event.priority.name} В· ${event.status.name}", style = MaterialTheme.typography.labelSmall)
+            Text("${event.requestNumber} · ${event.title}", style = MaterialTheme.typography.titleMedium)
+            Text("${formatTime(event.startAtEpochMs)} — ${formatTime(event.endAtEpochMs)}")
+            Text(listOfNotNull(event.employeeName, event.branchName).joinToString(" · ").ifBlank { "Исполнитель не назначен" })
+            Text("${event.priority.name} · ${event.status.name}", style = MaterialTheme.typography.labelSmall)
         }
     }
 }
@@ -178,16 +178,16 @@ private fun LoadCard(load: ResourceLoad) {
                 progress = { (load.utilizationPercent.coerceIn(0, 100) / 100f) },
                 modifier = Modifier.fillMaxWidth(),
             )
-            Text("${load.scheduledMinutes} РјРёРЅ В· ${load.eventCount} РЅР°Р·РЅР°С‡РµРЅРёР№", style = MaterialTheme.typography.bodySmall)
-            if (load.overloaded) Text("РџРµСЂРµРіСЂСѓР·РєР°", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelMedium)
+            Text("${load.scheduledMinutes} мин · ${load.eventCount} назначений", style = MaterialTheme.typography.bodySmall)
+            if (load.overloaded) Text("Перегрузка", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelMedium)
         }
     }
 }
 
 private fun modeLabel(mode: PlanningMode): String = when (mode) {
-        PlanningMode.DAY -> "Р”РµРЅСЊ"
-        PlanningMode.WEEK -> "РќРµРґРµР»СЏ"
-        PlanningMode.MONTH -> "РњРµСЃСЏС†"
+        PlanningMode.DAY -> "День"
+        PlanningMode.WEEK -> "Неделя"
+        PlanningMode.MONTH -> "Месяц"
 }
 
 private fun formatDateLabel(state: PlanningUiState): String {

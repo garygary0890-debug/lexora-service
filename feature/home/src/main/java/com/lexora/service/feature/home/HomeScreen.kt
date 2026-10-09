@@ -16,6 +16,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
@@ -30,6 +31,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -37,6 +39,8 @@ import androidx.compose.ui.unit.sp
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+
+private val QuickAccessButtonColor = Color(0xFF61656D)
 
 data class HomeQuickAccessItem(
     val route: String,
@@ -71,6 +75,7 @@ fun HomeScreen(
                 quickAccess.forEach { destination ->
                     Button(
                         onClick = { onOpenQuickAccess(destination.route) },
+                        colors = ButtonDefaults.buttonColors(containerColor = QuickAccessButtonColor),
                         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 0.dp),
                         modifier = Modifier.height(36.dp),
                     ) {
@@ -82,6 +87,7 @@ fun HomeScreen(
                         draftQuickAccessRoutes = quickAccess.map { it.route }
                         quickAccessDialogOpen = true
                     },
+                    colors = ButtonDefaults.buttonColors(containerColor = QuickAccessButtonColor),
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
                     modifier = Modifier.height(36.dp),
                 ) {

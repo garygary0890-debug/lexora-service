@@ -180,7 +180,7 @@ fun LexoraMenuScreen(
                 onClick = onOpenProfileSettings,
                 modifier = Modifier.fillMaxWidth().height(116.dp).padding(top = 8.dp),
                 colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.82f),
+                    containerColor = Color(0xFF61656D),
                     contentColor = MaterialTheme.colorScheme.onPrimary,
                 ),
             ) {

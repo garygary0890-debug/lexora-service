@@ -6,7 +6,7 @@
     <string name="home_urgent_requests">Срочные</string>
     <string name="home_overdue_requests">Просрочено</string>
     <string name="home_today_visits">Выезды сегодня</string>
-    <string name="home_active_employees">Активные сотрудники</string>
+    <string name="home_active_employees">Сотрудники</string>
     <string name="home_unsynced">Не синхр.</string>
     <string name="home_planned_payments">Ожидаемые платежи</string>
     <string name="home_next_visits">Ближайшие выезды</string>

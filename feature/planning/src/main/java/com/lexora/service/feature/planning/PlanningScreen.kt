@@ -82,9 +82,9 @@ fun PlanningScreen(
         }
         val snapshot = state.snapshot ?: return@Column
         val tabs = listOf(
-            "РљР°Р»РµРЅРґР°СЂСЊ\nРІС‹РµР·РґРѕРІ",
-            "Р—Р°РіСЂСѓР¶РµРЅРЅРѕСЃС‚СЊ",
-            "Р—Р°РґР°С‡Рё Рё\nРїР»Р°С‚РµР¶Рё",
+            "\u041a\u0430\u043b\u0435\u043d\u0434\u0430\u0440\u044c\n\u0432\u044b\u0435\u0437\u0434\u043e\u0432",
+            "\u0417\u0430\u0433\u0440\u0443\u0436\u0435\u043d\u043d\u043e\u0441\u0442\u044c",
+            "\u0417\u0430\u0434\u0430\u0447\u0438 \u0438\n\u043f\u043b\u0430\u0442\u0435\u0436\u0438",
         )
         TabRow(selectedTabIndex = selectedTab) {
             tabs.forEachIndexed { index, title ->

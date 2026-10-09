@@ -2,6 +2,7 @@ package com.lexora.service.feature.planning
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -39,6 +40,9 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.temporal.TemporalAdjusters
 import java.util.Locale
+
+private val EmptyTabTopPadding = 48.dp
+private val PopulatedTabTopPadding = 8.dp
 
 @Composable
 fun PlanningScreen(
@@ -101,7 +105,12 @@ fun PlanningScreen(
                 )
             }
         }
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        LazyColumn(
+            contentPadding = PaddingValues(
+                top = if (selectedTab == 0 && snapshot.events.isEmpty()) EmptyTabTopPadding else PopulatedTabTopPadding,
+            ),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
             when (selectedTab) {
                 0 -> {
                     if (snapshot.events.isEmpty()) {

@@ -95,7 +95,7 @@ fun HomeScreen(
                 }
             }
         }
-        item { Text(stringResource(R.string.home_operational_summary), style = MaterialTheme.typography.titleLarge) }
+        item { Text(stringResource(R.string.home_operational_summary), style = MaterialTheme.typography.titleMedium) }
         if (state.loading && dashboard == null) {
             item { CircularProgressIndicator() }
         } else if (state.error != null && dashboard == null) {

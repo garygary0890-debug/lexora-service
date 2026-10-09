@@ -17,7 +17,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -93,9 +95,17 @@ fun HomeScreen(
 @Composable
 private fun KpiCard(label: String, value: String, modifier: Modifier = Modifier) {
     Card(modifier.height(112.dp)) {
-        Column(Modifier.padding(12.dp)) {
+        Column(Modifier.padding(horizontal = 4.dp, vertical = 10.dp)) {
             Text(value, style = MaterialTheme.typography.headlineSmall)
-            Text(label, style = MaterialTheme.typography.bodySmall)
+            Text(
+                label,
+                maxLines = 1,
+                softWrap = false,
+                overflow = TextOverflow.Clip,
+                style = MaterialTheme.typography.bodySmall.copy(
+                    fontSize = if (label.length > 16) 8.sp else 9.sp,
+                ),
+            )
         }
     }
 }

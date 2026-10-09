@@ -20,3 +20,22 @@ internal object BottomNavigationPreferences {
             .apply()
     }
 }
+
+internal object QuickAccessPreferences {
+    private const val PREFERENCES_FILE = "lexora_navigation"
+    private fun key(userId: String) = "quick_access_$userId"
+
+    fun read(context: Context, userId: String): List<String> =
+        context.getSharedPreferences(PREFERENCES_FILE, Context.MODE_PRIVATE)
+            .getString(key(userId), "")
+            .orEmpty()
+            .split('|')
+            .filter(String::isNotBlank)
+
+    fun write(context: Context, userId: String, routes: List<String>) {
+        context.getSharedPreferences(PREFERENCES_FILE, Context.MODE_PRIVATE)
+            .edit()
+            .putString(key(userId), routes.joinToString("|"))
+            .apply()
+    }
+}

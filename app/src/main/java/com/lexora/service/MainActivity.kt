@@ -137,6 +137,32 @@ private fun LexoraServiceApp(globalOwner: Boolean) {
         val selectedBottomDestinations = selectedBottomRoutes.mapNotNull { route ->
             menuDestinations.firstOrNull { it.route == route }
         }
+        val availableQuickAccess = remember(menuDestinations) {
+            menuDestinations.map { destination ->
+                HomeQuickAccessItem(destination.route, context.getString(destination.titleRes))
+            }
+        }
+        val defaultQuickAccessRoutes = listOf(
+            Routes.Planning,
+            Routes.Requests,
+            Routes.Clients,
+            Routes.Documents,
+        )
+        var selectedQuickAccessRoutes by remember(context, user.id, menuDestinations) {
+            mutableStateOf(
+                run {
+                    val availableRoutes = availableQuickAccess.map { it.route }.toSet()
+                    val saved = QuickAccessPreferences.read(context, user.id)
+                    (if (saved.isEmpty()) defaultQuickAccessRoutes else saved)
+                        .filter { it in availableRoutes }
+                        .distinct()
+                        .take(6)
+                },
+            )
+        }
+        val selectedQuickAccess = selectedQuickAccessRoutes.mapNotNull { route ->
+            availableQuickAccess.firstOrNull { it.route == route }
+        }
         var bottomMenuConfigureRequest by remember { mutableStateOf(0) }
 
         LaunchedEffect(organization.id) {
@@ -202,6 +228,15 @@ private fun LexoraServiceApp(globalOwner: Boolean) {
                         selectedBottomRoutes = normalized
                         BottomNavigationPreferences.write(context, user.id, normalized)
                     },
+                    selectedQuickAccessRoutes = selectedQuickAccessRoutes,
+                    availableQuickAccess = availableQuickAccess,
+                    onQuickAccessChange = { routes ->
+                        selectedQuickAccessRoutes = routes
+                            .filter { route -> availableQuickAccess.any { it.route == route } }
+                            .distinct()
+                            .take(6)
+                        QuickAccessPreferences.write(context, user.id, selectedQuickAccessRoutes)
+                    },
                     globalOwner = globalOwner,
                     canManageUsers = canManageUsers,
                     canManageOrganization = canManageOrganization,
@@ -230,6 +265,9 @@ private fun LexoraNavHost(
     menuDestinations: List<AppMenuDestination>,
     selectedBottomRoutes: List<String>,
     onSelectedBottomRoutesChange: (List<String>) -> Unit,
+    selectedQuickAccessRoutes: List<String>,
+    availableQuickAccess: List<HomeQuickAccessItem>,
+    onQuickAccessChange: (List<String>) -> Unit,
     globalOwner: Boolean,
     canManageUsers: Boolean,
     canManageOrganization: Boolean,
@@ -252,6 +290,14 @@ private fun LexoraNavHost(
                 state = state,
                 onRefresh = vm::refresh,
                 onOpenPlanning = { navController.navigate(Routes.Planning) },
+                quickAccess = selectedQuickAccessRoutes.mapNotNull { route ->
+                    availableQuickAccess.firstOrNull { it.route == route }
+                },
+                availableQuickAccess = availableQuickAccess,
+                onQuickAccessChange = onQuickAccessChange,
+                onOpenQuickAccess = { route ->
+                    navController.navigate(route) { launchSingleTop = true }
+                },
             )
         }
         composable(Routes.Menu) {

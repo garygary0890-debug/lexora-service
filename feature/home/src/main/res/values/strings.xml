@@ -16,4 +16,7 @@
     <string name="home_refresh">Обновить</string>
     <string name="home_load_error">Не удалось загрузить оперативную сводку</string>
     <string name="home_sections">Разделы</string>
+    <string name="home_quick_access_title">Настроить быстрый доступ</string>
+    <string name="home_quick_access_save">Сохранить</string>
+    <string name="home_quick_access_cancel">Отмена</string>
 </resources>

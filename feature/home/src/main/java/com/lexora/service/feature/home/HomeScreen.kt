@@ -96,13 +96,13 @@ fun HomeScreen(
 
 @Composable
 private fun KpiCard(label: String, value: String, modifier: Modifier = Modifier, wide: Boolean = false) {
-    Card(modifier.height(if (wide) 72.dp else 96.dp)) {
+    Card(modifier.height(if (wide) 64.dp else 84.dp)) {
         Column(
             Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 4.dp, vertical = 8.dp),
+                .fillMaxSize()
+                .padding(horizontal = 4.dp, vertical = 6.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Top,
+            verticalArrangement = Arrangement.SpaceEvenly,
         ) {
             Text(
                 value,
@@ -115,7 +115,7 @@ private fun KpiCard(label: String, value: String, modifier: Modifier = Modifier,
                 maxLines = 1,
                 softWrap = false,
                 overflow = TextOverflow.Clip,
-                style = MaterialTheme.typography.bodyMedium.copy(fontSize = 12.sp),
+                style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.sp),
             )
         }
     }

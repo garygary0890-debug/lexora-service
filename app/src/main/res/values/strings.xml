@@ -9,7 +9,7 @@
     <string name="nav_title_vehicles">Автомобили</string>
     <string name="nav_title_assets">Объекты и оборудование</string>
     <string name="nav_title_requests">Заявки</string>
-    <string name="nav_title_organization">Организация и команда</string>
+    <string name="nav_title_organization">Пользователи и команда</string>
     <string name="nav_title_field_work">Выезды и работы</string>
     <string name="nav_title_documents">Документы</string>
     <string name="nav_title_reports">Отчёты</string>
@@ -27,10 +27,9 @@
     <string name="nav_action_profile">Настройки профиля</string>
     <string name="nav_action_settings">Настройки приложения</string>
     <string name="nav_action_notifications">Уведомления</string>
-    <string name="nav_profile_panel_description">Профиль и активная организация</string>
-    <string name="nav_active_organization">Активная организация</string>
-    <string name="nav_active_organization_description">Организация, данные которой сейчас открыты в приложении</string>
-    <string name="nav_manage_organizations">Управление организациями и командой</string>
+    <string name="nav_profile_panel_description">Профиль и доступ команды</string>
+    <string name="nav_active_organization">Текущая команда</string>
+    <string name="nav_active_organization_description">Рабочее пространство и доступ пользователей команды</string>
     <string name="nav_configure_theme">Настроить тему</string>
     <string name="nav_theme_settings">Оформление</string>
     <string name="nav_dark_theme">Тёмная тема</string>

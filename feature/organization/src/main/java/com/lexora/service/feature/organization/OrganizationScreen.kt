@@ -70,7 +70,7 @@ fun OrganizationScreen(
         modifier = Modifier.fillMaxSize().padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        item { Text("Филиалы и сотрудники") }
+        item { Text("Пользователи и рабочие зоны") }
         item {
             OutlinedButton(onClick = { showInactive = !showInactive }) {
                 Text(if (showInactive) "Показать активные" else "Показать неактивные")
@@ -113,7 +113,7 @@ fun OrganizationScreen(
         item {
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Новый сотрудник")
+                    Text("Новый пользователь")
                     OutlinedTextField(employeeName, { employeeName = it }, label = { Text("ФИО") }, modifier = Modifier.fillMaxWidth())
                     OutlinedTextField(employeePosition, { employeePosition = it }, label = { Text("Должность") }, modifier = Modifier.fillMaxWidth())
                     OutlinedTextField(employeePhone, { employeePhone = it }, label = { Text("Телефон") }, modifier = Modifier.fillMaxWidth())
@@ -132,7 +132,7 @@ fun OrganizationScreen(
                             onSaveEmployee(EmployeeDraft(employeeName.trim(), employeePosition.trim(), employeePhone.trim(), employeeEmail.trim(), employeeBranchId), null)
                             employeeName = ""; employeePosition = ""; employeePhone = ""; employeeEmail = ""; employeeBranchId = null
                         },
-                    ) { Text("Добавить сотрудника") }
+                    ) { Text("Добавить пользователя") }
                 }
             }
         }

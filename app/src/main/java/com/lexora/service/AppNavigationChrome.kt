@@ -302,7 +302,7 @@ fun LexoraMenuScreen(
 fun ProfileSettingsScreen(
     user: ServiceUser,
     activeOrganization: Organization,
-    onManageOrganizations: () -> Unit,
+    onOpenOrganizationTeam: () -> Unit,
     onConfigureTheme: () -> Unit,
 ) {
     Column(
@@ -310,14 +310,14 @@ fun ProfileSettingsScreen(
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Text(stringResource(R.string.nav_active_organization))
-        Card(Modifier.fillMaxWidth()) {
+        Card(
+            onClick = onOpenOrganizationTeam,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
             Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(activeOrganization.name)
                 Text(stringResource(R.string.nav_active_organization_description))
             }
-        }
-        OutlinedButton(onClick = onManageOrganizations, modifier = Modifier.fillMaxWidth()) {
-            Text(stringResource(R.string.nav_manage_organizations))
         }
         OutlinedButton(onClick = onConfigureTheme, modifier = Modifier.fillMaxWidth()) {
             Text(stringResource(R.string.nav_configure_theme))

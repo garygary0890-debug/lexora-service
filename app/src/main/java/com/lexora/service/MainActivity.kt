@@ -314,7 +314,7 @@ private fun LexoraNavHost(
             ProfileSettingsScreen(
                 user = user,
                 activeOrganization = organization,
-                onManageOrganizations = { navController.navigate(Routes.Organization) },
+                onOpenOrganizationTeam = { navController.navigate(Routes.Organization) },
                 onConfigureTheme = { navController.navigate(Routes.ThemeSettings) },
             )
         }
@@ -412,12 +412,6 @@ private fun LexoraNavHost(
             )
             val state by vm.state.collectAsStateWithLifecycle()
             OrganizationHubScreen(
-                activeOrganization = organization,
-                organizations = snapshot.organizations,
-                allowedOrganizationIds = user.organizationIds,
-                canManageOrganization = canManageOrganization,
-                onCreateOrganization = workspaceViewModel::createOrganization,
-                onSwitchOrganization = workspaceViewModel::switchOrganization,
                 branches = state.branches,
                 inactiveBranches = state.inactiveBranches,
                 employees = state.employees,

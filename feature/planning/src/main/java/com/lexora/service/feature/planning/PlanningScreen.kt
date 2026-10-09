@@ -33,22 +33,23 @@ import com.lexora.service.core.model.PlanningEvent
 import com.lexora.service.core.model.PlanningMode
 import com.lexora.service.core.model.ResourceLoad
 import java.time.Instant
+import java.time.DayOfWeek
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import java.time.temporal.TemporalAdjusters
+import java.util.Locale
 
 @Composable
 fun PlanningScreen(
     state: PlanningUiState,
-    onModeChange: (PlanningMode) -> Unit,
+    onPeriodClick: () -> Unit,
     onPrevious: () -> Unit,
-    onToday: () -> Unit,
     onNext: () -> Unit,
     onRefresh: () -> Unit,
 ) {
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
+    val previousDescription = stringResource(R.string.planning_previous)
+    val nextDescription = stringResource(R.string.planning_next)
     Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -56,18 +57,18 @@ fun PlanningScreen(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             IconButton(onClick = onPrevious) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.planning_previous))
+                Text("‹", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.semantics { contentDescription = previousDescription })
             }
             Button(
-                onClick = { onModeChange(when (state.mode) { PlanningMode.DAY -> PlanningMode.WEEK; PlanningMode.WEEK -> PlanningMode.MONTH; PlanningMode.MONTH -> PlanningMode.DAY }) },
+                onClick = onPeriodClick,
                 modifier = Modifier
                     .weight(1f)
-                    .semantics { contentDescription = "Сегодня, режим ${modeLabel(state.mode)}" },
+                    .semantics { contentDescription = "РЎРµРіРѕРґРЅСЏ, СЂРµР¶РёРј ${modeLabel(state.mode)}" },
             ) {
                 Text(formatDateLabel(state), maxLines = 1)
             }
             IconButton(onClick = onNext) {
-                Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = stringResource(R.string.planning_next))
+                Text("›", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.semantics { contentDescription = nextDescription })
             }
         }
         if (state.loading && state.snapshot == null) {
@@ -81,9 +82,9 @@ fun PlanningScreen(
         }
         val snapshot = state.snapshot ?: return@Column
         val tabs = listOf(
-            "Календарь\nвыездов",
-            "Загруженность",
-            "Задачи и\nплатежи",
+            "РљР°Р»РµРЅРґР°СЂСЊ\nРІС‹РµР·РґРѕРІ",
+            "Р—Р°РіСЂСѓР¶РµРЅРЅРѕСЃС‚СЊ",
+            "Р—Р°РґР°С‡Рё Рё\nРїР»Р°С‚РµР¶Рё",
         )
         TabRow(selectedTabIndex = selectedTab) {
             tabs.forEachIndexed { index, title ->
@@ -118,10 +119,10 @@ fun PlanningScreen(
 private fun EventCard(event: PlanningEvent) {
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text("${event.requestNumber} · ${event.title}", style = MaterialTheme.typography.titleMedium)
-            Text("${formatTime(event.startAtEpochMs)} — ${formatTime(event.endAtEpochMs)}")
-            Text(listOfNotNull(event.employeeName, event.branchName).joinToString(" · ").ifBlank { "Исполнитель не назначен" })
-            Text("${event.priority.name} · ${event.status.name}", style = MaterialTheme.typography.labelSmall)
+            Text("${event.requestNumber} В· ${event.title}", style = MaterialTheme.typography.titleMedium)
+            Text("${formatTime(event.startAtEpochMs)} вЂ” ${formatTime(event.endAtEpochMs)}")
+            Text(listOfNotNull(event.employeeName, event.branchName).joinToString(" В· ").ifBlank { "РСЃРїРѕР»РЅРёС‚РµР»СЊ РЅРµ РЅР°Р·РЅР°С‡РµРЅ" })
+            Text("${event.priority.name} В· ${event.status.name}", style = MaterialTheme.typography.labelSmall)
         }
     }
 }
@@ -138,20 +139,36 @@ private fun LoadCard(load: ResourceLoad) {
                 progress = { (load.utilizationPercent.coerceIn(0, 100) / 100f) },
                 modifier = Modifier.fillMaxWidth(),
             )
-            Text("${load.scheduledMinutes} мин · ${load.eventCount} назначений", style = MaterialTheme.typography.bodySmall)
-            if (load.overloaded) Text("Перегрузка", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelMedium)
+            Text("${load.scheduledMinutes} РјРёРЅ В· ${load.eventCount} РЅР°Р·РЅР°С‡РµРЅРёР№", style = MaterialTheme.typography.bodySmall)
+            if (load.overloaded) Text("РџРµСЂРµРіСЂСѓР·РєР°", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelMedium)
         }
     }
 }
 
 private fun modeLabel(mode: PlanningMode): String = when (mode) {
-        PlanningMode.DAY -> "День"
-        PlanningMode.WEEK -> "Неделя"
-        PlanningMode.MONTH -> "Месяц"
+        PlanningMode.DAY -> "Р”РµРЅСЊ"
+        PlanningMode.WEEK -> "РќРµРґРµР»СЏ"
+        PlanningMode.MONTH -> "РњРµСЃСЏС†"
 }
 
-private fun formatDateLabel(state: PlanningUiState): String =
-    state.anchorDate.format(DateTimeFormatter.ofPattern("dd.MM.yyyy, EEE", java.util.Locale("ru")))
+private fun formatDateLabel(state: PlanningUiState): String {
+    val locale = Locale("ru")
+    return when (state.mode) {
+        PlanningMode.DAY -> state.anchorDate.format(DateTimeFormatter.ofPattern("dd.MM.yyyy, EEE", locale))
+        PlanningMode.WEEK -> {
+            val start = state.anchorDate.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
+            val end = start.plusDays(6)
+            if (start.month == end.month && start.year == end.year) {
+                "${start.dayOfMonth}-${end.dayOfMonth}.${end.format(DateTimeFormatter.ofPattern("MM.yyyy", locale))}"
+            } else {
+                "${start.format(DateTimeFormatter.ofPattern("dd.MM.yyyy", locale))}-${end.format(DateTimeFormatter.ofPattern("dd.MM.yyyy", locale))}"
+            }
+        }
+        PlanningMode.MONTH -> state.anchorDate
+            .format(DateTimeFormatter.ofPattern("LLLL yyyy", locale))
+            .replaceFirstChar { it.titlecase(locale) }
+    }
+}
 
 private fun formatTime(epochMs: Long): String =
     DateTimeFormatter.ofPattern("dd.MM HH:mm").format(Instant.ofEpochMilli(epochMs).atZone(ZoneId.systemDefault()))

@@ -1,4 +1,4 @@
-﻿package com.lexora.service.feature.planning
+package com.lexora.service.feature.planning
 
 import com.lexora.service.core.domain.LoadPlanningUseCase
 import com.lexora.service.core.model.PlanningMode
@@ -28,6 +28,15 @@ class PlanningViewModel(
     fun setMode(mode: PlanningMode) {
         updateState { it.copy(mode = mode) }
         reload()
+    }
+
+    fun cycleMode() {
+        val nextMode = when (state.value.mode) {
+            PlanningMode.DAY -> PlanningMode.WEEK
+            PlanningMode.WEEK -> PlanningMode.MONTH
+            PlanningMode.MONTH -> PlanningMode.DAY
+        }
+        setMode(nextMode)
     }
 
     fun previous() {

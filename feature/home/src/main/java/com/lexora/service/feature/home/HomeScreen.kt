@@ -15,6 +15,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
@@ -70,6 +71,7 @@ fun HomeScreen(
                     stringResource(R.string.home_planned_payments),
                     "%.2f ₽".format(value.plannedPaymentsMinor / 100.0),
                     Modifier.fillMaxWidth(),
+                    wide = true,
                 )
             }
             item { Text(stringResource(R.string.home_next_visits), style = MaterialTheme.typography.titleMedium) }
@@ -93,18 +95,25 @@ fun HomeScreen(
 }
 
 @Composable
-private fun KpiCard(label: String, value: String, modifier: Modifier = Modifier) {
-    Card(modifier.height(112.dp)) {
-        Column(Modifier.padding(horizontal = 4.dp, vertical = 10.dp)) {
-            Text(value, style = MaterialTheme.typography.headlineSmall)
+private fun KpiCard(label: String, value: String, modifier: Modifier = Modifier, wide: Boolean = false) {
+    Card(modifier.height(if (wide) 72.dp else 96.dp)) {
+        Column(
+            Modifier.padding(horizontal = 4.dp, vertical = 8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Top,
+        ) {
+            Text(
+                value,
+                style = MaterialTheme.typography.headlineSmall.copy(
+                    fontSize = if (wide) 22.sp else 24.sp,
+                ),
+            )
             Text(
                 label,
                 maxLines = 1,
                 softWrap = false,
                 overflow = TextOverflow.Clip,
-                style = MaterialTheme.typography.bodySmall.copy(
-                    fontSize = if (label.length > 16) 8.sp else 9.sp,
-                ),
+                style = MaterialTheme.typography.bodyMedium.copy(fontSize = 11.sp),
             )
         }
     }

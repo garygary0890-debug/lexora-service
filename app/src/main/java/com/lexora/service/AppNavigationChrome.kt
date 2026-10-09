@@ -185,21 +185,21 @@ fun LexoraMenuScreen(
                 ),
             ) {
                 Column(
-                    modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp),
+                    modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
                     verticalArrangement = Arrangement.Center,
-                    horizontalAlignment = Alignment.CenterHorizontally,
+                    horizontalAlignment = Alignment.Start,
                 ) {
                     Text(
                         text = stringResource(R.string.nav_title_profile_settings),
                         color = MaterialTheme.colorScheme.onPrimary,
-                        textAlign = TextAlign.Center,
-                        style = MaterialTheme.typography.titleMedium,
+                        textAlign = TextAlign.Start,
+                        style = MaterialTheme.typography.titleLarge,
                     )
                     Text(
                         text = stringResource(R.string.nav_profile_panel_description),
                         color = MaterialTheme.colorScheme.onPrimary,
-                        textAlign = TextAlign.Center,
-                        style = MaterialTheme.typography.bodySmall,
+                        textAlign = TextAlign.Start,
+                        style = MaterialTheme.typography.bodyMedium,
                     )
                 }
             }

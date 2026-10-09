@@ -178,7 +178,7 @@ fun LexoraMenuScreen(
         item(span = { GridItemSpan(maxLineSpan) }) {
             Card(
                 onClick = onOpenProfileSettings,
-                modifier = Modifier.fillMaxWidth().height(96.dp).padding(top = 12.dp),
+                modifier = Modifier.fillMaxWidth().height(108.dp),
                 colors = CardDefaults.cardColors(
                     containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.82f),
                     contentColor = MaterialTheme.colorScheme.onPrimary,

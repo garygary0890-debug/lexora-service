@@ -107,7 +107,7 @@ private fun KpiCard(label: String, value: String, modifier: Modifier = Modifier,
             Text(
                 value,
                 style = MaterialTheme.typography.headlineSmall.copy(
-                    fontSize = if (wide) 22.sp else 24.sp,
+                    fontSize = if (wide) 24.sp else 26.sp,
                 ),
             )
             Text(
@@ -115,7 +115,7 @@ private fun KpiCard(label: String, value: String, modifier: Modifier = Modifier,
                 maxLines = 1,
                 softWrap = false,
                 overflow = TextOverflow.Clip,
-                style = MaterialTheme.typography.bodyMedium.copy(fontSize = 11.sp),
+                style = MaterialTheme.typography.bodyMedium.copy(fontSize = 12.sp),
             )
         }
     }

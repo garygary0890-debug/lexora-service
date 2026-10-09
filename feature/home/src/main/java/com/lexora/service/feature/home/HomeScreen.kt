@@ -98,7 +98,9 @@ fun HomeScreen(
 private fun KpiCard(label: String, value: String, modifier: Modifier = Modifier, wide: Boolean = false) {
     Card(modifier.height(if (wide) 72.dp else 96.dp)) {
         Column(
-            Modifier.padding(horizontal = 4.dp, vertical = 8.dp),
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 4.dp, vertical = 8.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Top,
         ) {

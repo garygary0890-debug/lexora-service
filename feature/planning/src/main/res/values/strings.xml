@@ -8,9 +8,10 @@
     <string name="planning_next">Вперёд</string>
     <string name="planning_calendar">Календарь\nвыездов</string>
     <string name="planning_no_events">В выбранном периоде выездов нет</string>
-    <string name="planning_employee_load">Загруженность</string>
+    <string name="planning_employee_load">Загрузка сотрудников</string>
     <string name="planning_team_load">Загрузка бригад</string>
     <string name="planning_no_resources">Нет активных исполнителей</string>
+    <string name="planning_no_teams">Нет активных бригад</string>
     <string name="planning_error">Не удалось загрузить планирование</string>
     <string name="planning_refresh">Повторить</string>
 </resources>

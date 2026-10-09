@@ -28,6 +28,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.lexora.service.core.model.PlanningEvent
 import com.lexora.service.core.model.PlanningMode
@@ -103,15 +104,39 @@ fun PlanningScreen(
         LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             when (selectedTab) {
                 0 -> {
-                    item { Text(stringResource(R.string.planning_calendar), style = MaterialTheme.typography.titleLarge) }
-                    if (snapshot.events.isEmpty()) item { Text(stringResource(R.string.planning_no_events)) }
+                    if (snapshot.events.isEmpty()) {
+                        item {
+                            Text(
+                                stringResource(R.string.planning_no_events),
+                                modifier = Modifier.fillMaxWidth(),
+                                textAlign = TextAlign.Center,
+                            )
+                        }
+                    }
                     items(snapshot.events, key = { it.id }) { event -> EventCard(event) }
                 }
                 1 -> {
                     item { Text(stringResource(R.string.planning_employee_load), style = MaterialTheme.typography.titleLarge) }
-                    if (snapshot.employeeLoads.isEmpty()) item { Text(stringResource(R.string.planning_no_resources)) }
+                    if (snapshot.employeeLoads.isEmpty()) {
+                        item {
+                            Text(
+                                stringResource(R.string.planning_no_resources),
+                                modifier = Modifier.fillMaxWidth(),
+                                textAlign = TextAlign.Center,
+                            )
+                        }
+                    }
                     items(snapshot.employeeLoads, key = { "employee:${it.resourceId}" }) { load -> LoadCard(load) }
                     item { Text(stringResource(R.string.planning_team_load), style = MaterialTheme.typography.titleLarge) }
+                    if (snapshot.teamLoads.isEmpty()) {
+                        item {
+                            Text(
+                                stringResource(R.string.planning_no_teams),
+                                modifier = Modifier.fillMaxWidth(),
+                                textAlign = TextAlign.Center,
+                            )
+                        }
+                    }
                     items(snapshot.teamLoads, key = { "team:${it.resourceId}" }) { load -> LoadCard(load) }
                 }
                 2 -> item { BusinessOperationsPanel(state.organizationId) }

@@ -71,7 +71,6 @@ internal fun BusinessOperationsPanel(organizationId: String) {
     }
 
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text("Задачи и\nплатежи", style = MaterialTheme.typography.titleLarge)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             FilterChip(tab == BusinessTab.TASKS, { tab = BusinessTab.TASKS }, label = { Text("Задачи") })
             FilterChip(tab == BusinessTab.PURCHASES, { tab = BusinessTab.PURCHASES }, label = { Text("Закупки") })
@@ -102,7 +101,7 @@ private fun TasksPanel(
 
     Text("Новая задача", style = MaterialTheme.typography.titleMedium)
     OutlinedTextField(title, { title = it }, label = { Text("Что нужно сделать") }, modifier = Modifier.fillMaxWidth())
-    OutlinedTextField(requestId, { requestId = it }, label = { Text("ID заявки — необязательно") }, modifier = Modifier.fillMaxWidth())
+    OutlinedTextField(requestId, { requestId = it }, label = { Text("ID заявки") }, modifier = Modifier.fillMaxWidth())
     OutlinedTextField(clientId, { clientId = it }, label = { Text("ID клиента — необязательно") }, modifier = Modifier.fillMaxWidth())
     OutlinedTextField(documentId, { documentId = it }, label = { Text("ID документа — необязательно") }, modifier = Modifier.fillMaxWidth())
     val hasLink = requestId.isNotBlank() || clientId.isNotBlank() || documentId.isNotBlank()

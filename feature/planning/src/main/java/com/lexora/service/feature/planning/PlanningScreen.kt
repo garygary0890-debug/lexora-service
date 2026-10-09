@@ -50,7 +50,12 @@ fun PlanningScreen(
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
     val previousDescription = stringResource(R.string.planning_previous)
     val nextDescription = stringResource(R.string.planning_next)
-    Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(
+        Modifier
+            .fillMaxSize()
+            .padding(start = 16.dp, end = 16.dp, bottom = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(0.dp),
+    ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp),

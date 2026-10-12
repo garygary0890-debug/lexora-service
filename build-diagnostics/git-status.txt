@@ -1,0 +1,46 @@
+﻿ M app/src/main/java/com/lexora/service/di/LexoraServiceContainer.kt
+ M build-diagnostics/latest-build.log
+ M build-diagnostics/latest-summary.txt
+ M feature/home/build.gradle.kts
+?? .gradle/
+?? .idea/
+?? app/build/
+?? build-debug.log
+?? build-debug2.log
+?? build-debug3.log
+?? build-debug4.log
+?? build-debug5.log
+?? build-diagnostics/git-status.txt
+?? build-diagnostics/history/
+?? build-diagnostics/working-tree.patch
+?? build-manual.log
+?? core/data/build/
+?? core/database/build/
+?? core/designsystem/build/
+?? core/di/build/
+?? core/domain/build/
+?? core/model/build/
+?? core/navigation/build/
+?? core/network/build/
+?? core/presentation/build/
+?? feature/assets/build/
+?? feature/audit/build/
+?? feature/catalog/build/
+?? feature/clients/build/
+?? feature/documents/build/
+?? feature/fieldwork/build/
+?? feature/home/build/
+?? feature/home/src/test/
+?? feature/notifications/build/
+?? feature/organization/build/
+?? feature/planning/build/
+?? feature/reports/build/
+?? feature/requests/build/
+?? feature/search/build/
+?? feature/settings/build/
+?? feature/tires/build/
+?? feature/users/build/
+?? feature/vehicles/build/
+?? feature/wash/build/
+?? gradle/gradle-daemon-jvm.properties
+?? local.properties

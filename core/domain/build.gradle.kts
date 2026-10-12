@@ -3,7 +3,7 @@ plugins {
 }
 android {
     namespace = "com.lexora.service.core.domain"
-    compileSdk = 36
+    compileSdk = 37
     defaultConfig { minSdk = 26 }
 }
 dependencies {

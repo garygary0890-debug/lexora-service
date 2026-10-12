@@ -4,7 +4,7 @@ plugins {
 }
 android {
     namespace = "com.lexora.service.core.navigation"
-    compileSdk = 36
+    compileSdk = 37
     defaultConfig { minSdk = 26 }
     buildFeatures { compose = true }
 }

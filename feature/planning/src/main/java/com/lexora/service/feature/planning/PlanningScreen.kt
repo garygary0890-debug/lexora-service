@@ -8,11 +8,14 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -26,6 +29,7 @@ import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -54,6 +58,8 @@ import java.util.Locale
 private val EmptyTabTopPadding = 48.dp
 private val PopulatedTabTopPadding = 8.dp
 
+enum class PlanningSelectionAction { EDIT, DELETE }
+
 @Composable
 fun PlanningScreen(
     state: PlanningUiState,
@@ -62,10 +68,36 @@ fun PlanningScreen(
     onNext: () -> Unit,
     onRefresh: () -> Unit,
     onCreateEntry: (PlanningEntryDraft) -> Unit,
+    selectionAction: PlanningSelectionAction?,
+    onSelectionCountChanged: (Int) -> Unit,
+    onSelectionActionHandled: () -> Unit,
+    onDeleteSelected: (List<String>) -> Unit,
 ) {
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
     var showCreateDialog by rememberSaveable { mutableStateOf(false) }
     var showAddMenu by rememberSaveable { mutableStateOf(false) }
+    var selectedEventIds by remember { mutableStateOf<Set<String>>(emptySet()) }
+    var editingEvent by remember { mutableStateOf<PlanningEvent?>(null) }
+    val selectionMode = selectedEventIds.isNotEmpty()
+    LaunchedEffect(selectedEventIds) { onSelectionCountChanged(selectedEventIds.size) }
+    LaunchedEffect(selectionAction, state.snapshot) {
+        val snapshot = state.snapshot ?: return@LaunchedEffect
+        when (selectionAction) {
+            PlanningSelectionAction.DELETE -> {
+                if (selectedEventIds.isNotEmpty()) onDeleteSelected(selectedEventIds.toList())
+                selectedEventIds = emptySet()
+                onSelectionActionHandled()
+            }
+            PlanningSelectionAction.EDIT -> {
+                if (selectedEventIds.size == 1) {
+                    editingEvent = snapshot.events.firstOrNull { it.id == selectedEventIds.single() }
+                    showCreateDialog = editingEvent != null
+                }
+                onSelectionActionHandled()
+            }
+            null -> Unit
+        }
+    }
     Column(Modifier.fillMaxSize().padding(start = 16.dp, end = 16.dp, bottom = 16.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onPrevious) { Text("‹", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.semantics { contentDescription = "Предыдущий период" }) }
@@ -94,7 +126,17 @@ fun PlanningScreen(
                         if (snapshot.events.isEmpty()) {
                             item { Text("В выбранном периоде выездов нет", Modifier.fillMaxWidth(), textAlign = TextAlign.Center) }
                         } else {
-                            items(snapshot.events, key = { it.id }) { event -> EventCard(event) }
+                            items(snapshot.events, key = { it.id }) { event ->
+                                EventCard(
+                                    event = event,
+                                    selectionMode = selectionMode,
+                                    selected = event.id in selectedEventIds,
+                                    onLongPress = { selectedEventIds = selectedEventIds + event.id },
+                                    onToggleSelection = {
+                                        selectedEventIds = if (event.id in selectedEventIds) selectedEventIds - event.id else selectedEventIds + event.id
+                                    },
+                                )
+                            }
                         }
                     }
                     1 -> {
@@ -135,19 +177,36 @@ fun PlanningScreen(
         }
     }
     if (showCreateDialog && state.snapshot != null) {
-        PlanningCreateDialog(state.anchorDate, state.snapshot!!, { showCreateDialog = false }, { onCreateEntry(it); showCreateDialog = false })
+        PlanningCreateDialog(
+            anchorDate = state.anchorDate,
+            snapshot = state.snapshot!!,
+            editingEvent = editingEvent,
+            onDismiss = { showCreateDialog = false; editingEvent = null; selectedEventIds = emptySet() },
+            onCreate = { onCreateEntry(it); showCreateDialog = false; editingEvent = null; selectedEventIds = emptySet() },
+        )
     }
 }
 
 @Composable
-private fun PlanningCreateDialog(anchorDate: LocalDate, snapshot: PlanningSnapshot, onDismiss: () -> Unit, onCreate: (PlanningEntryDraft) -> Unit) {
-    var title by remember { mutableStateOf("") }
-    var description by remember { mutableStateOf("") }
-    var date by remember { mutableStateOf(anchorDate.format(DateTimeFormatter.ofPattern("dd.MM.yyyy"))) }
-    var start by remember { mutableStateOf("09:00") }
-    var end by remember { mutableStateOf("10:00") }
-    var employeeId by remember { mutableStateOf<String?>(null) }
-    var employeeName by remember { mutableStateOf<String?>(null) }
+private fun PlanningCreateDialog(
+    anchorDate: LocalDate,
+    snapshot: PlanningSnapshot,
+    editingEvent: PlanningEvent?,
+    onDismiss: () -> Unit,
+    onCreate: (PlanningEntryDraft) -> Unit,
+) {
+    var title by remember(editingEvent?.id) { mutableStateOf(editingEvent?.title.orEmpty()) }
+    var description by remember(editingEvent?.id) { mutableStateOf("") }
+    var date by remember(editingEvent?.id) {
+        mutableStateOf(
+            editingEvent?.let { formatDateTimeInput(it.startAtEpochMs) }
+                ?: anchorDate.format(DateTimeFormatter.ofPattern("dd.MM.yyyy")),
+        )
+    }
+    var start by remember(editingEvent?.id) { mutableStateOf(editingEvent?.let { formatTimeInput(it.startAtEpochMs) } ?: "09:00") }
+    var end by remember(editingEvent?.id) { mutableStateOf(editingEvent?.let { formatTimeInput(it.endAtEpochMs) } ?: "10:00") }
+    var employeeId by remember(editingEvent?.id) { mutableStateOf(editingEvent?.employeeId) }
+    var employeeName by remember(editingEvent?.id) { mutableStateOf(editingEvent?.employeeName) }
     var branchId by remember { mutableStateOf<String?>(null) }
     var teamName by remember { mutableStateOf<String?>(null) }
     var employeeMenu by remember { mutableStateOf(false) }
@@ -155,7 +214,7 @@ private fun PlanningCreateDialog(anchorDate: LocalDate, snapshot: PlanningSnapsh
     var error by remember { mutableStateOf<String?>(null) }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Новая запись") },
+        title = { Text(if (editingEvent == null) "Новая запись" else "Редактировать запись") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(title, { title = it }, label = { Text("Название") }, singleLine = true)
@@ -191,7 +250,7 @@ private fun PlanningCreateDialog(anchorDate: LocalDate, snapshot: PlanningSnapsh
                     val zone = ZoneId.systemDefault()
                     val startAt = day.atTime(LocalTime.parse(start.trim())).atZone(zone).toInstant().toEpochMilli()
                     val endAt = day.atTime(LocalTime.parse(end.trim())).atZone(zone).toInstant().toEpochMilli()
-                    PlanningEntryDraft(title, description, startAt, endAt, employeeId, branchId, teamName)
+                    PlanningEntryDraft(title, description, startAt, endAt, employeeId, branchId, teamName, editingEvent?.requestId)
                 }.getOrElse { error = "Проверьте название, дату и время"; null }
                 if (draft != null) onCreate(draft)
             }) { Text("Создать") }
@@ -201,13 +260,28 @@ private fun PlanningCreateDialog(anchorDate: LocalDate, snapshot: PlanningSnapsh
 }
 
 @Composable
-private fun EventCard(event: PlanningEvent) {
-    Card(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text("${event.requestNumber} · ${event.title}", style = MaterialTheme.typography.titleMedium)
-            Text("${formatTime(event.startAtEpochMs)} — ${formatTime(event.endAtEpochMs)}")
-            Text(listOfNotNull(event.employeeName, event.branchName).joinToString(" · ").ifBlank { "Исполнитель не назначен" })
-            Text("${event.priority.name} · ${event.status.name}", style = MaterialTheme.typography.labelSmall)
+private fun EventCard(
+    event: PlanningEvent,
+    selectionMode: Boolean,
+    selected: Boolean,
+    onLongPress: () -> Unit,
+    onToggleSelection: () -> Unit,
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .pointerInput(event.id) {
+                detectTapGestures(onLongPress = { onLongPress() })
+            },
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            if (selectionMode) Checkbox(checked = selected, onCheckedChange = { onToggleSelection() })
+            Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text("${event.requestNumber} · ${event.title}", style = MaterialTheme.typography.titleMedium)
+                Text("${formatTime(event.startAtEpochMs)} — ${formatTime(event.endAtEpochMs)}")
+                Text(listOfNotNull(event.employeeName, event.branchName).joinToString(" · ").ifBlank { "Исполнитель не назначен" })
+                Text("${event.priority.name} · ${event.status.name}", style = MaterialTheme.typography.labelSmall)
+            }
         }
     }
 }
@@ -242,6 +316,12 @@ private fun formatDateLabel(state: PlanningUiState): String {
     }
     return "$prefix · $value"
 }
+
+private fun formatDateTimeInput(epochMs: Long): String =
+    DateTimeFormatter.ofPattern("dd.MM.yyyy").format(Instant.ofEpochMilli(epochMs).atZone(ZoneId.systemDefault()))
+
+private fun formatTimeInput(epochMs: Long): String =
+    DateTimeFormatter.ofPattern("HH:mm").format(Instant.ofEpochMilli(epochMs).atZone(ZoneId.systemDefault()))
 
 private fun formatTime(epochMs: Long): String =
     DateTimeFormatter.ofPattern("dd.MM HH:mm").format(Instant.ofEpochMilli(epochMs).atZone(ZoneId.systemDefault()))

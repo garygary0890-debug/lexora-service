@@ -162,6 +162,8 @@ private fun LexoraServiceApp(globalOwner: Boolean) {
             availableQuickAccess.firstOrNull { it.route == route }
         }
         var bottomMenuConfigureRequest by remember { mutableStateOf(0) }
+        var planningSelectionCount by remember { mutableStateOf(0) }
+        var planningSelectionAction by remember { mutableStateOf<PlanningSelectionAction?>(null) }
 
         LaunchedEffect(organization.id) {
             while (true) {
@@ -190,6 +192,13 @@ private fun LexoraServiceApp(globalOwner: Boolean) {
                         } else null,
                         onConfigureBottomMenu = if (currentRoute == Routes.Menu) {
                             { bottomMenuConfigureRequest++ }
+                        } else null,
+                        planningSelectionCount = if (currentRoute == Routes.Planning) planningSelectionCount else 0,
+                        onEditSelectedPlanning = if (currentRoute == Routes.Planning) {
+                            { planningSelectionAction = PlanningSelectionAction.EDIT }
+                        } else null,
+                        onDeleteSelectedPlanning = if (currentRoute == Routes.Planning) {
+                            { planningSelectionAction = PlanningSelectionAction.DELETE }
                         } else null,
                     )
                 },
@@ -240,6 +249,9 @@ private fun LexoraServiceApp(globalOwner: Boolean) {
                     canManageOrganization = canManageOrganization,
                     canViewAudit = canViewAudit,
                     configureBottomMenuRequest = bottomMenuConfigureRequest,
+                    planningSelectionAction = planningSelectionAction,
+                    onPlanningSelectionCountChanged = { planningSelectionCount = it },
+                    onPlanningSelectionActionHandled = { planningSelectionAction = null },
                     themeSelection = themeSelection,
                     onThemeSelectionChange = {
                         themeSelection = it
@@ -271,6 +283,9 @@ private fun LexoraNavHost(
     canManageOrganization: Boolean,
     canViewAudit: Boolean,
     configureBottomMenuRequest: Int,
+    planningSelectionAction: PlanningSelectionAction?,
+    onPlanningSelectionCountChanged: (Int) -> Unit,
+    onPlanningSelectionActionHandled: () -> Unit,
     themeSelection: LexoraThemeSelection,
     onThemeSelectionChange: (LexoraThemeSelection) -> Unit,
     modifier: Modifier = Modifier,
@@ -339,7 +354,18 @@ private fun LexoraNavHost(
                 factory = LexoraViewModelFactory { PlanningViewModel(organization.id, user.id, container.loadPlanning, container.operations) },
             )
             val state by vm.state.collectAsStateWithLifecycle()
-            PlanningScreen(state, vm::cycleMode, vm::previous, vm::next, vm::reload, vm::createEntry)
+            PlanningScreen(
+                state = state,
+                onPeriodClick = vm::cycleMode,
+                onPrevious = vm::previous,
+                onNext = vm::next,
+                onRefresh = vm::reload,
+                onCreateEntry = vm::createEntry,
+                selectionAction = planningSelectionAction,
+                onSelectionCountChanged = onPlanningSelectionCountChanged,
+                onSelectionActionHandled = onPlanningSelectionActionHandled,
+                onDeleteSelected = vm::deleteSelected,
+            )
         }
         composable(Routes.Clients) {
             val vm: ClientsViewModel = viewModel(

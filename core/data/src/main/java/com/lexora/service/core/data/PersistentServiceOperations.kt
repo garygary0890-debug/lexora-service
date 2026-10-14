@@ -254,6 +254,12 @@ class PersistentServiceOperations(
         audit(organizationId, userId, "SERVICE_VISIT", id, "CREATE", "Выезд по заявке ${request.number}")
     }
 
+    override suspend fun deleteVisit(organizationId: String, userId: String, id: String) {
+        val current = dao.serviceVisit(id) ?: return
+        dao.deleteServiceVisit(id, organizationId)
+        audit(organizationId, userId, "SERVICE_VISIT", id, "DELETE", "Удалён выезд по заявке ${current.requestId}")
+    }
+
     override suspend fun changeVisitStatus(organizationId: String, userId: String, id: String, target: VisitStatus) {
         val current = dao.serviceVisit(id) ?: return; val from = VisitStatus.valueOf(current.status)
         if (from == VisitStatus.COMPLETED || from == VisitStatus.CANCELLED || from == target) return

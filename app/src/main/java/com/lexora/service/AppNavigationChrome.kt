@@ -74,6 +74,9 @@ fun LexoraTopBar(
     onOpenRoute: (String) -> Unit,
     onOpenSearch: (() -> Unit)? = null,
     onConfigureBottomMenu: (() -> Unit)? = null,
+    planningSelectionCount: Int = 0,
+    onEditSelectedPlanning: (() -> Unit)? = null,
+    onDeleteSelectedPlanning: (() -> Unit)? = null,
 ) {
     var menuExpanded by remember { mutableStateOf(false) }
     TopAppBar(
@@ -99,6 +102,24 @@ fun LexoraTopBar(
                         onClick = {
                             menuExpanded = false
                             onConfigureBottomMenu()
+                        },
+                    )
+                }
+                if (planningSelectionCount == 1 && onEditSelectedPlanning != null) {
+                    DropdownMenuItem(
+                        text = { Text("Редактировать") },
+                        onClick = {
+                            menuExpanded = false
+                            onEditSelectedPlanning()
+                        },
+                    )
+                }
+                if (planningSelectionCount > 0 && onDeleteSelectedPlanning != null) {
+                    DropdownMenuItem(
+                        text = { Text("Удалить") },
+                        onClick = {
+                            menuExpanded = false
+                            onDeleteSelectedPlanning()
                         },
                     )
                 }

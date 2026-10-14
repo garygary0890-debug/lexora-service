@@ -29,6 +29,7 @@ data class PlanningEntryDraft(
     val employeeId: String?,
     val branchId: String?,
     val teamName: String?,
+    val existingRequestId: String? = null,
 ) {
     init {
         require(title.isNotBlank()) { "Название записи обязательно" }
@@ -95,8 +96,19 @@ class PlanningViewModel(
     fun createEntry(draft: PlanningEntryDraft) = launchSafely(onError = { error ->
         updateState { it.copy(loading = false, error = error.message ?: "planning_create_failed") }
     }) {
-        val requestId = operations.saveRequest(organizationId, userId, draft.toSaveRequestCommand(), null)
-        operations.createVisit(organizationId, userId, requestId, draft.employeeId)
+        val requestId = operations.saveRequest(organizationId, userId, draft.toSaveRequestCommand(), draft.existingRequestId)
+        if (draft.existingRequestId == null) {
+            operations.createVisit(organizationId, userId, requestId, draft.employeeId)
+        } else {
+            operations.assignRequest(organizationId, userId, requestId, draft.employeeId, draft.teamName)
+        }
+        reload()
+    }
+
+    fun deleteSelected(ids: List<String>) = launchSafely(onError = { error ->
+        updateState { it.copy(loading = false, error = error.message ?: "planning_delete_failed") }
+    }) {
+        ids.distinct().forEach { operations.deleteVisit(organizationId, userId, it) }
         reload()
     }
 

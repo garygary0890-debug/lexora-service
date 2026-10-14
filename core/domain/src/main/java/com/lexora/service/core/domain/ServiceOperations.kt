@@ -59,6 +59,7 @@ interface ServiceOperations {
     suspend fun visits(organizationId: String, selectedVisitId: String?): VisitCollection
     suspend fun checklist(visitId: String): List<VisitChecklistItem>
     suspend fun createVisit(organizationId: String, userId: String, requestId: String, employeeId: String?)
+    suspend fun deleteVisit(organizationId: String, userId: String, id: String)
     suspend fun changeVisitStatus(organizationId: String, userId: String, id: String, target: VisitStatus)
     suspend fun addChecklistItem(organizationId: String, userId: String, visitId: String)
     suspend fun toggleChecklistItem(organizationId: String, userId: String, current: VisitChecklistItem)

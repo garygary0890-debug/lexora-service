@@ -1,5 +1,4 @@
 <resources>
-    <string name="app_name">Lexora Service</string>
     <string name="nav_title_home">Главная</string>
     <string name="nav_title_menu">Меню</string>
     <string name="nav_title_profile_settings">Настройки профиля</string>

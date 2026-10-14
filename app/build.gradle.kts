@@ -17,13 +17,11 @@ android {
         versionCode = 28
         versionName = "0.28.0"
         buildConfigField("String", "LEXORA_BACKEND_BASE_URL", "\"${lexoraBackendBaseUrl.get()}\"")
-        resValue("string", "lexora_backend_base_url", lexoraBackendBaseUrl.get())
     }
 
     buildFeatures {
         compose = true
         buildConfig = true
-        resValues = true
     }
 
     buildTypes {

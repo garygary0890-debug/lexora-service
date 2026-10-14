@@ -152,7 +152,7 @@ private fun PlanningCreateDialog(anchorDate: LocalDate, snapshot: PlanningSnapsh
                     TextButton(onClick = { teamMenu = true }) { Text("Выбрать") }
                     DropdownMenu(expanded = teamMenu, onDismissRequest = { teamMenu = false }) {
                         DropdownMenuItem(text = { Text("Не назначать") }, onClick = { branchId = null; teamName = null; teamMenu = false })
-                        snapshot.teamLoads.forEach { load -> DropdownMenuItem(text = { Text(load.displayName) }, onClick = { branchId = load.resourceId; teamName = load.displayName; teamMenu = false }) }
+                        snapshot.teamLoads.forEach { load -> DropdownMenuItem(text = { Text(load.displayName) }, onClick = { branchId = null; teamName = load.displayName; teamMenu = false }) }
                     }
                 }
                 error?.let { Text(it, color = MaterialTheme.colorScheme.error) }

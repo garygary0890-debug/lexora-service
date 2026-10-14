@@ -16,6 +16,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -81,30 +82,48 @@ fun PlanningScreen(
         TabRow(selectedTabIndex = selectedTab) {
             tabs.forEachIndexed { index, title -> Tab(selected = selectedTab == index, onClick = { selectedTab = index }, text = { Text(title, maxLines = 2) }) }
         }
-        LazyColumn(
-            contentPadding = PaddingValues(top = if (selectedTab == 0 && snapshot.events.isEmpty()) EmptyTabTopPadding else PopulatedTabTopPadding),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            when (selectedTab) {
-                0 -> {
-                    item { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) { Button(onClick = { showCreateDialog = true }) { Text("Добавить") } } }
-                    if (snapshot.events.isEmpty()) item { Text("В выбранном периоде выездов нет", Modifier.fillMaxWidth(), textAlign = TextAlign.Center) }
-                    items(snapshot.events, key = { it.id }) { event -> EventCard(event) }
-                }
-                1 -> {
-                    item {
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                            Text("Загрузка сотрудников", style = MaterialTheme.typography.titleLarge)
-                            Button(onClick = { showCreateDialog = true }) { Text("Добавить") }
+        Box(Modifier.weight(1f).fillMaxWidth()) {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(top = if (selectedTab == 0 && snapshot.events.isEmpty()) EmptyTabTopPadding else PopulatedTabTopPadding),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                when (selectedTab) {
+                    0 -> {
+                        if (snapshot.events.isEmpty()) {
+                            item {
+                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
+                                    Button(onClick = { showCreateDialog = true }) { Text("Добавить") }
+                                }
+                            }
+                            item { Text("В выбранном периоде выездов нет", Modifier.fillMaxWidth(), textAlign = TextAlign.Center) }
+                        } else {
+                            items(snapshot.events, key = { it.id }) { event -> EventCard(event) }
                         }
                     }
-                    if (snapshot.employeeLoads.isEmpty()) item { Text("Нет активных исполнителей", Modifier.fillMaxWidth(), textAlign = TextAlign.Center) }
-                    items(snapshot.employeeLoads, key = { "employee:${it.resourceId}" }) { load -> LoadCard(load) }
-                    item { Text("Загрузка бригад", style = MaterialTheme.typography.titleLarge) }
-                    if (snapshot.teamLoads.isEmpty()) item { Text("Нет активных бригад", Modifier.fillMaxWidth(), textAlign = TextAlign.Center) }
-                    items(snapshot.teamLoads, key = { "team:${it.resourceId}" }) { load -> LoadCard(load) }
+                    1 -> {
+                        item {
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                Text("Загрузка сотрудников", style = MaterialTheme.typography.titleLarge)
+                                Button(onClick = { showCreateDialog = true }) { Text("Добавить") }
+                            }
+                        }
+                        if (snapshot.employeeLoads.isEmpty()) item { Text("Нет активных исполнителей", Modifier.fillMaxWidth(), textAlign = TextAlign.Center) }
+                        items(snapshot.employeeLoads, key = { "employee:${it.resourceId}" }) { load -> LoadCard(load) }
+                        item { Text("Загрузка бригад", style = MaterialTheme.typography.titleLarge) }
+                        if (snapshot.teamLoads.isEmpty()) item { Text("Нет активных бригад", Modifier.fillMaxWidth(), textAlign = TextAlign.Center) }
+                        items(snapshot.teamLoads, key = { "team:${it.resourceId}" }) { load -> LoadCard(load) }
+                    }
+                    2 -> item { BusinessOperationsPanel(state.organizationId) }
                 }
-                2 -> item { BusinessOperationsPanel(state.organizationId) }
+            }
+            if (selectedTab == 0 && snapshot.events.isNotEmpty()) {
+                FloatingActionButton(
+                    onClick = { showCreateDialog = true },
+                    modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp),
+                ) {
+                    Text("+")
+                }
             }
         }
     }

@@ -164,11 +164,11 @@ fun PlanningScreen(
                         onDismissRequest = { showAddMenu = false },
                     ) {
                         DropdownMenuItem(
-                            text = { Text("+ загрузка сотрудников") },
+                            text = { Text("+ Загрузка сотрудников") },
                             onClick = { showAddMenu = false; showCreateDialog = true },
                         )
                         DropdownMenuItem(
-                            text = { Text("+ загрузка бригад") },
+                            text = { Text("+ Загрузка бригад") },
                             onClick = { showAddMenu = false; showCreateDialog = true },
                         )
                     }

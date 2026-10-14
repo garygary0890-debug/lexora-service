@@ -1,8 +1,11 @@
 package com.lexora.service.feature.planning
 
 import com.lexora.service.core.domain.LoadPlanningUseCase
+import com.lexora.service.core.domain.ServiceOperations
 import com.lexora.service.core.model.PlanningMode
 import com.lexora.service.core.model.PlanningSnapshot
+import com.lexora.service.core.model.RequestPriority
+import com.lexora.service.core.model.SaveRequestCommand
 import com.lexora.service.core.presentation.LexoraViewModel
 import java.time.DayOfWeek
 import java.time.LocalDate
@@ -18,9 +21,44 @@ data class PlanningUiState(
     val error: String? = null,
 )
 
+data class PlanningEntryDraft(
+    val title: String,
+    val description: String,
+    val startAtEpochMs: Long,
+    val endAtEpochMs: Long,
+    val employeeId: String?,
+    val branchId: String?,
+    val teamName: String?,
+) {
+    init {
+        require(title.isNotBlank()) { "Название записи обязательно" }
+        require(endAtEpochMs > startAtEpochMs) { "Время окончания должно быть позже начала" }
+    }
+}
+
+fun PlanningEntryDraft.toSaveRequestCommand(): SaveRequestCommand = SaveRequestCommand(
+    title = title.trim(),
+    description = description.trim(),
+    priority = RequestPriority.NORMAL,
+    clientId = null,
+    serviceObjectId = null,
+    equipmentId = null,
+    contractId = null,
+    branchId = branchId,
+    assigneeEmployeeId = employeeId,
+    assigneeTeamName = teamName?.trim()?.ifBlank { null },
+    plannedAtEpochMs = startAtEpochMs,
+    plannedEndEpochMs = endAtEpochMs,
+    dueAtEpochMs = endAtEpochMs,
+    slaReactionMinutes = null,
+    slaResolutionMinutes = null,
+)
+
 class PlanningViewModel(
     private val organizationId: String,
+    private val userId: String,
     private val loadPlanning: LoadPlanningUseCase,
+    private val operations: ServiceOperations,
     private val zoneId: ZoneId = ZoneId.systemDefault(),
 ) : LexoraViewModel<PlanningUiState>(PlanningUiState(organizationId = organizationId, anchorDate = LocalDate.now(zoneId))) {
     init { reload() }
@@ -51,6 +89,14 @@ class PlanningViewModel(
 
     fun today() {
         updateState { it.copy(anchorDate = LocalDate.now(zoneId)) }
+        reload()
+    }
+
+    fun createEntry(draft: PlanningEntryDraft) = launchSafely(onError = { error ->
+        updateState { it.copy(loading = false, error = error.message ?: "planning_create_failed") }
+    }) {
+        val requestId = operations.saveRequest(organizationId, userId, draft.toSaveRequestCommand(), null)
+        operations.createVisit(organizationId, userId, requestId, draft.employeeId)
         reload()
     }
 

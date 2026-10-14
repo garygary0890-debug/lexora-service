@@ -158,7 +158,7 @@ class PersistentServiceOperations(
 
     override suspend fun requests(organizationId: String): List<ServiceRequest> = dao.serviceRequests(organizationId).map(ServiceRequestEntity::toModel)
 
-    override suspend fun saveRequest(organizationId: String, userId: String, draft: SaveRequestCommand, existingId: String?) {
+    override suspend fun saveRequest(organizationId: String, userId: String, draft: SaveRequestCommand, existingId: String?): String {
         val now = System.currentTimeMillis(); val existing = existingId?.let { dao.serviceRequest(it) }; val id = existingId ?: UUID.randomUUID().toString()
         validateSchedule(draft.plannedAtEpochMs, draft.plannedEndEpochMs)
         validateSla(draft.slaReactionMinutes, draft.slaResolutionMinutes, draft.slaWarningMinutes)
@@ -184,6 +184,7 @@ class PersistentServiceOperations(
             if (existing.slaReactionMinutes != draft.slaReactionMinutes || existing.slaResolutionMinutes != draft.slaResolutionMinutes || existing.slaWarningMinutes != draft.slaWarningMinutes) change(id, RequestChangeType.SLA, userId, now, null, slaSummary(existing), slaSummary(dao.serviceRequest(id)!!))
         }
         audit(organizationId, userId, "SERVICE_REQUEST", id, if (existing == null) "CREATE" else "UPDATE", "$number · ${draft.title}")
+        return id
     }
 
     override suspend fun changeRequestStatus(organizationId: String, userId: String, id: String, target: RequestStatus) {

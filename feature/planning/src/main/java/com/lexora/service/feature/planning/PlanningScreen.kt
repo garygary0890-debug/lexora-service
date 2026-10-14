@@ -1,6 +1,7 @@
 package com.lexora.service.feature.planning
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -9,24 +10,29 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Icon
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
@@ -34,8 +40,11 @@ import androidx.compose.ui.unit.dp
 import com.lexora.service.core.model.PlanningEvent
 import com.lexora.service.core.model.PlanningMode
 import com.lexora.service.core.model.ResourceLoad
-import java.time.Instant
+import com.lexora.service.core.model.PlanningSnapshot
 import java.time.DayOfWeek
+import java.time.Instant
+import java.time.LocalDate
+import java.time.LocalTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.temporal.TemporalAdjusters
@@ -51,107 +60,118 @@ fun PlanningScreen(
     onPrevious: () -> Unit,
     onNext: () -> Unit,
     onRefresh: () -> Unit,
+    onCreateEntry: (PlanningEntryDraft) -> Unit,
 ) {
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
-    val previousDescription = stringResource(R.string.planning_previous)
-    val nextDescription = stringResource(R.string.planning_next)
-    Column(
-        Modifier
-            .fillMaxSize()
-            .padding(start = 16.dp, end = 16.dp, bottom = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(0.dp),
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            IconButton(onClick = onPrevious) {
-                Text("‹", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.semantics { contentDescription = previousDescription })
-            }
-            Button(
-                onClick = onPeriodClick,
-                modifier = Modifier
-                    .weight(1f)
-                    .semantics { contentDescription = "Сегодня, режим ${modeLabel(state.mode)}" },
-            ) {
-                Text(formatDateLabel(state), maxLines = 1)
-            }
-            IconButton(onClick = onNext) {
-                Text("›", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.semantics { contentDescription = nextDescription })
-            }
+    var showCreateDialog by rememberSaveable { mutableStateOf(false) }
+    Column(Modifier.fillMaxSize().padding(start = 16.dp, end = 16.dp, bottom = 16.dp)) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onPrevious) { Text("‹", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.semantics { contentDescription = "Предыдущий период" }) }
+            Button(onClick = onPeriodClick, modifier = Modifier.weight(1f)) { Text(formatDateLabel(state), maxLines = 1) }
+            IconButton(onClick = onNext) { Text("›", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.semantics { contentDescription = "Следующий период" }) }
         }
-        if (state.loading && state.snapshot == null) {
-            CircularProgressIndicator()
-            return@Column
-        }
+        if (state.loading && state.snapshot == null) { CircularProgressIndicator(); return@Column }
         if (state.error != null && state.snapshot == null) {
-            Text(stringResource(R.string.planning_error), color = MaterialTheme.colorScheme.error)
-            Button(onClick = onRefresh) { Text(stringResource(R.string.planning_refresh)) }
+            Text("Не удалось загрузить планирование", color = MaterialTheme.colorScheme.error)
+            Button(onClick = onRefresh) { Text("Повторить") }
             return@Column
         }
         val snapshot = state.snapshot ?: return@Column
-        val tabs = listOf(
-            "\u041a\u0430\u043b\u0435\u043d\u0434\u0430\u0440\u044c\n\u0432\u044b\u0435\u0437\u0434\u043e\u0432",
-            "\u0417\u0430\u0433\u0440\u0443\u0436\u0435\u043d\u043d\u043e\u0441\u0442\u044c",
-            "\u0417\u0430\u0434\u0430\u0447\u0438 \u0438\n\u043f\u043b\u0430\u0442\u0435\u0436\u0438",
-        )
+        val tabs = listOf("Календарь\nвыездов", "Загруженность", "Задачи и\nплатежи")
         TabRow(selectedTabIndex = selectedTab) {
-            tabs.forEachIndexed { index, title ->
-                Tab(
-                    selected = selectedTab == index,
-                    onClick = { selectedTab = index },
-                    text = { Text(title, maxLines = 2) },
-                )
-            }
+            tabs.forEachIndexed { index, title -> Tab(selected = selectedTab == index, onClick = { selectedTab = index }, text = { Text(title, maxLines = 2) }) }
         }
         LazyColumn(
-            contentPadding = PaddingValues(
-                top = if (selectedTab == 0 && snapshot.events.isEmpty()) EmptyTabTopPadding else PopulatedTabTopPadding,
-            ),
+            contentPadding = PaddingValues(top = if (selectedTab == 0 && snapshot.events.isEmpty()) EmptyTabTopPadding else PopulatedTabTopPadding),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             when (selectedTab) {
                 0 -> {
-                    if (snapshot.events.isEmpty()) {
-                        item {
-                            Text(
-                                stringResource(R.string.planning_no_events),
-                                modifier = Modifier.fillMaxWidth(),
-                                textAlign = TextAlign.Center,
-                            )
-                        }
-                    }
+                    item { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) { Button(onClick = { showCreateDialog = true }) { Text("Добавить") } } }
+                    if (snapshot.events.isEmpty()) item { Text("В выбранном периоде выездов нет", Modifier.fillMaxWidth(), textAlign = TextAlign.Center) }
                     items(snapshot.events, key = { it.id }) { event -> EventCard(event) }
                 }
                 1 -> {
-                    item { Text(stringResource(R.string.planning_employee_load), style = MaterialTheme.typography.titleLarge) }
-                    if (snapshot.employeeLoads.isEmpty()) {
-                        item {
-                            Text(
-                                stringResource(R.string.planning_no_resources),
-                                modifier = Modifier.fillMaxWidth(),
-                                textAlign = TextAlign.Center,
-                            )
+                    item {
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                            Text("Загрузка сотрудников", style = MaterialTheme.typography.titleLarge)
+                            Button(onClick = { showCreateDialog = true }) { Text("Добавить") }
                         }
                     }
+                    if (snapshot.employeeLoads.isEmpty()) item { Text("Нет активных исполнителей", Modifier.fillMaxWidth(), textAlign = TextAlign.Center) }
                     items(snapshot.employeeLoads, key = { "employee:${it.resourceId}" }) { load -> LoadCard(load) }
-                    item { Text(stringResource(R.string.planning_team_load), style = MaterialTheme.typography.titleLarge) }
-                    if (snapshot.teamLoads.isEmpty()) {
-                        item {
-                            Text(
-                                stringResource(R.string.planning_no_teams),
-                                modifier = Modifier.fillMaxWidth(),
-                                textAlign = TextAlign.Center,
-                            )
-                        }
-                    }
+                    item { Text("Загрузка бригад", style = MaterialTheme.typography.titleLarge) }
+                    if (snapshot.teamLoads.isEmpty()) item { Text("Нет активных бригад", Modifier.fillMaxWidth(), textAlign = TextAlign.Center) }
                     items(snapshot.teamLoads, key = { "team:${it.resourceId}" }) { load -> LoadCard(load) }
                 }
                 2 -> item { BusinessOperationsPanel(state.organizationId) }
             }
         }
     }
+    if (showCreateDialog && state.snapshot != null) {
+        PlanningCreateDialog(state.anchorDate, state.snapshot!!, { showCreateDialog = false }, { onCreateEntry(it); showCreateDialog = false })
+    }
+}
+
+@Composable
+private fun PlanningCreateDialog(anchorDate: LocalDate, snapshot: PlanningSnapshot, onDismiss: () -> Unit, onCreate: (PlanningEntryDraft) -> Unit) {
+    var title by remember { mutableStateOf("") }
+    var description by remember { mutableStateOf("") }
+    var date by remember { mutableStateOf(anchorDate.format(DateTimeFormatter.ofPattern("dd.MM.yyyy"))) }
+    var start by remember { mutableStateOf("09:00") }
+    var end by remember { mutableStateOf("10:00") }
+    var employeeId by remember { mutableStateOf<String?>(null) }
+    var employeeName by remember { mutableStateOf<String?>(null) }
+    var branchId by remember { mutableStateOf<String?>(null) }
+    var teamName by remember { mutableStateOf<String?>(null) }
+    var employeeMenu by remember { mutableStateOf(false) }
+    var teamMenu by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Новая запись") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(title, { title = it }, label = { Text("Название") }, singleLine = true)
+                OutlinedTextField(description, { description = it }, label = { Text("Описание") }, singleLine = true)
+                OutlinedTextField(date, { date = it }, label = { Text("Дата, ДД.ММ.ГГГГ") }, singleLine = true)
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(start, { start = it }, label = { Text("Начало") }, singleLine = true, modifier = Modifier.weight(1f))
+                    OutlinedTextField(end, { end = it }, label = { Text("Конец") }, singleLine = true, modifier = Modifier.weight(1f))
+                }
+                Box {
+                    OutlinedTextField(employeeName ?: "Исполнитель не выбран", {}, readOnly = true, label = { Text("Исполнитель") }, modifier = Modifier.fillMaxWidth())
+                    TextButton(onClick = { employeeMenu = true }) { Text("Выбрать") }
+                    DropdownMenu(expanded = employeeMenu, onDismissRequest = { employeeMenu = false }) {
+                        DropdownMenuItem(text = { Text("Не назначать") }, onClick = { employeeId = null; employeeName = null; employeeMenu = false })
+                        snapshot.employeeLoads.forEach { load -> DropdownMenuItem(text = { Text(load.displayName) }, onClick = { employeeId = load.resourceId; employeeName = load.displayName; employeeMenu = false }) }
+                    }
+                }
+                Box {
+                    OutlinedTextField(teamName ?: "Бригада не выбрана", {}, readOnly = true, label = { Text("Бригада") }, modifier = Modifier.fillMaxWidth())
+                    TextButton(onClick = { teamMenu = true }) { Text("Выбрать") }
+                    DropdownMenu(expanded = teamMenu, onDismissRequest = { teamMenu = false }) {
+                        DropdownMenuItem(text = { Text("Не назначать") }, onClick = { branchId = null; teamName = null; teamMenu = false })
+                        snapshot.teamLoads.forEach { load -> DropdownMenuItem(text = { Text(load.displayName) }, onClick = { branchId = load.resourceId; teamName = load.displayName; teamMenu = false }) }
+                    }
+                }
+                error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+            }
+        },
+        confirmButton = {
+            Button(onClick = {
+                val draft = runCatching {
+                    val day = LocalDate.parse(date.trim(), DateTimeFormatter.ofPattern("dd.MM.yyyy"))
+                    val zone = ZoneId.systemDefault()
+                    val startAt = day.atTime(LocalTime.parse(start.trim())).atZone(zone).toInstant().toEpochMilli()
+                    val endAt = day.atTime(LocalTime.parse(end.trim())).atZone(zone).toInstant().toEpochMilli()
+                    PlanningEntryDraft(title, description, startAt, endAt, employeeId, branchId, teamName)
+                }.getOrElse { error = "Проверьте название, дату и время"; null }
+                if (draft != null) onCreate(draft)
+            }) { Text("Создать") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Отмена") } },
+    )
 }
 
 @Composable
@@ -174,39 +194,27 @@ private fun LoadCard(load: ResourceLoad) {
                 Text(load.displayName, style = MaterialTheme.typography.titleSmall)
                 Text("${load.utilizationPercent}%")
             }
-            LinearProgressIndicator(
-                progress = { (load.utilizationPercent.coerceIn(0, 100) / 100f) },
-                modifier = Modifier.fillMaxWidth(),
-            )
+            LinearProgressIndicator(progress = { (load.utilizationPercent.coerceIn(0, 100) / 100f) }, modifier = Modifier.fillMaxWidth())
             Text("${load.scheduledMinutes} мин · ${load.eventCount} назначений", style = MaterialTheme.typography.bodySmall)
             if (load.overloaded) Text("Перегрузка", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelMedium)
         }
     }
 }
 
-private fun modeLabel(mode: PlanningMode): String = when (mode) {
-        PlanningMode.DAY -> "День"
-        PlanningMode.WEEK -> "Неделя"
-        PlanningMode.MONTH -> "Месяц"
-}
-
 private fun formatDateLabel(state: PlanningUiState): String {
     val locale = Locale("ru")
-    return when (state.mode) {
+    val prefix = when (state.mode) { PlanningMode.DAY -> "День"; PlanningMode.WEEK -> "Неделя"; PlanningMode.MONTH -> "Месяц" }
+    val value = when (state.mode) {
         PlanningMode.DAY -> state.anchorDate.format(DateTimeFormatter.ofPattern("dd.MM.yyyy, EEE", locale))
         PlanningMode.WEEK -> {
             val start = state.anchorDate.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
             val end = start.plusDays(6)
-            if (start.month == end.month && start.year == end.year) {
-                "${start.dayOfMonth}-${end.dayOfMonth}.${end.format(DateTimeFormatter.ofPattern("MM.yyyy", locale))}"
-            } else {
-                "${start.format(DateTimeFormatter.ofPattern("dd.MM.yyyy", locale))}-${end.format(DateTimeFormatter.ofPattern("dd.MM.yyyy", locale))}"
-            }
+            if (start.month == end.month && start.year == end.year) "${start.dayOfMonth}-${end.dayOfMonth}.${end.format(DateTimeFormatter.ofPattern("MM.yyyy", locale))}"
+            else "${start.format(DateTimeFormatter.ofPattern("dd.MM.yyyy", locale))}-${end.format(DateTimeFormatter.ofPattern("dd.MM.yyyy", locale))}"
         }
-        PlanningMode.MONTH -> state.anchorDate
-            .format(DateTimeFormatter.ofPattern("LLLL yyyy", locale))
-            .replaceFirstChar { it.titlecase(locale) }
+        PlanningMode.MONTH -> state.anchorDate.format(DateTimeFormatter.ofPattern("LLLL yyyy", locale)).replaceFirstChar { it.titlecase(locale) }
     }
+    return "$prefix · $value"
 }
 
 private fun formatTime(epochMs: Long): String =

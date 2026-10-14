@@ -51,7 +51,7 @@ interface ServiceOperations {
     suspend fun saveEmployee(organizationId: String, userId: String, draft: SaveEmployeeCommand, existingId: String?)
     suspend fun setEmployeeActive(organizationId: String, userId: String, id: String, active: Boolean)
     suspend fun requests(organizationId: String): List<ServiceRequest>
-    suspend fun saveRequest(organizationId: String, userId: String, draft: SaveRequestCommand, existingId: String?)
+    suspend fun saveRequest(organizationId: String, userId: String, draft: SaveRequestCommand, existingId: String?): String
     suspend fun changeRequestStatus(organizationId: String, userId: String, id: String, target: RequestStatus)
     suspend fun assignRequest(organizationId: String, userId: String, id: String, employeeId: String?, teamName: String?)
     suspend fun rescheduleRequest(organizationId: String, userId: String, id: String, plannedStartEpochMs: Long, plannedEndEpochMs: Long, reason: String)

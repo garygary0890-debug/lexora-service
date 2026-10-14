@@ -137,10 +137,8 @@ private fun LexoraServiceApp(globalOwner: Boolean) {
         val selectedBottomDestinations = selectedBottomRoutes.mapNotNull { route ->
             menuDestinations.firstOrNull { it.route == route }
         }
-        val availableQuickAccess = remember(menuDestinations) {
-            menuDestinations.map { destination ->
-                HomeQuickAccessItem(destination.route, context.getString(destination.titleRes))
-            }
+        val availableQuickAccess = menuDestinations.map { destination ->
+            HomeQuickAccessItem(destination.route, stringResource(destination.titleRes))
         }
         val defaultQuickAccessRoutes = listOf(
             Routes.Planning,
@@ -529,7 +527,6 @@ private fun LexoraNavHost(
     }
 }
 
-@StringRes
 private fun buildMenuDestinations(
     canManageUsers: Boolean,
     canViewAudit: Boolean,

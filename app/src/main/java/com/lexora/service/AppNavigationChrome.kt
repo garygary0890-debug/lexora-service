@@ -33,6 +33,7 @@ import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
@@ -44,6 +45,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -55,6 +57,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.lexora.service.core.designsystem.LexoraThemeFamily
@@ -326,33 +329,146 @@ fun ProfileSettingsScreen(
     onOpenOrganizationTeam: () -> Unit,
     onConfigureTheme: () -> Unit,
 ) {
+    val context = LocalContext.current
+    var sections by remember(user.id) {
+        mutableStateOf(ProfileContentPreferences.readOrDefault(context, user.id))
+    }
+    var editorSection by remember { mutableStateOf<ProfileContentSection?>(null) }
+    var editorOpen by remember { mutableStateOf(false) }
+    var deleteSection by remember { mutableStateOf<ProfileContentSection?>(null) }
+
     Column(
         modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Text(stringResource(R.string.nav_active_organization))
+        Text("Текущая команда")
         Card(
             onClick = onOpenOrganizationTeam,
             modifier = Modifier.fillMaxWidth(),
         ) {
             Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(activeOrganization.name)
-                Text(stringResource(R.string.nav_active_organization_description))
+                Text("Рабочее пространство и доступ пользователей команды")
             }
         }
         OutlinedButton(onClick = onConfigureTheme, modifier = Modifier.fillMaxWidth()) {
-            Text(stringResource(R.string.nav_configure_theme))
+            Text("Настроить тему")
         }
-        Text(stringResource(R.string.nav_profile_heading))
+        Text("Профиль пользователя")
         Card(Modifier.fillMaxWidth()) {
             Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(user.displayName)
-                Text(stringResource(R.string.nav_roles, user.roles.joinToString()))
+                Text("Роли: " + user.roles.joinToString())
+            }
+        }
+        Text("Настраиваемые разделы")
+        sections.forEach { section ->
+            ProfileContentCard(
+                section = section,
+                onEdit = {
+                    editorSection = section
+                    editorOpen = true
+                },
+                onDelete = { deleteSection = section },
+            )
+        }
+        Button(
+            onClick = {
+                editorSection = null
+                editorOpen = true
+            },
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text("Добавить раздел")
+        }
+    }
+
+    if (editorOpen) {
+        var title by remember(editorSection?.id) { mutableStateOf(editorSection?.title.orEmpty()) }
+        var body by remember(editorSection?.id) { mutableStateOf(editorSection?.body.orEmpty()) }
+        AlertDialog(
+            onDismissRequest = { editorOpen = false },
+            title = { Text(if (editorSection == null) "Добавить раздел" else "Изменить раздел") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = title,
+                        onValueChange = { title = it },
+                        label = { Text("Заголовок") },
+                        singleLine = true,
+                    )
+                    OutlinedTextField(
+                        value = body,
+                        onValueChange = { body = it },
+                        label = { Text("Содержание") },
+                        minLines = 2,
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    enabled = title.isNotBlank() && body.isNotBlank(),
+                    onClick = {
+                        sections = upsertProfileSection(sections, editorSection, title.trim(), body.trim())
+                        ProfileContentPreferences.write(context, user.id, sections)
+                        editorOpen = false
+                    },
+                ) {
+                    Text("Сохранить")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { editorOpen = false }) { Text("Отмена") }
+            },
+        )
+    }
+
+    deleteSection?.let { section ->
+        AlertDialog(
+            onDismissRequest = { deleteSection = null },
+            title = { Text("Удалить раздел?") },
+            text = { Text("Раздел «" + section.title + "» будет удалён.") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        sections = removeProfileSection(sections, section.id)
+                        ProfileContentPreferences.write(context, user.id, sections)
+                        deleteSection = null
+                    },
+                ) {
+                    Text("Удалить")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { deleteSection = null }) { Text("Отмена") }
+            },
+        )
+    }
+}
+
+@Composable
+private fun ProfileContentCard(
+    section: ProfileContentSection,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit,
+) {
+    Card(Modifier.fillMaxWidth()) {
+        Column(
+            Modifier.fillMaxWidth().padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Text(section.title, style = MaterialTheme.typography.titleMedium)
+            Text(section.body)
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End,
+            ) {
+                TextButton(onClick = onEdit) { Text("Изменить") }
+                TextButton(onClick = onDelete) { Text("Удалить") }
             }
         }
     }
 }
-
 
 @Composable
 fun ThemeSettingsScreen(

@@ -65,6 +65,7 @@ fun PlanningScreen(
 ) {
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
     var showCreateDialog by rememberSaveable { mutableStateOf(false) }
+    var showAddMenu by rememberSaveable { mutableStateOf(false) }
     Column(Modifier.fillMaxSize().padding(start = 16.dp, end = 16.dp, bottom = 16.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onPrevious) { Text("‹", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.semantics { contentDescription = "Предыдущий период" }) }
@@ -91,11 +92,6 @@ fun PlanningScreen(
                 when (selectedTab) {
                     0 -> {
                         if (snapshot.events.isEmpty()) {
-                            item {
-                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
-                                    Button(onClick = { showCreateDialog = true }) { Text("Добавить") }
-                                }
-                            }
                             item { Text("В выбранном периоде выездов нет", Modifier.fillMaxWidth(), textAlign = TextAlign.Center) }
                         } else {
                             items(snapshot.events, key = { it.id }) { event -> EventCard(event) }
@@ -117,12 +113,28 @@ fun PlanningScreen(
                     2 -> item { BusinessOperationsPanel(state.organizationId) }
                 }
             }
-            if (selectedTab == 0 && snapshot.events.isNotEmpty()) {
-                FloatingActionButton(
-                    onClick = { showCreateDialog = true },
-                    modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp),
-                ) {
-                    Text("+")
+            if (selectedTab == 0) {
+                Box(Modifier.align(Alignment.BottomEnd).padding(16.dp)) {
+                    FloatingActionButton(onClick = { showAddMenu = true }) {
+                        Text("+")
+                    }
+                    DropdownMenu(
+                        expanded = showAddMenu,
+                        onDismissRequest = { showAddMenu = false },
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("+ выезд") },
+                            onClick = { showAddMenu = false; showCreateDialog = true },
+                        )
+                        DropdownMenuItem(
+                            text = { Text("+ загрузка сотрудников") },
+                            onClick = { showAddMenu = false; selectedTab = 1 },
+                        )
+                        DropdownMenuItem(
+                            text = { Text("+ загрузка бригад") },
+                            onClick = { showAddMenu = false; selectedTab = 1 },
+                        )
+                    }
                 }
             }
         }

@@ -101,7 +101,6 @@ fun PlanningScreen(
                         item {
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                                 Text("Загрузка сотрудников", style = MaterialTheme.typography.titleLarge)
-                                Button(onClick = { showCreateDialog = true }) { Text("Добавить") }
                             }
                         }
                         if (snapshot.employeeLoads.isEmpty()) item { Text("Нет активных исполнителей", Modifier.fillMaxWidth(), textAlign = TextAlign.Center) }
@@ -113,7 +112,7 @@ fun PlanningScreen(
                     2 -> item { BusinessOperationsPanel(state.organizationId) }
                 }
             }
-            if (selectedTab == 0) {
+            if (selectedTab == 1) {
                 Box(Modifier.align(Alignment.BottomEnd).padding(16.dp)) {
                     FloatingActionButton(onClick = { showAddMenu = true }) {
                         Text("+")
@@ -123,16 +122,12 @@ fun PlanningScreen(
                         onDismissRequest = { showAddMenu = false },
                     ) {
                         DropdownMenuItem(
-                            text = { Text("+ выезд") },
+                            text = { Text("+ загрузка сотрудников") },
                             onClick = { showAddMenu = false; showCreateDialog = true },
                         )
                         DropdownMenuItem(
-                            text = { Text("+ загрузка сотрудников") },
-                            onClick = { showAddMenu = false; selectedTab = 1 },
-                        )
-                        DropdownMenuItem(
                             text = { Text("+ загрузка бригад") },
-                            onClick = { showAddMenu = false; selectedTab = 1 },
+                            onClick = { showAddMenu = false; showCreateDialog = true },
                         )
                     }
                 }

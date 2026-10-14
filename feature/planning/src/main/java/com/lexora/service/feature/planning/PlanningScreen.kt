@@ -124,7 +124,16 @@ fun PlanningScreen(
                 when (selectedTab) {
                     0 -> {
                         if (snapshot.events.isEmpty()) {
-                            item { Text("В выбранном периоде выездов нет", Modifier.fillMaxWidth(), textAlign = TextAlign.Center) }
+                            item {
+                                Column(
+                                    Modifier.fillMaxWidth(),
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                                ) {
+                                    Button(onClick = { showCreateDialog = true }) { Text("Добавить") }
+                                    Text("В выбранном периоде выездов нет", textAlign = TextAlign.Center)
+                                }
+                            }
                         } else {
                             items(snapshot.events, key = { it.id }) { event ->
                                 EventCard(
@@ -154,25 +163,35 @@ fun PlanningScreen(
                     2 -> item { BusinessOperationsPanel(state.organizationId) }
                 }
             }
-            if (selectedTab == 1) {
-                Box(Modifier.align(Alignment.BottomEnd).padding(16.dp)) {
-                    FloatingActionButton(onClick = { showAddMenu = true }) {
-                        Text("+")
-                    }
-                    DropdownMenu(
-                        expanded = showAddMenu,
-                        onDismissRequest = { showAddMenu = false },
-                    ) {
-                        DropdownMenuItem(
-                            text = { Text("+ Загрузка сотрудников") },
-                            onClick = { showAddMenu = false; showCreateDialog = true },
-                        )
-                        DropdownMenuItem(
-                            text = { Text("+ Загрузка бригад") },
-                            onClick = { showAddMenu = false; showCreateDialog = true },
-                        )
+            when (planningAddActionPlacement(selectedTab, snapshot.events.size)) {
+                PlanningAddActionPlacement.EMPTY_STATE -> Unit
+                PlanningAddActionPlacement.FAB -> {
+                    Box(Modifier.align(Alignment.BottomEnd).padding(16.dp)) {
+                        FloatingActionButton(
+                            onClick = {
+                                if (selectedTab == 1) showAddMenu = true else showCreateDialog = true
+                            },
+                        ) {
+                            Text("+")
+                        }
+                        if (selectedTab == 1) {
+                            DropdownMenu(
+                                expanded = showAddMenu,
+                                onDismissRequest = { showAddMenu = false },
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text("+ Загрузка сотрудников") },
+                                    onClick = { showAddMenu = false; showCreateDialog = true },
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("+ Загрузка бригад") },
+                                    onClick = { showAddMenu = false; showCreateDialog = true },
+                                )
+                            }
+                        }
                     }
                 }
+                PlanningAddActionPlacement.NONE -> Unit
             }
         }
     }

@@ -52,6 +52,7 @@ fun VehiclesScreen(
     vehicles: List<Vehicle>,
     archivedVehicles: List<Vehicle>,
     clients: List<Client>,
+    showSearch: Boolean,
     onSave: (VehicleDraft, String?) -> Unit,
     onArchive: (String) -> Unit,
     onRestore: (String) -> Unit,
@@ -76,14 +77,15 @@ fun VehiclesScreen(
         modifier = Modifier.fillMaxSize().padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Text(stringResource(R.string.vehicles_title), style = MaterialTheme.typography.headlineMedium)
-        OutlinedTextField(
-            value = query,
-            onValueChange = { query = it },
-            modifier = Modifier.fillMaxWidth(),
-            label = { Text(stringResource(R.string.vehicles_search_hint)) },
-            singleLine = true,
-        )
+        if (showSearch) {
+            OutlinedTextField(
+                value = query,
+                onValueChange = { query = it },
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text(stringResource(R.string.vehicles_search_hint)) },
+                singleLine = true,
+            )
+        }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             FilterChip(
                 selected = !showArchived,

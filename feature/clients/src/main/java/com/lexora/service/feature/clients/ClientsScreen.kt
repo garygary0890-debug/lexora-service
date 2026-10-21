@@ -215,13 +215,18 @@ private fun ClientEditor(
                 modifier = Modifier.verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
                     FilterChip(
+                        modifier = Modifier.weight(1f),
                         selected = type == ClientType.PERSON,
                         onClick = { type = ClientType.PERSON },
                         label = { Text(stringResource(R.string.client_type_person)) },
                     )
                     FilterChip(
+                        modifier = Modifier.weight(1f),
                         selected = type == ClientType.COMPANY,
                         onClick = { type = ClientType.COMPANY },
                         label = { Text(stringResource(R.string.client_type_company)) },

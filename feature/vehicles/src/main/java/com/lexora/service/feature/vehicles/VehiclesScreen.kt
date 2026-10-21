@@ -53,6 +53,7 @@ fun VehiclesScreen(
     archivedVehicles: List<Vehicle>,
     clients: List<Client>,
     showSearch: Boolean,
+    showArchived: Boolean,
     onSave: (VehicleDraft, String?) -> Unit,
     onArchive: (String) -> Unit,
     onRestore: (String) -> Unit,
@@ -63,7 +64,6 @@ fun VehiclesScreen(
     onCloseHistory: () -> Unit = {},
 ) {
     var query by remember { mutableStateOf("") }
-    var showArchived by remember { mutableStateOf(false) }
     var editing by remember { mutableStateOf<Vehicle?>(null) }
     var creating by remember { mutableStateOf(false) }
     val source = if (showArchived) archivedVehicles else vehicles
@@ -74,7 +74,9 @@ fun VehiclesScreen(
     }
 
     Column(
-        modifier = Modifier.fillMaxSize().padding(20.dp),
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(start = 20.dp, end = 20.dp, bottom = 20.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         if (showSearch) {
@@ -84,18 +86,6 @@ fun VehiclesScreen(
                 modifier = Modifier.fillMaxWidth(),
                 label = { Text(stringResource(R.string.vehicles_search_hint)) },
                 singleLine = true,
-            )
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            FilterChip(
-                selected = !showArchived,
-                onClick = { showArchived = false },
-                label = { Text(stringResource(R.string.vehicles_active)) },
-            )
-            FilterChip(
-                selected = showArchived,
-                onClick = { showArchived = true },
-                label = { Text(stringResource(R.string.vehicles_archived)) },
             )
         }
         Button(onClick = { creating = true }) { Text(stringResource(R.string.vehicles_add)) }

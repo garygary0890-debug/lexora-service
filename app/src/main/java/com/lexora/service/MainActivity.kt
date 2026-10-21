@@ -166,6 +166,7 @@ private fun LexoraServiceApp(globalOwner: Boolean) {
         var planningSelectionAction by remember { mutableStateOf<PlanningSelectionAction?>(null) }
         var clientsSearchVisible by remember { mutableStateOf(false) }
         var vehiclesSearchVisible by remember { mutableStateOf(false) }
+        var vehiclesArchiveShown by remember { mutableStateOf(false) }
 
         LaunchedEffect(organization.id) {
             while (true) {
@@ -184,7 +185,10 @@ private fun LexoraServiceApp(globalOwner: Boolean) {
             val currentRoute = backStackEntry?.destination?.route ?: Routes.Home
             LaunchedEffect(currentRoute) {
                 if (currentRoute != Routes.Clients) clientsSearchVisible = false
-                if (currentRoute != Routes.Vehicles) vehiclesSearchVisible = false
+                if (currentRoute != Routes.Vehicles) {
+                    vehiclesSearchVisible = false
+                    vehiclesArchiveShown = false
+                }
             }
             Scaffold(
                 topBar = {
@@ -193,6 +197,10 @@ private fun LexoraServiceApp(globalOwner: Boolean) {
                         canNavigateBack = navController.previousBackStackEntry != null,
                         onBack = { navController.navigateUp() },
                         onOpenRoute = { route -> navController.navigate(route) { launchSingleTop = true } },
+                        vehiclesArchiveShown = vehiclesArchiveShown,
+                        onToggleVehiclesArchive = if (currentRoute == Routes.Vehicles) {
+                            { vehiclesArchiveShown = !vehiclesArchiveShown }
+                        } else null,
                         onOpenSearch = when (currentRoute) {
                             Routes.Home -> {
                                 { navController.navigate(Routes.Search) { launchSingleTop = true } }
@@ -254,6 +262,7 @@ private fun LexoraServiceApp(globalOwner: Boolean) {
                     availableQuickAccess = availableQuickAccess,
                     clientsSearchVisible = clientsSearchVisible,
                     vehiclesSearchVisible = vehiclesSearchVisible,
+                    vehiclesArchiveShown = vehiclesArchiveShown,
                     onQuickAccessChange = { routes ->
                         selectedQuickAccessRoutes = routes
                             .filter { route -> availableQuickAccess.any { it.route == route } }
@@ -296,6 +305,7 @@ private fun LexoraNavHost(
     availableQuickAccess: List<HomeQuickAccessItem>,
     clientsSearchVisible: Boolean,
     vehiclesSearchVisible: Boolean,
+    vehiclesArchiveShown: Boolean,
     onQuickAccessChange: (List<String>) -> Unit,
     globalOwner: Boolean,
     canManageUsers: Boolean,
@@ -412,6 +422,7 @@ private fun LexoraNavHost(
                 archivedVehicles = state.archived,
                 clients = state.clients,
                 showSearch = vehiclesSearchVisible,
+                showArchived = vehiclesArchiveShown,
                 onSave = vm::save,
                 onArchive = { vm.archive(it, false) },
                 onRestore = { vm.archive(it, true) },

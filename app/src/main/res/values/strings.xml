@@ -6,6 +6,8 @@
     <string name="nav_title_planning">Планирование</string>
     <string name="nav_title_clients">Клиенты</string>
     <string name="nav_title_vehicles">Автомобили</string>
+    <string name="vehicles_archived">Архив</string>
+    <string name="vehicles_active">Активные</string>
     <string name="nav_title_assets">Объекты и оборудование</string>
     <string name="nav_title_requests">Заявки</string>
     <string name="nav_title_organization">Пользователи и команда</string>

@@ -76,6 +76,8 @@ fun LexoraTopBar(
     onBack: () -> Unit,
     onOpenRoute: (String) -> Unit,
     onOpenSearch: (() -> Unit)? = null,
+    vehiclesArchiveShown: Boolean = false,
+    onToggleVehiclesArchive: (() -> Unit)? = null,
     onConfigureBottomMenu: (() -> Unit)? = null,
     planningSelectionCount: Int = 0,
     onEditSelectedPlanning: (() -> Unit)? = null,
@@ -99,6 +101,15 @@ fun LexoraTopBar(
                 Icon(Icons.Filled.MoreVert, contentDescription = stringResource(R.string.nav_more_actions))
             }
             DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
+                if (onToggleVehiclesArchive != null) {
+                    DropdownMenuItem(
+                        text = { Text(stringResource(if (vehiclesArchiveShown) R.string.vehicles_active else R.string.vehicles_archived)) },
+                        onClick = {
+                            menuExpanded = false
+                            onToggleVehiclesArchive()
+                        },
+                    )
+                }
                 if (onConfigureBottomMenu != null) {
                     DropdownMenuItem(
                         text = { Text(stringResource(R.string.nav_edit_bottom_menu)) },

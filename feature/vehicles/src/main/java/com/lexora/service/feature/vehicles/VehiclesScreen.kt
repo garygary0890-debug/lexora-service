@@ -47,6 +47,19 @@ data class VehicleDraft(
     val mileageKm: String = "",
 )
 
+enum class VehicleRequiredField {
+    MAKE,
+    MODEL,
+    COLOR,
+}
+
+internal fun requiredVehicleField(draft: VehicleDraft): VehicleRequiredField? = when {
+    draft.make.isBlank() -> VehicleRequiredField.MAKE
+    draft.model.isBlank() -> VehicleRequiredField.MODEL
+    draft.color.isBlank() -> VehicleRequiredField.COLOR
+    else -> null
+}
+
 @Composable
 fun VehiclesScreen(
     vehicles: List<Vehicle>,
@@ -222,9 +235,20 @@ private fun VehicleEditorDialog(
     fun validate(): Boolean {
         val year = draft.year.toIntOrNull()
         val mileage = draft.mileageKm.toIntOrNull()
-        if (draft.registrationNumber.isBlank()) {
-            error = "Госномер обязателен."
-            return false
+        when (requiredVehicleField(draft)) {
+            VehicleRequiredField.MAKE -> {
+                error = "Марка обязательна."
+                return false
+            }
+            VehicleRequiredField.MODEL -> {
+                error = "Модель обязательна."
+                return false
+            }
+            VehicleRequiredField.COLOR -> {
+                error = "Цвет обязателен."
+                return false
+            }
+            null -> Unit
         }
         if (draft.year.isNotBlank() && (year == null || year !in 1900..2100)) {
             error = "INVALID_YEAR"
@@ -238,7 +262,8 @@ private fun VehicleEditorDialog(
         val normalizedVin = draft.vin.filterNot(Char::isWhitespace).uppercase()
         val duplicate = existingVehicles.any { other ->
             other.id != vehicle?.id && (
-                other.registrationNumber.filterNot(Char::isWhitespace).uppercase() == normalizedReg ||
+                (normalizedReg.isNotBlank() &&
+                    other.registrationNumber.filterNot(Char::isWhitespace).uppercase() == normalizedReg) ||
                     (normalizedVin.isNotBlank() && other.vin?.filterNot(Char::isWhitespace)?.uppercase() == normalizedVin)
                 )
         }

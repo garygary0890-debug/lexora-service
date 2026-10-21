@@ -8,8 +8,8 @@
     <string name="clients_restore">Восстановить</string>
     <string name="clients_show_archive">Показать архив</string>
     <string name="clients_hide_archive">Скрыть архив</string>
-    <string name="client_type_person">Физическое лицо</string>
-    <string name="client_type_company">Юридическое лицо</string>
+    <string name="client_type_person">ф/л</string>
+    <string name="client_type_company">ю/л</string>
     <string name="client_name">ФИО / Наименование</string>
     <string name="client_phone">Телефон</string>
     <string name="client_email">Email</string>

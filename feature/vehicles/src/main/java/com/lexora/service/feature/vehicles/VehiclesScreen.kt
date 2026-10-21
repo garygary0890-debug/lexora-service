@@ -25,6 +25,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.lexora.service.core.model.Client
 import com.lexora.service.core.model.ServiceHistoryRecord
@@ -59,6 +60,8 @@ internal fun requiredVehicleField(draft: VehicleDraft): VehicleRequiredField? = 
     draft.color.isBlank() -> VehicleRequiredField.COLOR
     else -> null
 }
+
+internal fun shouldShowVehicleRegistration(registrationNumber: String): Boolean = registrationNumber.isNotBlank()
 
 @Composable
 fun VehiclesScreen(
@@ -116,9 +119,13 @@ fun VehiclesScreen(
                         modifier = Modifier.fillMaxWidth().clickable(enabled = !showArchived) { editing = vehicle },
                     ) {
                         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Text(vehicle.registrationNumber, style = MaterialTheme.typography.titleMedium)
+                            if (shouldShowVehicleRegistration(vehicle.registrationNumber)) {
+                                Text(vehicle.registrationNumber, style = MaterialTheme.typography.titleMedium)
+                            }
                             val carName = listOfNotNull(vehicle.make, vehicle.model).filter { it.isNotBlank() }.joinToString(" ")
-                            if (carName.isNotBlank()) Text(carName)
+                            if (carName.isNotBlank()) {
+                                Text(carName, fontWeight = FontWeight.Bold)
+                            }
                             vehicle.vin?.takeIf { it.isNotBlank() }?.let { Text("VIN: $it") }
                             Text("${stringResource(R.string.vehicles_owner)}: ${owner ?: stringResource(R.string.vehicles_no_owner)}")
                             vehicle.mileageKm?.let { Text("${stringResource(R.string.vehicles_mileage)}: $it") }

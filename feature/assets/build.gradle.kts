@@ -19,4 +19,5 @@ dependencies {
     implementation("androidx.compose.foundation:foundation")
     implementation("androidx.compose.runtime:runtime")
     implementation("androidx.compose.ui:ui")
+    testImplementation(kotlin("test-junit"))
 }

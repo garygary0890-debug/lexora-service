@@ -51,6 +51,14 @@ data class EquipmentDraft(
 
 private enum class AssetsTab { OBJECTS, EQUIPMENT }
 
+data class AssetsContentPaddingDp(
+    val horizontal: Int,
+    val top: Int,
+    val bottom: Int,
+)
+
+internal fun assetsContentPaddingDp() = AssetsContentPaddingDp(horizontal = 20, top = 0, bottom = 20)
+
 @Composable
 fun AssetsScreen(
     objects: List<ServiceObject>,
@@ -73,11 +81,18 @@ fun AssetsScreen(
     var creatingEquipment by remember { mutableStateOf(false) }
     var editingEquipment by remember { mutableStateOf<Equipment?>(null) }
 
+    val contentPadding = assetsContentPaddingDp()
     Column(
-        modifier = Modifier.fillMaxSize().padding(20.dp),
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(
+                start = contentPadding.horizontal.dp,
+                end = contentPadding.horizontal.dp,
+                top = contentPadding.top.dp,
+                bottom = contentPadding.bottom.dp,
+            ),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Text(stringResource(R.string.assets_title), style = MaterialTheme.typography.headlineMedium)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             FilterChip(
                 selected = tab == AssetsTab.OBJECTS,

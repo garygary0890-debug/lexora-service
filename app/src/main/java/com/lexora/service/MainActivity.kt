@@ -164,6 +164,7 @@ private fun LexoraServiceApp(globalOwner: Boolean) {
         var bottomMenuConfigureRequest by remember { mutableStateOf(0) }
         var planningSelectionCount by remember { mutableStateOf(0) }
         var planningSelectionAction by remember { mutableStateOf<PlanningSelectionAction?>(null) }
+        var clientsSearchVisible by remember { mutableStateOf(false) }
 
         LaunchedEffect(organization.id) {
             while (true) {
@@ -180,6 +181,9 @@ private fun LexoraServiceApp(globalOwner: Boolean) {
         ) {
             val backStackEntry by navController.currentBackStackEntryAsState()
             val currentRoute = backStackEntry?.destination?.route ?: Routes.Home
+            LaunchedEffect(currentRoute) {
+                if (currentRoute != Routes.Clients) clientsSearchVisible = false
+            }
             Scaffold(
                 topBar = {
                     LexoraTopBar(
@@ -187,9 +191,15 @@ private fun LexoraServiceApp(globalOwner: Boolean) {
                         canNavigateBack = navController.previousBackStackEntry != null,
                         onBack = { navController.navigateUp() },
                         onOpenRoute = { route -> navController.navigate(route) { launchSingleTop = true } },
-                        onOpenSearch = if (currentRoute == Routes.Home) {
-                            { navController.navigate(Routes.Search) { launchSingleTop = true } }
-                        } else null,
+                        onOpenSearch = when (currentRoute) {
+                            Routes.Home -> {
+                                { navController.navigate(Routes.Search) { launchSingleTop = true } }
+                            }
+                            Routes.Clients -> {
+                                { clientsSearchVisible = true }
+                            }
+                            else -> null
+                        },
                         onConfigureBottomMenu = if (currentRoute == Routes.Menu) {
                             { bottomMenuConfigureRequest++ }
                         } else null,
@@ -237,6 +247,7 @@ private fun LexoraServiceApp(globalOwner: Boolean) {
                     },
                     selectedQuickAccessRoutes = selectedQuickAccessRoutes,
                     availableQuickAccess = availableQuickAccess,
+                    clientsSearchVisible = clientsSearchVisible,
                     onQuickAccessChange = { routes ->
                         selectedQuickAccessRoutes = routes
                             .filter { route -> availableQuickAccess.any { it.route == route } }
@@ -277,6 +288,7 @@ private fun LexoraNavHost(
     onSelectedBottomRoutesChange: (List<String>) -> Unit,
     selectedQuickAccessRoutes: List<String>,
     availableQuickAccess: List<HomeQuickAccessItem>,
+    clientsSearchVisible: Boolean,
     onQuickAccessChange: (List<String>) -> Unit,
     globalOwner: Boolean,
     canManageUsers: Boolean,
@@ -376,6 +388,7 @@ private fun LexoraNavHost(
             ClientsScreen(
                 clients = state.clients,
                 archivedClients = state.archived,
+                showSearch = clientsSearchVisible,
                 onSave = vm::save,
                 onArchive = { vm.archive(it, false) },
                 onRestore = { vm.archive(it, true) },

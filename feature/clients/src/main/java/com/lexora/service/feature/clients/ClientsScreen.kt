@@ -32,6 +32,7 @@ import com.lexora.service.core.model.ClientType
 fun ClientsScreen(
     clients: List<Client>,
     archivedClients: List<Client>,
+    showSearch: Boolean,
     onSave: (ClientDraft, String?) -> Unit,
     onArchive: (String) -> Unit,
     onRestore: (String) -> Unit,
@@ -58,13 +59,15 @@ fun ClientsScreen(
             .padding(start = 16.dp, end = 16.dp, bottom = 16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        OutlinedTextField(
-            value = query,
-            onValueChange = { query = it },
-            label = { Text(stringResource(R.string.clients_search_hint)) },
-            modifier = Modifier.fillMaxWidth(),
-            singleLine = true,
-        )
+        if (showSearch) {
+            OutlinedTextField(
+                value = query,
+                onValueChange = { query = it },
+                label = { Text(stringResource(R.string.clients_search_hint)) },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+            )
+        }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(onClick = { creating = true }) {
                 Text(stringResource(R.string.clients_add))

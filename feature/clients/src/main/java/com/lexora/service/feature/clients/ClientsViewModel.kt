@@ -27,7 +27,7 @@ class ClientsViewModel(
     }
 
     fun save(draft: ClientDraft, existingId: String?) = launchSafely(::fail) {
-        operations.saveClient(organizationId, userId, SaveClientCommand(draft.type, draft.displayName, draft.phone, draft.email, draft.taxId, draft.kpp, draft.registrationAddress, draft.actualAddress, draft.note, draft.consentPersonalData), existingId)
+        operations.saveClient(organizationId, userId, SaveClientCommand(draft.type, draft.displayName, draft.phone, draft.email, draft.taxId, draft.kpp, draft.registrationAddress, draft.note, draft.consentPersonalData), existingId)
         reload()
     }
 

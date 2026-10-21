@@ -25,7 +25,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         ServiceNotificationEntity::class, ServiceUserEntity::class, UserOrganizationRoleEntity::class,
         UserWorkspaceMembershipEntity::class, UserWorkspaceMigrationConflictEntity::class,
     ],
-    version = 23,
+    version = 24,
     exportSchema = true,
 )
 abstract class LexoraServiceDatabase : RoomDatabase() {
@@ -202,6 +202,15 @@ abstract class LexoraServiceDatabase : RoomDatabase() {
             db.execSQL("INSERT INTO user_workspace_migration_conflicts(legacyWorkspaceId, reason, detectedAtEpochMs) SELECT organizations.id, 'OWNER_NOT_UNIQUE', organizations.updatedAtEpochMs FROM organizations LEFT JOIN (SELECT organizationId, COUNT(DISTINCT userId) AS ownerCount FROM user_organization_roles WHERE active = 1 AND role = 'ADMIN' GROUP BY organizationId) AS owners ON owners.organizationId = organizations.id WHERE COALESCE(owners.ownerCount, 0) != 1")
         } }
 
-        fun create(context: Context): LexoraServiceDatabase = Room.databaseBuilder(context.applicationContext, LexoraServiceDatabase::class.java, "lexora-service.db").addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23).build()
+        private val MIGRATION_23_24 = object : Migration(23, 24) { override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("CREATE TABLE clients_new (id TEXT NOT NULL PRIMARY KEY, organizationId TEXT NOT NULL, type TEXT NOT NULL, displayName TEXT NOT NULL, phone TEXT, email TEXT, taxId TEXT, kpp TEXT, registrationAddress TEXT, note TEXT, consentPersonalData INTEGER NOT NULL, archived INTEGER NOT NULL, syncState TEXT NOT NULL, createdAtEpochMs INTEGER NOT NULL, updatedAtEpochMs INTEGER NOT NULL)")
+            db.execSQL("INSERT INTO clients_new (id, organizationId, type, displayName, phone, email, taxId, kpp, registrationAddress, note, consentPersonalData, archived, syncState, createdAtEpochMs, updatedAtEpochMs) SELECT id, organizationId, type, displayName, phone, email, taxId, kpp, registrationAddress, note, consentPersonalData, archived, syncState, createdAtEpochMs, updatedAtEpochMs FROM clients")
+            db.execSQL("DROP TABLE clients")
+            db.execSQL("ALTER TABLE clients_new RENAME TO clients")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_clients_organizationId ON clients(organizationId)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_clients_organizationId_phone ON clients(organizationId, phone)")
+        } }
+
+        fun create(context: Context): LexoraServiceDatabase = Room.databaseBuilder(context.applicationContext, LexoraServiceDatabase::class.java, "lexora-service.db").addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24).build()
     }
 }

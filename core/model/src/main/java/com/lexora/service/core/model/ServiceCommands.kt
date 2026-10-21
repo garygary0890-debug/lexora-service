@@ -8,7 +8,6 @@ data class SaveClientCommand(
     val taxId: String,
     val kpp: String,
     val registrationAddress: String,
-    val actualAddress: String,
     val note: String,
     val consentPersonalData: Boolean,
 )

@@ -171,7 +171,6 @@ data class ClientDraft(
     val taxId: String,
     val kpp: String,
     val registrationAddress: String,
-    val actualAddress: String,
     val note: String,
     val consentPersonalData: Boolean,
 )
@@ -190,7 +189,6 @@ private fun ClientEditor(
     var taxId by remember(existing?.id) { mutableStateOf(existing?.taxId.orEmpty()) }
     var kpp by remember(existing?.id) { mutableStateOf(existing?.kpp.orEmpty()) }
     var registrationAddress by remember(existing?.id) { mutableStateOf(existing?.registrationAddress.orEmpty()) }
-    var actualAddress by remember(existing?.id) { mutableStateOf(existing?.actualAddress.orEmpty()) }
     var note by remember(existing?.id) { mutableStateOf(existing?.note.orEmpty()) }
     var consent by remember(existing?.id) { mutableStateOf(existing?.consentPersonalData ?: false) }
     var submitted by remember(existing?.id) { mutableStateOf(false) }
@@ -242,7 +240,6 @@ private fun ClientEditor(
                     if (kppInvalid) Text(stringResource(R.string.client_kpp_invalid), color = MaterialTheme.colorScheme.error)
                 }
                 OutlinedTextField(registrationAddress, { registrationAddress = it }, label = { Text(stringResource(R.string.client_registration_address)) }, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(actualAddress, { actualAddress = it }, label = { Text(stringResource(R.string.client_actual_address)) }, modifier = Modifier.fillMaxWidth())
                 OutlinedTextField(note, { note = it }, label = { Text(stringResource(R.string.client_note)) }, modifier = Modifier.fillMaxWidth())
                 Row {
                     Checkbox(checked = consent, onCheckedChange = { consent = it })
@@ -263,7 +260,6 @@ private fun ClientEditor(
                             taxId = normalizedTaxId,
                             kpp = if (type == ClientType.COMPANY) kppDigits else "",
                             registrationAddress = registrationAddress.trim(),
-                            actualAddress = actualAddress.trim(),
                             note = note.trim(),
                             consentPersonalData = consent,
                         )

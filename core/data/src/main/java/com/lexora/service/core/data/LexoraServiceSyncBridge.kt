@@ -116,7 +116,6 @@ class LexoraServiceRemoteChangeApplier(
                 taxId = previous?.taxId,
                 kpp = previous?.kpp,
                 registrationAddress = previous?.registrationAddress,
-                actualAddress = previous?.actualAddress,
                 note = previous?.note,
                 consentPersonalData = previous?.consentPersonalData ?: false,
                 archived = false,

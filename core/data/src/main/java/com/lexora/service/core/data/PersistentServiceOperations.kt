@@ -24,7 +24,6 @@ class PersistentServiceOperations(
                 taxId = null,
                 kpp = null,
                 registrationAddress = null,
-                actualAddress = null,
                 note = null,
                 consentPersonalData = false,
                 archived = false,
@@ -48,7 +47,7 @@ class PersistentServiceOperations(
             ClientEntity(
                 id, organizationId, draft.type.name, draft.displayName,
                 draft.phone.ifBlank { null }, draft.email.ifBlank { null }, draft.taxId.ifBlank { null }, draft.kpp.ifBlank { null },
-                draft.registrationAddress.ifBlank { null }, draft.actualAddress.ifBlank { null }, draft.note.ifBlank { null },
+                draft.registrationAddress.ifBlank { null }, draft.note.ifBlank { null },
                 draft.consentPersonalData, existing?.archived ?: false,
                 if (existing == null) SyncState.PENDING_CREATE.name else SyncState.PENDING_UPDATE.name,
                 existing?.createdAtEpochMs ?: now, now,
@@ -359,7 +358,7 @@ class PersistentServiceOperations(
     }
 }
 
-private fun ClientEntity.toModel() = Client(id, organizationId, ClientType.valueOf(type), displayName, phone, email, taxId, kpp, registrationAddress, actualAddress, note, consentPersonalData, archived, SyncState.valueOf(syncState))
+private fun ClientEntity.toModel() = Client(id, organizationId, ClientType.valueOf(type), displayName, phone, email, taxId, kpp, registrationAddress, note, consentPersonalData, archived, SyncState.valueOf(syncState))
 private fun VehicleEntity.toModel() = Vehicle(id, organizationId, clientId, registrationNumber, vin, make, model, year, bodyType, color, mileageKm, archived, SyncState.valueOf(syncState))
 private fun ServiceObjectEntity.toModel() = ServiceObject(id, organizationId, clientId, name, address, accessMode, responsibleContact, archived, SyncState.valueOf(syncState))
 private fun EquipmentEntity.toModel() = Equipment(id, organizationId, serviceObjectId, type, make, model, serialNumber, inventoryNumber, barcode, commissionedNote, warrantyNote, archived, SyncState.valueOf(syncState))

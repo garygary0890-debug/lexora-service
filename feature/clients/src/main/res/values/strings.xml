@@ -16,8 +16,7 @@
     <string name="client_tax_id">ИНН</string>
     <string name="client_tax_id_value">ИНН: %1$s</string>
     <string name="client_kpp">КПП</string>
-    <string name="client_registration_address">Адрес регистрации / юридический адрес</string>
-    <string name="client_actual_address">Фактический адрес</string>
+    <string name="client_registration_address">Адрес клиента</string>
     <string name="client_note">Примечание</string>
     <string name="client_consent">Согласие на обработку персональных данных</string>
     <string name="common_save">Сохранить</string>

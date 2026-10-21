@@ -16,6 +16,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.Tab
+import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -59,6 +61,8 @@ data class AssetsContentPaddingDp(
 
 internal fun assetsContentPaddingDp() = AssetsContentPaddingDp(horizontal = 20, top = 0, bottom = 20)
 
+internal fun assetsSearchFieldVisible(showSearch: Boolean): Boolean = showSearch
+
 @Composable
 fun AssetsScreen(
     objects: List<ServiceObject>,
@@ -66,6 +70,7 @@ fun AssetsScreen(
     equipment: List<Equipment>,
     archivedEquipment: List<Equipment>,
     clients: List<Client>,
+    showSearch: Boolean,
     onSaveObject: (ServiceObjectDraft, String?) -> Unit,
     onArchiveObject: (String) -> Unit,
     onRestoreObject: (String) -> Unit,
@@ -93,25 +98,27 @@ fun AssetsScreen(
             ),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            FilterChip(
+        PrimaryTabRow(selectedTabIndex = if (tab == AssetsTab.OBJECTS) 0 else 1) {
+            Tab(
                 selected = tab == AssetsTab.OBJECTS,
                 onClick = { tab = AssetsTab.OBJECTS },
-                label = { Text(stringResource(R.string.assets_objects)) },
+                text = { Text(stringResource(R.string.assets_objects)) },
             )
-            FilterChip(
+            Tab(
                 selected = tab == AssetsTab.EQUIPMENT,
                 onClick = { tab = AssetsTab.EQUIPMENT },
-                label = { Text(stringResource(R.string.assets_equipment)) },
+                text = { Text(stringResource(R.string.assets_equipment)) },
             )
         }
-        OutlinedTextField(
-            value = query,
-            onValueChange = { query = it },
-            modifier = Modifier.fillMaxWidth(),
-            label = { Text(stringResource(R.string.assets_search)) },
-            singleLine = true,
-        )
+        if (assetsSearchFieldVisible(showSearch)) {
+            OutlinedTextField(
+                value = query,
+                onValueChange = { query = it },
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text(stringResource(R.string.assets_search)) },
+                singleLine = true,
+            )
+        }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             FilterChip(
                 selected = !showArchived,

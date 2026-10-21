@@ -11,4 +11,10 @@ class AssetsScreenLayoutTest {
             assetsContentPaddingDp(),
         )
     }
+
+    @Test
+    fun searchFieldVisibilityFollowsTopBarState() {
+        assertEquals(false, assetsSearchFieldVisible(showSearch = false))
+        assertEquals(true, assetsSearchFieldVisible(showSearch = true))
+    }
 }

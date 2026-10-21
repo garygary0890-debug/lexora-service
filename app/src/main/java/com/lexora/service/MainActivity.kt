@@ -166,6 +166,7 @@ private fun LexoraServiceApp(globalOwner: Boolean) {
         var planningSelectionAction by remember { mutableStateOf<PlanningSelectionAction?>(null) }
         var clientsSearchVisible by remember { mutableStateOf(false) }
         var vehiclesSearchVisible by remember { mutableStateOf(false) }
+        var assetsSearchVisible by remember { mutableStateOf(false) }
         var vehiclesArchiveShown by remember { mutableStateOf(false) }
 
         LaunchedEffect(organization.id) {
@@ -189,6 +190,7 @@ private fun LexoraServiceApp(globalOwner: Boolean) {
                     vehiclesSearchVisible = false
                     vehiclesArchiveShown = false
                 }
+                if (currentRoute != Routes.Assets) assetsSearchVisible = false
             }
             Scaffold(
                 topBar = {
@@ -210,6 +212,9 @@ private fun LexoraServiceApp(globalOwner: Boolean) {
                             }
                             Routes.Vehicles -> {
                                 { vehiclesSearchVisible = true }
+                            }
+                            Routes.Assets -> {
+                                { assetsSearchVisible = true }
                             }
                             else -> null
                         },
@@ -262,6 +267,7 @@ private fun LexoraServiceApp(globalOwner: Boolean) {
                     availableQuickAccess = availableQuickAccess,
                     clientsSearchVisible = clientsSearchVisible,
                     vehiclesSearchVisible = vehiclesSearchVisible,
+                    assetsSearchVisible = assetsSearchVisible,
                     vehiclesArchiveShown = vehiclesArchiveShown,
                     onQuickAccessChange = { routes ->
                         selectedQuickAccessRoutes = routes
@@ -305,6 +311,7 @@ private fun LexoraNavHost(
     availableQuickAccess: List<HomeQuickAccessItem>,
     clientsSearchVisible: Boolean,
     vehiclesSearchVisible: Boolean,
+    assetsSearchVisible: Boolean,
     vehiclesArchiveShown: Boolean,
     onQuickAccessChange: (List<String>) -> Unit,
     globalOwner: Boolean,
@@ -445,6 +452,7 @@ private fun LexoraNavHost(
                 equipment = state.equipment,
                 archivedEquipment = state.archivedEquipment,
                 clients = state.clients,
+                showSearch = assetsSearchVisible,
                 onSaveObject = vm::saveObject,
                 onArchiveObject = { vm.archiveObject(it, false) },
                 onRestoreObject = { vm.archiveObject(it, true) },

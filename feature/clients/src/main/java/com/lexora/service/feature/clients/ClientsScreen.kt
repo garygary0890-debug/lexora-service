@@ -58,7 +58,6 @@ fun ClientsScreen(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Text(stringResource(R.string.clients_title), style = MaterialTheme.typography.headlineMedium)
         OutlinedTextField(
             value = query,
             onValueChange = { query = it },
